@@ -23,8 +23,26 @@ import Footer from './components/Footer';
 import BottomNav from './components/BottomNav';
 import './App.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
-const APP_MODE = process.env.REACT_APP_APP_MODE || 'web';
+const getRuntimeAppMode = () => {
+  const buildMode = process.env.REACT_APP_APP_MODE;
+  if (buildMode) return buildMode;
+
+  if (typeof window === 'undefined') return 'web';
+  const mode = new URLSearchParams(window.location.search).get('app');
+  if (mode === 'customer' || mode === 'delivery') return mode;
+  return 'web';
+};
+
+const getApiUrl = () => {
+  if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
+  if (typeof window !== 'undefined' && !['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+    return `${window.location.origin}/api`;
+  }
+  return 'http://localhost:3001/api';
+};
+
+const API_URL = getApiUrl();
+const APP_MODE = getRuntimeAppMode();
 
 function DeliveryOnlyRoute({ user, children }) {
   useEffect(() => {
