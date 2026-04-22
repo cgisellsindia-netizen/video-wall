@@ -20,6 +20,7 @@ const allowedOrigins = new Set([
   'http://127.0.0.1:3000',
   'http://127.0.0.1:3001',
   'http://127.0.0.1:3002',
+  'https://camigo-store.onrender.com',
   'capacitor://localhost',
   'ionic://localhost',
   'http://localhost',
@@ -33,12 +34,20 @@ app.use(cors({
       !origin ||
       allowedOrigins.has(origin) ||
       /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/.test(origin) ||
-      /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(origin)
+      /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(origin) ||
+      /^https:\/\/[a-z0-9-]+\.onrender\.com$/.test(origin)
     ) return callback(null, true);
     return callback(new Error('Origin not allowed'));
   },
   credentials: true
 }));
+
+app.use((err, req, res, next) => {
+  if (err?.message === 'Origin not allowed') {
+    return res.status(403).json({ error: 'Origin not allowed', origin: req.headers.origin || null });
+  }
+  next(err);
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
