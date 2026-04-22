@@ -1,0 +1,12 @@
+{
+  "appId": "com.camigo.customer",
+  "appName": "Camigo Customer",
+  "webDir": "build",
+  "bundledWebRuntime": false,
+  "android": {
+    "path": "android-customer"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

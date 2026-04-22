@@ -1,0 +1,12 @@
+{
+  "appId": "com.camigo.deliverypartner",
+  "appName": "Camigo Delivery Partner",
+  "webDir": "build",
+  "bundledWebRuntime": false,
+  "android": {
+    "path": "android-delivery"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

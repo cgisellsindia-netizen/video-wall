@@ -1,0 +1,44 @@
+{
+  "name": "swiggy-instamart-clone",
+  "version": "1.0.0",
+  "private": true,
+  "proxy": "http://localhost:3001",
+  "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
+    "axios": "^1.4.0",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.263.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.14.0",
+    "react-scripts": "5.0.1"
+  },
+  "scripts": {
+    "start": "set PORT=3002 && react-scripts start",
+    "build": "react-scripts build",
+    "build:customer": "set REACT_APP_APP_MODE=customer&& react-scripts build",
+    "build:delivery": "set REACT_APP_APP_MODE=delivery&& react-scripts build",
+    "cap:customer": "node scripts/use-capacitor-config.js customer",
+    "cap:delivery": "node scripts/use-capacitor-config.js delivery",
+    "android:add:customer": "npm run cap:customer && npx cap add android",
+    "android:add:delivery": "npm run cap:delivery && npx cap add android",
+    "android:sync:customer": "set REACT_APP_APP_MODE=customer&& set REACT_APP_API_URL=http://192.168.1.22:3001/api&& react-scripts build && npm run cap:customer && npx cap sync android",
+    "android:sync:delivery": "set REACT_APP_APP_MODE=delivery&& set REACT_APP_API_URL=http://192.168.1.22:3001/api&& react-scripts build && npm run cap:delivery && npx cap sync android",
+    "android:open:customer": "npm run cap:customer && npx cap open android",
+    "android:open:delivery": "npm run cap:delivery && npx cap open android"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
