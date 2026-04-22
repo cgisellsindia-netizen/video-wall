@@ -466,7 +466,14 @@ app.put('/api/delivery/orders/:id/status', authenticateToken, (req, res) => {
     return res.status(400).json({ error: 'Invalid delivery status' });
   }
 
-  db.run('UPDATE orders SET status = ? WHERE id = ?', [status, req.params.id], function(err) {
+  const params = req.user.role === 'delivery_partner'
+    ? [status, req.user.userId, req.params.id]
+    : [status, req.params.id];
+  const query = req.user.role === 'delivery_partner'
+    ? 'UPDATE orders SET status = ?, delivery_partner_id = ? WHERE id = ?'
+    : 'UPDATE orders SET status = ? WHERE id = ?';
+
+  db.run(query, params, function(err) {
     if (err) return res.status(500).json({ error: err.message });
     if (!this.changes) return res.status(404).json({ error: 'Order not found' });
     res.json({ message: 'Order status updated', status });
@@ -486,7 +493,14 @@ app.post('/api/delivery/orders/:id/verify-otp', authenticateToken, (req, res) =>
       return res.status(400).json({ error: 'Invalid delivery OTP' });
     }
 
-    db.run('UPDATE orders SET status = ? WHERE id = ?', ['delivered', req.params.id], function(updateErr) {
+    const params = req.user.role === 'delivery_partner'
+      ? ['delivered', req.user.userId, req.params.id]
+      : ['delivered', req.params.id];
+    const query = req.user.role === 'delivery_partner'
+      ? 'UPDATE orders SET status = ?, delivery_partner_id = ? WHERE id = ?'
+      : 'UPDATE orders SET status = ? WHERE id = ?';
+
+    db.run(query, params, function(updateErr) {
       if (updateErr) return res.status(500).json({ error: updateErr.message });
       res.json({ message: 'OTP verified. Order delivered.', status: 'delivered' });
     });
@@ -549,20 +563,41 @@ app.get('/api/tracking/:orderId', authenticateToken, (req, res) => {
     ? [req.params.orderId]
     : [req.params.orderId, req.user.userId];
   const orderQuery = elevated
-    ? 'SELECT * FROM orders WHERE id = ?'
-    : 'SELECT * FROM orders WHERE id = ? AND user_id = ?';
+    ? `SELECT o.*, dp.name as delivery_partner_name, dp.phone as delivery_partner_phone
+       FROM orders o
+       LEFT JOIN users dp ON o.delivery_partner_id = dp.id
+       WHERE o.id = ?`
+    : `SELECT o.*, dp.name as delivery_partner_name, dp.phone as delivery_partner_phone
+       FROM orders o
+       LEFT JOIN users dp ON o.delivery_partner_id = dp.id
+       WHERE o.id = ? AND o.user_id = ?`;
 
   db.get(orderQuery, orderParams, (err, order) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
+    const partner = order.delivery_partner_id
+      ? {
+          partner_id: order.delivery_partner_id,
+          partner_name: order.delivery_partner_name,
+          partner_phone: order.delivery_partner_phone
+        }
+      : null;
+    const locationParams = order.delivery_partner_id ? [order.delivery_partner_id] : [];
+    const locationWhere = order.delivery_partner_id
+      ? 'WHERE dl.partner_id = ?'
+      : "WHERE u.role = 'delivery_partner'";
+
     db.get(`SELECT dl.*, u.name as partner_name, u.phone as partner_phone
             FROM delivery_locations dl
             JOIN users u ON dl.partner_id = u.id
-            WHERE u.role = 'delivery_partner'
-            ORDER BY dl.updated_at DESC LIMIT 1`, [], (err, location) => {
+            ${locationWhere}
+            ORDER BY dl.updated_at DESC LIMIT 1`, locationParams, (err, location) => {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ order, partner_location: location || null });
+      if (order.status === 'delivered') {
+        return res.json({ order, partner, partner_location: null });
+      }
+      res.json({ order, partner: partner || location || null, partner_location: location || null });
     });
   });
 });

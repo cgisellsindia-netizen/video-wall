@@ -9,6 +9,7 @@ function TrackingPage() {
   const { id } = useParams();
   const [order, setOrder] = useState(null);
   const [partnerLocation, setPartnerLocation] = useState(null);
+  const [partnerSummary, setPartnerSummary] = useState(null);
   const [routeInfo, setRouteInfo] = useState(null);
   const [rating, setRating] = useState(0);
   const [submitted, setSubmitted] = useState(false);
@@ -24,7 +25,11 @@ function TrackingPage() {
   const delivery = getDeliveryState({ ...activeOrder, status: order?.status });
 
   useEffect(() => {
+    let stopped = false;
+    let poller;
+
     const loadTracking = () => {
+      if (stopped) return;
       const token = localStorage.getItem('token');
       fetch(`${API_URL}/tracking/${id}`, { headers: { Authorization: `Bearer ${token}` } })
         .then(res => res.ok ? res.json() : null)
@@ -32,12 +37,20 @@ function TrackingPage() {
           if (!data) return;
           setOrder(data.order || null);
           setPartnerLocation(data.partner_location || null);
+          setPartnerSummary(data.partner || data.partner_location || null);
+          if (data.order?.status === 'delivered') {
+            stopped = true;
+            if (poller) clearInterval(poller);
+          }
         })
         .catch(() => setOrder(null));
     };
     loadTracking();
-    const poller = setInterval(loadTracking, 1000);
-    return () => clearInterval(poller);
+    poller = setInterval(loadTracking, 1000);
+    return () => {
+      stopped = true;
+      clearInterval(poller);
+    };
   }, [id]);
 
   const steps = [
@@ -55,6 +68,8 @@ function TrackingPage() {
   const routeDestination = ['pending', 'accepted', 'arrived_at_store', 'packed'].includes(order?.status)
     ? 'hub'
     : 'customer';
+  const visiblePartnerLocation = delivered ? null : partnerLocation;
+  const partnerName = partnerSummary?.partner_name || partnerLocation?.partner_name || order?.delivery_partner_name || 'Delivery partner';
 
   const submitRating = () => {
     setSubmitted(true);
@@ -63,7 +78,8 @@ function TrackingPage() {
 
   const callPartner = (event) => {
     event.stopPropagation();
-    if (partnerLocation?.partner_phone) window.location.href = `tel:${partnerLocation.partner_phone}`;
+    const phone = partnerLocation?.partner_phone || partnerSummary?.partner_phone || order?.delivery_partner_phone;
+    if (phone) window.location.href = `tel:${phone}`;
   };
 
   return (
@@ -89,10 +105,18 @@ function TrackingPage() {
         )}
 
         <div className="real-map live-route-map">
-          <RoadRouteMap partnerLocation={partnerLocation} customerLocation={customerLocation} destination={routeDestination} onRoute={setRouteInfo} />
+          {!delivered ? (
+            <RoadRouteMap partnerLocation={visiblePartnerLocation} customerLocation={customerLocation} destination={routeDestination} onRoute={setRouteInfo} />
+          ) : (
+            <div className="delivered-map-placeholder">
+              <CheckCircle2 size={42} />
+              <strong>Order delivered</strong>
+              <span>Live partner location is closed for this order.</span>
+            </div>
+          )}
           <div className="route-map-chip">
-            <strong>{routeInfo ? `${routeInfo.durationMin} min` : 'Route loading'}</strong>
-            <span>{routeInfo ? `${routeInfo.distanceKm.toFixed(1)} km by road to ${routeDestination === 'hub' ? 'hub' : 'delivery address'}` : customerLocation ? 'Finding real road route' : 'Customer GPS not saved for this order'}</span>
+            <strong>{delivered ? 'Delivered' : routeInfo ? `${routeInfo.durationMin} min` : 'Route loading'}</strong>
+            <span>{delivered ? 'Live GPS is no longer requested after delivery' : routeInfo ? `${routeInfo.distanceKm.toFixed(1)} km by road to ${routeDestination === 'hub' ? 'hub' : 'delivery address'}` : customerLocation ? 'Finding real road route' : 'Customer GPS not saved for this order'}</span>
           </div>
         </div>
 
@@ -100,7 +124,7 @@ function TrackingPage() {
           <div className="sheet-main-row">
             <div>
               <h2>{delivered ? 'Delivered' : String(order?.status || 'out_for_delivery').replaceAll('_', ' ')}</h2>
-              <p>{partnerLocation ? `${partnerLocation.partner_name || 'Delivery partner'} is on the way to deliver your order` : 'Waiting for delivery partner live location'}</p>
+              <p>{delivered ? `${partnerName} completed this delivery` : partnerLocation ? `${partnerName} is on the way to deliver your order` : partnerSummary ? `${partnerName} is assigned. Waiting for live GPS` : 'Waiting for delivery partner live location'}</p>
             </div>
             <div className="tracking-sheet-eta">
               <strong>{delivered ? '0' : etaMinutes}</strong>
@@ -108,13 +132,13 @@ function TrackingPage() {
             </div>
           </div>
 
-          <div className={partnerLocation ? 'live-location-panel active' : 'live-location-panel'}>
+          <div className={!delivered && partnerLocation ? 'live-location-panel active' : 'live-location-panel'}>
             <Truck size={18} />
             <div>
-              <strong>{partnerLocation ? 'Live partner location active' : 'No live GPS yet'}</strong>
-              <span>{partnerLocation ? `Route to ${routeDestination === 'hub' ? 'Camigo hub' : 'delivery address'} - ${routeInfo ? `${routeInfo.distanceKm.toFixed(1)} km, ${routeInfo.durationMin} min` : 'calculating'} - ${partnerLocation.updated_at}` : 'Ask delivery partner to tap Go online.'}</span>
+              <strong>{delivered ? 'Delivery completed' : partnerLocation ? `${partnerName} location active` : 'No live GPS yet'}</strong>
+              <span>{delivered ? 'Tracking stopped after delivery.' : partnerLocation ? `Route to ${routeDestination === 'hub' ? 'Camigo hub' : 'delivery address'} - ${routeInfo ? `${routeInfo.distanceKm.toFixed(1)} km, ${routeInfo.durationMin} min` : 'calculating'} - ${partnerLocation.updated_at}` : 'Ask delivery partner to tap Go online.'}</span>
             </div>
-            <button className="partner-call-btn" onClick={callPartner} disabled={!partnerLocation?.partner_phone}><Phone size={16} /></button>
+            <button className="partner-call-btn" onClick={callPartner} disabled={!(partnerLocation?.partner_phone || partnerSummary?.partner_phone || order?.delivery_partner_phone)}><Phone size={16} /></button>
           </div>
 
           <div className="tracking-instruction-row">

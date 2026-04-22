@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Star, Truck, X } from 'lucide-react';
 import { API_URL } from '../api';
 const DELIVERY_MS = 90000;
-const CUSTOMER = { lat: 20.3059, lng: 85.8574 };
 
 export function getDeliveryState(order) {
   if (!order?.id) return { step: 0, delivered: false, percent: 0 };
@@ -38,8 +37,11 @@ function FloatingTracker({ activeOrder, onDismiss, onRate }) {
 
   useEffect(() => {
     if (!activeOrder?.id) return undefined;
+    let stopped = false;
+    let poller;
 
     const loadTracking = async () => {
+      if (stopped) return;
       const token = localStorage.getItem('token');
       if (!token) return;
       try {
@@ -47,13 +49,22 @@ function FloatingTracker({ activeOrder, onDismiss, onRate }) {
           headers: { Authorization: `Bearer ${token}` }
         });
         const data = await res.json();
-        if (res.ok) setTracking(data);
+        if (res.ok) {
+          setTracking(data);
+          if (data?.order?.status === 'delivered') {
+            stopped = true;
+            if (poller) clearInterval(poller);
+          }
+        }
       } catch (e) {}
     };
 
     loadTracking();
-    const poller = setInterval(loadTracking, 1000);
-    return () => clearInterval(poller);
+    poller = setInterval(loadTracking, 1000);
+    return () => {
+      stopped = true;
+      clearInterval(poller);
+    };
   }, [activeOrder?.id]);
 
   const order = useMemo(() => ({
@@ -61,8 +72,14 @@ function FloatingTracker({ activeOrder, onDismiss, onRate }) {
     ...(tracking?.order || {})
   }), [activeOrder, tracking]);
   const partner = tracking?.partner_location;
+  const partnerSummary = tracking?.partner || partner;
 
   useEffect(() => {
+    const delivered = tracking?.order?.status === 'delivered';
+    if (delivered) {
+      setRouteEta(null);
+      return undefined;
+    }
     if (!partner?.lat || !partner?.lng) {
       setRouteEta(null);
       return undefined;
@@ -71,7 +88,9 @@ function FloatingTracker({ activeOrder, onDismiss, onRate }) {
     const controller = new AbortController();
     const lat = Number(partner.lat);
     const lng = Number(partner.lng);
-    fetch(`https://router.project-osrm.org/route/v1/driving/${lng},${lat};${CUSTOMER.lng},${CUSTOMER.lat}?overview=false`, { signal: controller.signal })
+    const customerLat = Number(order.customer_lat || activeOrder.customer_lat || 20.3059);
+    const customerLng = Number(order.customer_lng || activeOrder.customer_lng || 85.8574);
+    fetch(`https://router.project-osrm.org/route/v1/driving/${lng},${lat};${customerLng},${customerLat}?overview=false`, { signal: controller.signal })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         const route = data?.routes?.[0];
@@ -85,7 +104,7 @@ function FloatingTracker({ activeOrder, onDismiss, onRate }) {
       .catch(() => {});
 
     return () => controller.abort();
-  }, [partner?.lat, partner?.lng]);
+  }, [partner?.lat, partner?.lng, tracking?.order?.status, order.customer_lat, order.customer_lng, activeOrder.customer_lat, activeOrder.customer_lng]);
 
   if (!activeOrder?.id) return null;
 
@@ -93,7 +112,7 @@ function FloatingTracker({ activeOrder, onDismiss, onRate }) {
   const delivered = order.status === 'delivered' || state.delivered;
   const percent = state.percent;
   const eta = delivered ? 'Delivered' : `${routeEta?.durationMin || Math.max(3, Math.ceil((100 - percent) / 4))} min`;
-  const partnerName = partner?.partner_name || 'Delivery partner';
+  const partnerName = partnerSummary?.partner_name || partnerSummary?.name || 'Delivery partner';
 
   return (
     <section className="floating-status-bar">
@@ -102,7 +121,7 @@ function FloatingTracker({ activeOrder, onDismiss, onRate }) {
       <div className="floating-status-body" onClick={() => navigate(`/tracking/${activeOrder.id}`)}>
         <span>Order #{activeOrder.id}</span>
         <strong>{delivered ? 'Delivered' : String(order.status || 'out_for_delivery').replaceAll('_', ' ')}</strong>
-        <small>{delivered ? 'Rate your product and delivery' : partner ? `${partnerName} is live on route` : 'Waiting for partner live location'}</small>
+        <small>{delivered ? `Delivered by ${partnerName}. Rate your product and delivery` : partner ? `${partnerName} is live on route` : partnerSummary?.partner_name ? `${partnerName} assigned. Waiting for live GPS` : 'Waiting for partner live location'}</small>
         {!delivered && <div className="floating-progress"><i style={{ width: `${percent}%` }} /></div>}
 
         {delivered && (

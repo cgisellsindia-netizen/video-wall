@@ -19,6 +19,7 @@ import TrackingPage from './components/TrackingPage';
 import DeliveryPartnerPage from './components/DeliveryPartnerPage';
 import LocationDeliveryStrip from './components/LocationDeliveryStrip';
 import FloatingTracker from './components/FloatingTracker';
+import FloatingCheckoutBar from './components/FloatingCheckoutBar';
 import Footer from './components/Footer';
 import BottomNav from './components/BottomNav';
 import { API_URL } from './api';
@@ -111,10 +112,10 @@ function MainPage({ user, cartCount, onCartClick, onLoginClick, onLogout, cartIt
         {!searchQuery && <LocationDeliveryStrip />}
         {!searchQuery && <CategoryGrid categories={categories} />}
         {searchQuery ? (
-          <ProductSection title={`Search: "${searchQuery}"`} products={filteredProducts} onAdd={addToCart} user={user} />
+          <ProductSection title={`Search: "${searchQuery}"`} products={filteredProducts} onAdd={addToCart} user={user} cartItems={cartItems} />
         ) : (
           productsByCategory.map(cat => (
-            <ProductSection key={cat.id} title={cat.name} products={cat.products} onAdd={addToCart} user={user} />
+            <ProductSection key={cat.id} title={cat.name} products={cat.products} onAdd={addToCart} user={user} cartItems={cartItems} />
           ))
         )}
       </main>
@@ -350,14 +351,14 @@ function AppContent() {
           </DeliveryOnlyRoute>
         } />
         <Route path="/product/:id" element={<DeliveryOnlyRoute user={user}><ProductDetail products={products} onAdd={addToCart} user={user} onLogin={() => setLoginOpen(true)} priceForRole={priceForRole} /></DeliveryOnlyRoute>} />
-        <Route path="/category/:id" element={<DeliveryOnlyRoute user={user}><CategoryPage categories={categories} products={products} onAdd={addToCart} user={user} priceForRole={priceForRole} /></DeliveryOnlyRoute>} />
+        <Route path="/category/:id" element={<DeliveryOnlyRoute user={user}><CategoryPage categories={categories} products={products} onAdd={addToCart} user={user} priceForRole={priceForRole} cartItems={cartItems} /></DeliveryOnlyRoute>} />
         <Route path="/orders" element={<DeliveryOnlyRoute user={user}><OrdersPage user={user} onLogin={() => setLoginOpen(true)} /></DeliveryOnlyRoute>} />
         <Route path="/install" element={<DeliveryOnlyRoute user={user}><InstallationPage user={user} onLogin={() => setLoginOpen(true)} /></DeliveryOnlyRoute>} />
         <Route path="/dealer" element={<DealerDashboard user={user} />} />
         <Route path="/distributor" element={<DealerDashboard user={user} />} />
         <Route path="/contact" element={<ContactPage user={user} />} />
         <Route path="/admin" element={<AdminPage user={user} />} />
-        <Route path="/shop" element={<DeliveryOnlyRoute user={user}><ShopPage products={products} categories={categories} onAdd={addToCart} user={user} priceForRole={priceForRole} /></DeliveryOnlyRoute>} />
+        <Route path="/shop" element={<DeliveryOnlyRoute user={user}><ShopPage products={products} categories={categories} onAdd={addToCart} user={user} priceForRole={priceForRole} cartItems={cartItems} /></DeliveryOnlyRoute>} />
         <Route path="/checkout" element={<DeliveryOnlyRoute user={user}><CheckoutPage user={user} onLogin={() => setLoginOpen(true)} onOrderPlaced={handleOrderPlaced} /></DeliveryOnlyRoute>} />
         <Route path="/tracking/:id" element={<TrackingPage />} />
         <Route path="/delivery-partner" element={<DeliveryPartnerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
@@ -379,6 +380,9 @@ function AppContent() {
         onDismiss={dismissActiveOrder}
         onRate={dismissActiveOrder}
       />
+      {APP_MODE !== 'delivery' && user?.role !== 'delivery_partner' && !activeOrder?.id && (
+        <FloatingCheckoutBar cartCount={cartCount} cartTotal={cartTotal} onCartClick={() => setCartOpen(true)} />
+      )}
       {APP_MODE !== 'delivery' && user?.role !== 'delivery_partner' && <BottomNav cartCount={cartCount} onCartClick={() => setCartOpen(true)} user={user} />}
     </div>
   );

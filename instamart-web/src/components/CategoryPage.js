@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 
-function CategoryPage({ categories, products, onAdd, user, priceForRole }) {
+function CategoryPage({ categories, products, onAdd, user, priceForRole, cartItems = [] }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const categoryId = parseInt(id);
@@ -36,6 +36,7 @@ function CategoryPage({ categories, products, onAdd, user, priceForRole }) {
 
       <div className="shop-product-grid">
         {categoryProducts.map(product => {
+          const selectedQty = cartItems.find(item => Number(item.product_id || item.id) === Number(product.id))?.quantity || 0;
           const discount = Number(product.discount_percent) > 0 ? Math.round(Number(product.discount_percent)) : product.mrp ? Math.max(0, Math.round((1 - product.price / product.mrp) * 100)) : 0;
           return (
             <div key={product.id} className="product-card" onClick={() => navigate(`/product/${product.id}`)}>
@@ -49,8 +50,9 @@ function CategoryPage({ categories, products, onAdd, user, priceForRole }) {
               <div className="product-price-row">
                 <span><span className="price-current">Rs {priceForRole ? priceForRole(product, user) : product.price}</span><span className="price-original">Rs {product.mrp}</span></span>
               </div>
+              {selectedQty > 0 && <div className="selected-qty-pill">{selectedQty} selected in cart</div>}
               {(user?.role === 'dealer' || user?.role === 'distributor') && <div className="trade-price-note">{user.role} price</div>}
-              <button className="add-btn" onClick={(e) => { e.stopPropagation(); onAdd(product); }}>+ ADD</button>
+              <button className={selectedQty > 0 ? 'add-btn added' : 'add-btn'} onClick={(e) => { e.stopPropagation(); onAdd(product); }}>+ {selectedQty > 0 ? 'ADD MORE' : 'ADD'}</button>
             </div>
           );
         })}

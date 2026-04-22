@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 
-function ProductSection({ title, products, onAdd, user }) {
+function ProductSection({ title, products, onAdd, user, cartItems = [] }) {
   const navigate = useNavigate();
   if (!products || products.length === 0) return null;
 
@@ -14,6 +14,7 @@ function ProductSection({ title, products, onAdd, user }) {
       </div>
       <div className="product-scroll">
         {products.map(product => {
+          const selectedQty = cartItems.find(item => Number(item.product_id || item.id) === Number(product.id))?.quantity || 0;
           const discount = Number(product.discount_percent) > 0
             ? Math.round(Number(product.discount_percent))
             : product.mrp ? Math.max(0, Math.round((1 - product.price / product.mrp) * 100)) : 0;
@@ -42,9 +43,10 @@ function ProductSection({ title, products, onAdd, user }) {
                   <span className="price-original">Rs {product.mrp}</span>
                 </span>
               </div>
+              {selectedQty > 0 && <div className="selected-qty-pill">{selectedQty} selected in cart</div>}
               {(user?.role === 'dealer' || user?.role === 'distributor') && <div className="trade-price-note">{user.role} price</div>}
-              <button className="add-btn" onClick={(e) => { e.stopPropagation(); onAdd(product); }}>
-                <Plus size={16} /> ADD
+              <button className={selectedQty > 0 ? 'add-btn added' : 'add-btn'} onClick={(e) => { e.stopPropagation(); onAdd(product); }}>
+                <Plus size={16} /> {selectedQty > 0 ? 'ADD MORE' : 'ADD'}
               </button>
             </div>
           );
