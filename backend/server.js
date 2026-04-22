@@ -113,6 +113,54 @@ app.post('/api/auth/register', async (req, res) => {
   );
 });
 
+// Backward-compatible aliases for cached app/web builds that may call auth without /api.
+app.post('/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+
+  db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+
+    try {
+      const ok = await bcrypt.compare(password, user.password);
+      if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+
+      const token = jwt.sign(
+        { userId: user.id, email: user.email, role: user.role },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      res.json({ token, user: { id: user.id, email: user.email, name: user.name, phone: user.phone, address: user.address, role: user.role } });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+});
+
+app.post('/auth/register', async (req, res) => {
+  const { email, password, name, phone, address } = req.body;
+  if (!email || !password || !name) {
+    return res.status(400).json({ error: 'Email, password, and name are required' });
+  }
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  db.run(
+    'INSERT INTO users (email, password, name, phone, address) VALUES (?, ?, ?, ?, ?)',
+    [email, hashedPassword, name, phone, address],
+    function(err) {
+      if (err) {
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Email already exists' });
+        }
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ id: this.lastID, message: 'User registered successfully' });
+    }
+  );
+});
+
 // Middleware
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];

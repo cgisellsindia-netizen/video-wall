@@ -1,6 +1,29 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { API_URL } from '../api';
+
+const parseJsonResponse = async (res) => {
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) return null;
+  return res.json().catch(() => null);
+};
+
+const postAuth = async (path, body) => {
+  const primaryUrl = `${API_URL}${path}`;
+  const fallbackUrl = `${window.location.origin}${path}`;
+  let res = await fetch(primaryUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  let data = await parseJsonResponse(res);
+
+  if (!data && fallbackUrl !== primaryUrl) {
+    res = await fetch(fallbackUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    data = await parseJsonResponse(res);
+  }
+
+  if (!data) throw new Error('Login server returned website HTML instead of JSON. Please wait for redeploy or reinstall the latest app.');
+  if (!res.ok) throw new Error(data.error || 'Login failed');
+  return data;
+};
+
 function LoginModal({ open, onClose, onLogin }) {
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
@@ -14,14 +37,10 @@ function LoginModal({ open, onClose, onLogin }) {
     e.preventDefault(); setError(''); setLoading(true);
     try {
       if (mode === 'login') {
-        const res = await fetch(`${API_URL}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
-        const data = await res.json().catch(() => ({ error: 'Login server returned an invalid response. Please reopen the app and try again.' }));
-        if (!res.ok) throw new Error(data.error);
+        const data = await postAuth('/auth/login', { email, password });
         onLogin(data);
       } else {
-        const res = await fetch(`${API_URL}/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, name, phone, address }) });
-        const data = await res.json().catch(() => ({ error: 'Register server returned an invalid response. Please reopen the app and try again.' }));
-        if (!res.ok) throw new Error(data.error);
+        await postAuth('/auth/register', { email, password, name, phone, address });
         setMode('login'); setError('Registered! Please login.');
       }
     } catch (err) { setError(err.message); }
