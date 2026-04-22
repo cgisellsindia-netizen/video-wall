@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, Users, ShoppingBag, DollarSign, Package, BarChart3 } from 'lucide-react';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+import { API_URL } from '../api';
 
 function DealerDashboard({ user }) {
   const [orders, setOrders] = useState([]);

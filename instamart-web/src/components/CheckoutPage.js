@@ -1,8 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CreditCard, MapPin, Smartphone, Wallet } from 'lucide-react';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+import { API_URL } from '../api';
 
 function CheckoutPage({ user, onLogin, onOrderPlaced }) {
   const [address, setAddress] = useState(user?.address || '');

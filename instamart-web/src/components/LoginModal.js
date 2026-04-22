@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+import { API_URL } from '../api';
 function LoginModal({ open, onClose, onLogin }) {
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
@@ -15,12 +15,12 @@ function LoginModal({ open, onClose, onLogin }) {
     try {
       if (mode === 'login') {
         const res = await fetch(`${API_URL}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
-        const data = await res.json();
+        const data = await res.json().catch(() => ({ error: 'Login server returned an invalid response. Please reopen the app and try again.' }));
         if (!res.ok) throw new Error(data.error);
         onLogin(data);
       } else {
         const res = await fetch(`${API_URL}/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, name, phone, address }) });
-        const data = await res.json();
+        const data = await res.json().catch(() => ({ error: 'Register server returned an invalid response. Please reopen the app and try again.' }));
         if (!res.ok) throw new Error(data.error);
         setMode('login'); setError('Registered! Please login.');
       }

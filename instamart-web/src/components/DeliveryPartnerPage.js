@@ -2,8 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bike, CalendarClock, CheckCircle2, Headphones, MapPin, MessageCircle, Navigation, PackageCheck, Phone, RefreshCcw, Siren, Star, Truck, Wallet, XCircle } from 'lucide-react';
 import RoadRouteMap from './RoadRouteMap';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+import { API_URL } from '../api';
 const HUB = { lat: 20.2961, lng: 85.8245 };
 
 function DeliveryPartnerPage({ user, authReady = true, onLogin }) {

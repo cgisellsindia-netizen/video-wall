@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { API_URL } from '../api';
 
 export const HUB_LOCATION = { lat: 20.2961, lng: 85.8245, label: 'Camigo Hub' };
 const FALLBACK_CUSTOMER = { lat: 20.3059, lng: 85.8574, label: 'Customer' };
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
 const makeIcon = (className) => L.divIcon({
   className: `route-div-icon ${className}`,

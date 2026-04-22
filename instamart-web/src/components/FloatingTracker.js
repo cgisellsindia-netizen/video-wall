@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Star, Truck, X } from 'lucide-react';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+import { API_URL } from '../api';
 const DELIVERY_MS = 90000;
 const CUSTOMER = { lat: 20.3059, lng: 85.8574 };
 
