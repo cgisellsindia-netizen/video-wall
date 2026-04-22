@@ -64,6 +64,8 @@ db.serialize(async () => {
     address TEXT,
     customer_lat REAL,
     customer_lng REAL,
+    customer_accuracy REAL,
+    customer_location_locked_at INTEGER,
     delivery_otp TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
@@ -134,6 +136,8 @@ db.serialize(async () => {
   addColumn('products', 'discount_percent REAL DEFAULT 0');
   addColumn('products', 'dealer_price REAL');
   addColumn('products', 'distributor_price REAL');
+  addColumn('orders', 'customer_accuracy REAL');
+  addColumn('orders', 'customer_location_locked_at INTEGER');
 
   const hashedPassword = await bcrypt.hash('password123', 10);
   const adminPassword = await bcrypt.hash('admin123', 10);

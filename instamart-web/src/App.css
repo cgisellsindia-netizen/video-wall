@@ -750,6 +750,42 @@
   border-color: #f6c400;
   background: #fff7d6;
 }
+.location-lock-card {
+  margin-top: 14px;
+  padding: 14px;
+  display: grid;
+  gap: 7px;
+  border-radius: 18px;
+  border: 1px solid #dbe3ef;
+  background: #f8fafc;
+}
+.location-lock-card.locked {
+  border-color: rgba(22, 163, 74, .28);
+  background: #f0fdf4;
+}
+.location-lock-card strong,
+.location-lock-card span {
+  display: block;
+}
+.location-lock-card span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+.location-lock-card button {
+  justify-self: start;
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 13px;
+  background: #092452;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+}
+.location-lock-card button:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
 .checkout-card h3 { display: flex; align-items: center; gap: 8px; margin-top: 0; }
 .payment-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
 .payment-option {

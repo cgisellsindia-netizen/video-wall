@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CreditCard, MapPin, Smartphone, Wallet } from 'lucide-react';
 import { API_URL } from '../api';
+import { captureCustomerLocation, getSavedCustomerLocation } from '../locationLock';
 
 function CheckoutPage({ user, onLogin, onOrderPlaced }) {
   const [address, setAddress] = useState(user?.address || '');
@@ -10,14 +11,11 @@ function CheckoutPage({ user, onLogin, onOrderPlaced }) {
   const [upiId, setUpiId] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [coords, setCoords] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('camigo_customer_location') || 'null');
-      return saved?.lat && saved?.lng ? saved : null;
-    } catch (e) {
-      return null;
-    }
+    const saved = getSavedCustomerLocation();
+    return saved?.lat && saved?.lng ? saved : null;
   });
   const [loading, setLoading] = useState(false);
+  const [lockingLocation, setLockingLocation] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
@@ -29,7 +27,20 @@ function CheckoutPage({ user, onLogin, onOrderPlaced }) {
     localStorage.removeItem('cart_backup');
   }
 
-  if (!user) { onLogin(); return null; }
+  useEffect(() => {
+    if (!user) onLogin();
+  }, [user, onLogin]);
+
+  useEffect(() => {
+    let active = true;
+    if (!user) return;
+    if (coords?.locked) return;
+    setLockingLocation(true);
+    captureCustomerLocation({ lock: true, source: 'checkout-open', timeout: 12000, maximumAge: 0 })
+      .then(location => { if (active && location) setCoords(location); })
+      .finally(() => { if (active) setLockingLocation(false); });
+    return () => { active = false; };
+  }, []);
 
   const savedAddresses = useMemo(() => {
     let recent = [];
@@ -43,6 +54,8 @@ function CheckoutPage({ user, onLogin, onOrderPlaced }) {
       .filter((value, index, arr) => arr.indexOf(value) === index)
       .slice(0, 4);
   }, [user?.address]);
+
+  if (!user) return null;
 
   const subtotal = cartItems.reduce((s, i) => s + (Number(i.price) * Number(i.quantity || 1)), 0);
   const addressText = String(address || '').toLowerCase();
@@ -68,17 +81,13 @@ function CheckoutPage({ user, onLogin, onOrderPlaced }) {
     const token = localStorage.getItem('token');
     try {
       let customerCoords = coords;
-      if (!customerCoords && navigator.geolocation) {
-        customerCoords = await new Promise(resolve => {
-          navigator.geolocation.getCurrentPosition(
-            pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-            () => resolve(null),
-            { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
-          );
-        });
+      if (!customerCoords?.locked) {
+        setLockingLocation(true);
+        customerCoords = await captureCustomerLocation({ lock: true, source: 'checkout-place-order', timeout: 12000, maximumAge: 0 });
         if (customerCoords) setCoords(customerCoords);
+        setLockingLocation(false);
       }
-      if (customerCoords) localStorage.setItem('camigo_customer_location', JSON.stringify({ ...customerCoords, savedAt: Date.now() }));
+      if (!customerCoords) { setError('Please allow location permission to lock your delivery point before checkout.'); setLoading(false); return; }
       const res = await fetch(`${API_URL}/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -87,7 +96,9 @@ function CheckoutPage({ user, onLogin, onOrderPlaced }) {
           address,
           payment_method: paymentMethod,
           customer_lat: customerCoords?.lat,
-          customer_lng: customerCoords?.lng
+          customer_lng: customerCoords?.lng,
+          customer_accuracy: customerCoords?.accuracy,
+          customer_location_locked_at: customerCoords?.savedAt
         })
       });
       const data = await res.json();
@@ -126,6 +137,21 @@ function CheckoutPage({ user, onLogin, onOrderPlaced }) {
           )}
           <div className="form-group"><label>Full Address</label><textarea value={address} onChange={e => setAddress(e.target.value)} rows="3" /></div>
           <div className="form-group"><label>Phone Number</label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} /></div>
+          <div className={`location-lock-card ${coords?.locked ? 'locked' : ''}`}>
+            <strong>{coords?.locked ? 'Delivery GPS point locked' : lockingLocation ? 'Locking delivery GPS point...' : 'Delivery GPS point not locked'}</strong>
+            <span>
+              {coords?.lat && coords?.lng
+                ? `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}${coords.accuracy ? ` • accuracy ${Math.round(coords.accuracy)}m` : ''}`
+                : 'Allow location permission so the delivery partner gets the exact point.'}
+            </span>
+            <button type="button" onClick={async () => {
+              setLockingLocation(true);
+              const location = await captureCustomerLocation({ lock: true, source: 'checkout-manual-lock', timeout: 12000, maximumAge: 0 });
+              if (location) setCoords(location);
+              else setError('Could not lock GPS point. Please allow location permission and try again.');
+              setLockingLocation(false);
+            }} disabled={lockingLocation}>{coords?.locked ? 'Re-lock GPS' : 'Lock GPS now'}</button>
+          </div>
         </section>
 
         <section className="checkout-card">
@@ -154,6 +180,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced }) {
         <div className="summary-row"><span>Subtotal</span><strong>Rs {subtotal}</strong></div>
         <div className="summary-row"><span>Delivery</span><strong>{deliveryFee === 0 ? 'FREE' : `Rs ${deliveryFee}`}</strong></div>
         <div className="summary-row"><span>Estimate</span><strong>{deliveryEstimate}</strong></div>
+        <div className="summary-row"><span>GPS accuracy</span><strong>{coords?.accuracy ? `${Math.round(coords.accuracy)}m` : 'Not locked'}</strong></div>
         <div className="summary-total"><span>Payable</span><strong>Rs {payable}</strong></div>
         <button className="checkout-pay-btn" onClick={handlePlaceOrder} disabled={loading || cartItems.length === 0}>
           {loading ? 'Processing payment...' : `Pay Rs ${payable}`}

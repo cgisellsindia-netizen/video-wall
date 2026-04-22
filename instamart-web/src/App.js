@@ -22,6 +22,7 @@ import FloatingTracker from './components/FloatingTracker';
 import Footer from './components/Footer';
 import BottomNav from './components/BottomNav';
 import { API_URL } from './api';
+import { captureCustomerLocation, getSavedCustomerLocation } from './locationLock';
 import './App.css';
 
 const getRuntimeAppMode = () => {
@@ -182,21 +183,8 @@ function AppContent() {
 
   useEffect(() => {
     if (!user || APP_MODE === 'delivery' || user.role === 'delivery_partner') return;
-    if (localStorage.getItem('camigo_customer_location')) return;
-    if (!navigator.geolocation) return;
-
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        localStorage.setItem('camigo_customer_location', JSON.stringify({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          savedAt: Date.now()
-        }));
-      },
-      () => {},
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 300000 }
-    );
+    if (getSavedCustomerLocation()) return;
+    captureCustomerLocation({ source: 'first-login', timeout: 8000, maximumAge: 300000 });
   }, [user]);
 
   const handleOrderPlaced = (order) => {

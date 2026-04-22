@@ -312,7 +312,7 @@ app.post('/api/promo/apply', authenticateToken, (req, res) => {
 
 // Orders
 app.post('/api/orders', authenticateToken, (req, res) => {
-  const { items, address, payment_method, promo_code, customer_lat, customer_lng } = req.body;
+  const { items, address, payment_method, promo_code, customer_lat, customer_lng, customer_accuracy, customer_location_locked_at } = req.body;
 
   if (!Array.isArray(items) || !items.length) {
     return res.status(400).json({ error: 'Order items are required' });
@@ -348,9 +348,11 @@ app.post('/api/orders', authenticateToken, (req, res) => {
     const deliveryOtp = String(1000 + crypto.randomInt(9000));
     const safeCustomerLat = Number.isFinite(Number(customer_lat)) ? Number(customer_lat) : null;
     const safeCustomerLng = Number.isFinite(Number(customer_lng)) ? Number(customer_lng) : null;
+    const safeCustomerAccuracy = Number.isFinite(Number(customer_accuracy)) ? Number(customer_accuracy) : null;
+    const safeCustomerLockedAt = Number.isFinite(Number(customer_location_locked_at)) ? Number(customer_location_locked_at) : null;
     db.run(
-      'INSERT INTO orders (user_id, total_amount, final_amount, status, payment_method, address, customer_lat, customer_lng, delivery_otp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [req.user.userId, totalAmount, finalAmount, 'pending', payment_method, address, safeCustomerLat, safeCustomerLng, deliveryOtp],
+      'INSERT INTO orders (user_id, total_amount, final_amount, status, payment_method, address, customer_lat, customer_lng, customer_accuracy, customer_location_locked_at, delivery_otp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [req.user.userId, totalAmount, finalAmount, 'pending', payment_method, address, safeCustomerLat, safeCustomerLng, safeCustomerAccuracy, safeCustomerLockedAt, deliveryOtp],
       function(err) {
         if (err) return res.status(500).json({ error: err.message });
         

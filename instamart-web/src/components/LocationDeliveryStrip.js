@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { MapPin, Navigation, Zap } from 'lucide-react';
+import { captureCustomerLocation, getSavedCustomerLocation } from '../locationLock';
 
 function LocationDeliveryStrip() {
   const [location, setLocation] = useState(localStorage.getItem('camigo_location') || 'Bhubaneswar');
@@ -16,22 +17,30 @@ function LocationDeliveryStrip() {
       return;
     }
     setStatus('Detecting your delivery location...');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const local = isLocalServiceZone(pos.coords.latitude, pos.coords.longitude);
-        const value = `Near ${pos.coords.latitude.toFixed(3)}, ${pos.coords.longitude.toFixed(3)}`;
+    captureCustomerLocation({ source: 'delivery-strip', timeout: 8000, maximumAge: 300000 }).then((pos) => {
+      if (pos) {
+        const local = isLocalServiceZone(pos.lat, pos.lng);
+        const value = `Near ${pos.lat.toFixed(3)}, ${pos.lng.toFixed(3)}`;
         localStorage.setItem('camigo_location', value);
         localStorage.setItem('camigo_delivery_estimate', local ? '26 mins' : '2-4 days');
         setLocation(value);
         setEstimate(local ? '26 mins' : '2-4 days');
-        setStatus(local ? 'Location locked. Same-day dispatch available' : 'Outside Bhubaneswar/Cuttack. Dispatch by courier');
-      },
-      () => setStatus('Permission blocked. Showing Bhubaneswar delivery zone'),
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
+        setStatus(local ? `Location saved with ${Math.round(pos.accuracy || 0)}m accuracy` : 'Outside Bhubaneswar/Cuttack. Dispatch by courier');
+      } else {
+        setStatus('Permission blocked. Showing Bhubaneswar delivery zone');
+      }
+    });
   };
 
   useEffect(() => {
+    const saved = getSavedCustomerLocation();
+    if (saved?.lat && saved?.lng) {
+      const local = isLocalServiceZone(saved.lat, saved.lng);
+      setLocation(`Near ${saved.lat.toFixed(3)}, ${saved.lng.toFixed(3)}`);
+      setEstimate(local ? '26 mins' : '2-4 days');
+      setStatus(saved.locked ? `Locked for delivery with ${Math.round(saved.accuracy || 0)}m accuracy` : `Location saved with ${Math.round(saved.accuracy || 0)}m accuracy`);
+      return;
+    }
     if (!localStorage.getItem('camigo_location')) detectLocation();
   }, []);
 
