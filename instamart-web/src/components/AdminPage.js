@@ -86,6 +86,7 @@ function AdminPage({ user }) {
       hub_id: changes.hub_id ?? partner.hub_id ?? (hubs[0]?.id || ''),
       active: changes.active ?? Boolean(partner.active ?? true),
       email: changes.email,
+      phone: changes.phone,
       password: changes.password
     };
     const res = await fetch(`${API_URL}/admin/delivery-partners/${partner.id}`, {
@@ -254,11 +255,12 @@ function AdminPage({ user }) {
           <h3 style={{ marginTop: 0 }}>Delivery partner details</h3>
           <div style={{ overflowX: 'auto' }}>
             <table className="admin-table">
-              <thead><tr><th>Name</th><th>Login ID</th><th>Password</th><th>Vehicle</th><th>Vehicle No</th><th>License</th><th>Hub</th><th>Status</th></tr></thead>
+              <thead><tr><th>Name</th><th>Login ID</th><th>Mobile</th><th>Password</th><th>Vehicle</th><th>Vehicle No</th><th>License</th><th>Hub</th><th>Status</th></tr></thead>
               <tbody>{deliveryPartners.map(p => (
                 <tr key={p.id}>
                   <td>{p.name}</td>
                   <td><input value={p.email || ''} onBlur={e => handlePartnerDetail(p, { email: e.target.value })} onChange={e => setDeliveryPartners(prev => prev.map(item => item.id === p.id ? { ...item, email: e.target.value } : item))} placeholder="partner ID" /></td>
+                  <td><input value={p.phone || ''} onBlur={e => handlePartnerDetail(p, { phone: e.target.value })} onChange={e => setDeliveryPartners(prev => prev.map(item => item.id === p.id ? { ...item, phone: e.target.value } : item))} placeholder="mobile number" /></td>
                   <td>
                     <div className="partner-password-cell">
                       <span className="partner-current-pass">Current: {p.plaintext_password || 'hidden'}</span>

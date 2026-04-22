@@ -610,7 +610,7 @@ app.get('/api/admin/delivery-partners', authenticateToken, requireAdmin, (req, r
 });
 
 app.put('/api/admin/delivery-partners/:id', authenticateToken, requireAdmin, async (req, res) => {
-  const { email, vehicle_type, vehicle_number, license_number, hub_id, active, password } = req.body;
+  const { email, phone, vehicle_type, vehicle_number, license_number, hub_id, active, password } = req.body;
   const allowedVehicles = ['bike', 'tempo', 'truck'];
   if (!allowedVehicles.includes(vehicle_type)) {
     return res.status(400).json({ error: 'Invalid vehicle type' });
@@ -649,6 +649,11 @@ app.put('/api/admin/delivery-partners/:id', authenticateToken, requireAdmin, asy
     if (email) {
       fields.push('email = ?');
       values.push(String(email).trim());
+    }
+
+    if (phone !== undefined) {
+      fields.push('phone = ?');
+      values.push(String(phone || '').trim());
     }
 
     if (password) {
