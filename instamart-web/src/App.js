@@ -288,6 +288,27 @@ function AppContent() {
   const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0);
   const cartTotal = cartItems.reduce((s, i) => s + (i.price * i.quantity), 0);
 
+  if (APP_MODE === 'delivery') {
+    return (
+      <div className="app delivery-app-shell">
+        <Header
+          user={user}
+          cartCount={0}
+          onCartClick={() => {}}
+          onLoginClick={() => setLoginOpen(true)}
+          onLogout={handleLogout}
+          searchQuery=""
+          onSearch={() => {}}
+          appMode={APP_MODE}
+        />
+        <Routes>
+          <Route path="*" element={<DeliveryPartnerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
+        </Routes>
+        <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={handleLogin} />
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <Header
