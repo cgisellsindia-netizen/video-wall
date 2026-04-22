@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Truck, Shield, Clock } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Truck, Shield, Clock } from 'lucide-react';
 import { API_URL } from '../api';
 
-function ProductDetail({ products, onAdd, user, onLogin, priceForRole }) {
+function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogin, priceForRole }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const listProduct = products.find(p => p.id === parseInt(id));
@@ -49,6 +49,8 @@ function ProductDetail({ products, onAdd, user, onLogin, priceForRole }) {
     ? Math.round(Number(product.discount_percent))
     : product.mrp ? Math.max(0, Math.round((1 - product.price / product.mrp) * 100)) : 0;
   const sellingPrice = priceForRole ? priceForRole(product, user) : product.price;
+  const cartItem = cartItems.find(item => Number(item.product_id || item.id) === Number(product.id));
+  const selectedQty = cartItem?.quantity || 0;
   const relatedProducts = products
     .filter(item => item.id !== product.id && item.category_id === product.category_id)
     .slice(0, 4);
@@ -88,9 +90,17 @@ function ProductDetail({ products, onAdd, user, onLogin, priceForRole }) {
             <div className="detail-badge"><Shield size={16} /> Best price guaranteed</div>
           </div>
 
-          <button className="add-btn-large" onClick={handleAdd}>
-            <Plus size={20} /> Add to Cart
-          </button>
+          {selectedQty > 0 ? (
+            <div className="detail-qty-stepper">
+              <button onClick={() => onRemove(product, cartItem)}><Minus size={18} /></button>
+              <strong>{selectedQty}</strong>
+              <button onClick={handleAdd}><Plus size={18} /></button>
+            </div>
+          ) : (
+            <button className="add-btn-large" onClick={handleAdd}>
+              <Plus size={20} /> Add to Cart
+            </button>
+          )}
         </div>
       </div>
 

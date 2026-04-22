@@ -1,24 +1,28 @@
-import React from 'react';  
+import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { Home, LayoutGrid, Search, ShoppingCart, User } from 'lucide-react';  
   
 function BottomNav({ cartCount, onCartClick, user }) {  
+  const location = useLocation();
   const accountLink = user?.role === 'admin'
-    ? '/#/admin'
+    ? '/admin'
     : user?.role === 'delivery_partner'
-      ? '/#/delivery-partner'
+      ? '/delivery-partner'
       : '/#/orders';
+  const accountPath = accountLink.replace('/#', '');
+  const itemClass = (path) => location.pathname === path ? 'bottom-nav-item active' : 'bottom-nav-item';
 
   return (  
     <nav className="bottom-nav">  
       <div className="bottom-nav-inner">  
-        <a href="/#/" className="bottom-nav-item active"><Home size={22} /><span>Home</span></a>  
-        <a href="/#/shop" className="bottom-nav-item"><LayoutGrid size={22} /><span>Categories</span></a>  
-        <a href="/#/shop" className="bottom-nav-item"><Search size={22} /><span>Search</span></a>  
+        <Link to="/" className={itemClass('/')}><Home size={22} /><span>Home</span></Link>
+        <Link to="/shop" className={itemClass('/shop')}><LayoutGrid size={22} /><span>Categories</span></Link>
+        <Link to="/shop" className={itemClass('/shop')}><Search size={22} /><span>Search</span></Link>
         <button className="bottom-nav-item" onClick={onCartClick} style={{ background: 'none', border: 'none' }}>
           <ShoppingCart size={22} /><span>Cart</span>
           {cartCount > 0 && <span className="nav-badge">{cartCount}</span>}
         </button>  
-        <a href={accountLink} className="bottom-nav-item"><User size={22} /><span>Account</span></a>  
+        <Link to={accountPath} className={itemClass(accountPath)}><User size={22} /><span>Account</span></Link>
       </div>  
     </nav>  
   );  

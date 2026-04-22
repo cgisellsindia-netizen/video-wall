@@ -5,7 +5,7 @@ import { API_URL } from '../api';
 import { captureCustomerLocation, getSavedCustomerLocation } from '../locationLock';
 import { isLocalAddressText, isLocalServiceZone } from '../deliveryZone';
 
-function CheckoutPage({ user, onLogin, onOrderPlaced }) {
+function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
   const [cartItems, setCartItems] = useState(() => {
     try {
       const savedCart = JSON.parse(localStorage.getItem('cart_backup') || '[]');
@@ -32,6 +32,13 @@ function CheckoutPage({ user, onLogin, onOrderPlaced }) {
   useEffect(() => {
     if (!user) onLogin();
   }, [user, onLogin]);
+
+  useEffect(() => {
+    setCartItems(Array.isArray(liveCartItems) ? liveCartItems : []);
+    if (Array.isArray(liveCartItems) && liveCartItems.length) {
+      localStorage.setItem('cart_backup', JSON.stringify(liveCartItems));
+    }
+  }, [liveCartItems]);
 
   useEffect(() => {
     if (!user) return;
