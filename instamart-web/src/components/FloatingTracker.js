@@ -88,8 +88,8 @@ function FloatingTracker({ activeOrder, onDismiss, onRate }) {
     const controller = new AbortController();
     const lat = Number(partner.lat);
     const lng = Number(partner.lng);
-    const customerLat = Number(order.customer_lat || activeOrder.customer_lat || 20.3059);
-    const customerLng = Number(order.customer_lng || activeOrder.customer_lng || 85.8574);
+    const customerLat = Number(order.customer_lat || activeOrder?.customer_lat || 20.3059);
+    const customerLng = Number(order.customer_lng || activeOrder?.customer_lng || 85.8574);
     fetch(`https://router.project-osrm.org/route/v1/driving/${lng},${lat};${customerLng},${customerLat}?overview=false`, { signal: controller.signal })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
@@ -104,7 +104,7 @@ function FloatingTracker({ activeOrder, onDismiss, onRate }) {
       .catch(() => {});
 
     return () => controller.abort();
-  }, [partner?.lat, partner?.lng, tracking?.order?.status, order.customer_lat, order.customer_lng, activeOrder.customer_lat, activeOrder.customer_lng]);
+  }, [partner?.lat, partner?.lng, tracking?.order?.status, order.customer_lat, order.customer_lng, activeOrder?.customer_lat, activeOrder?.customer_lng]);
 
   if (!activeOrder?.id) return null;
 
