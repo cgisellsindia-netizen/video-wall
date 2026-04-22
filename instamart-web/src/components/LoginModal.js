@@ -10,19 +10,20 @@ const parseJsonResponse = async (res) => {
 };
 
 const postAuth = async (path, body) => {
-  const primaryUrl = `${API_URL}${path}`;
+  const primaryUrl = `https://camigo-store.onrender.com/api${path}`;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const fallbackUrls = [
+    `${API_URL}${path}`,
     `${origin}${path}`,
     `https://camigo-store.onrender.com${path}`,
-    `https://camigo-store.onrender.com/api${path}`
   ].filter((url, index, urls) => url && url !== primaryUrl && urls.indexOf(url) === index);
-  let res = await fetch(primaryUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const request = { method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(body) };
+  let res = await fetch(primaryUrl, request);
   let data = await parseJsonResponse(res);
 
   for (const fallbackUrl of fallbackUrls) {
     if (data) break;
-    res = await fetch(fallbackUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    res = await fetch(fallbackUrl, request);
     data = await parseJsonResponse(res);
   }
 
