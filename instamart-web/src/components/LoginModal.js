@@ -4,22 +4,29 @@ import { API_URL } from '../api';
 
 const parseJsonResponse = async (res) => {
   const contentType = res.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) return null;
-  return res.json().catch(() => null);
+  const text = await res.text().catch(() => '');
+  if (!contentType.includes('application/json') && !text.trim().startsWith('{')) return null;
+  return JSON.parse(text);
 };
 
 const postAuth = async (path, body) => {
   const primaryUrl = `${API_URL}${path}`;
-  const fallbackUrl = `${window.location.origin}${path}`;
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const fallbackUrls = [
+    `${origin}${path}`,
+    `https://camigo-store.onrender.com${path}`,
+    `https://camigo-store.onrender.com/api${path}`
+  ].filter((url, index, urls) => url && url !== primaryUrl && urls.indexOf(url) === index);
   let res = await fetch(primaryUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   let data = await parseJsonResponse(res);
 
-  if (!data && fallbackUrl !== primaryUrl) {
+  for (const fallbackUrl of fallbackUrls) {
+    if (data) break;
     res = await fetch(fallbackUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     data = await parseJsonResponse(res);
   }
 
-  if (!data) throw new Error('Login server returned website HTML instead of JSON. Please wait for redeploy or reinstall the latest app.');
+  if (!data) throw new Error(`Login server returned website HTML instead of JSON. API tried: ${primaryUrl}`);
   if (!res.ok) throw new Error(data.error || 'Login failed');
   return data;
 };
