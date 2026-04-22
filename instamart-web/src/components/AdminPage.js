@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Users, ShoppingBag, Package, Plus, Trash2, Edit, MapPin, Truck } from 'lucide-react';
+import { Bell, Shield, Users, ShoppingBag, Package, Plus, Trash2, Edit, MapPin, Truck } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
@@ -17,9 +17,10 @@ function AdminPage({ user }) {
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState('');
   const [partnerPasswords, setPartnerPasswords] = useState({});
+  const [notificationForm, setNotificationForm] = useState({ title: '', message: '', target: 'customer' });
   const navigate = useNavigate();
 
-  const emptyProduct = { name: '', description: '', price: '', mrp: '', image: '/images/cgi-new.jpg', category_id: '1', stock: '50', unit: '1 Unit' };
+  const emptyProduct = { name: '', description: '', price: '', mrp: '', discount_percent: '', dealer_price: '', distributor_price: '', image: '/images/cgi-new.jpg', category_id: '1', stock: '50', unit: '1 Unit' };
   const [form, setForm] = useState(emptyProduct);
   const emptyUser = { name: '', email: '', password: '', phone: '', address: '', role: 'dealer' };
   const [userForm, setUserForm] = useState(emptyUser);
@@ -123,7 +124,16 @@ function AdminPage({ user }) {
       setMessage('Please login as admin before saving products.');
       return;
     }
-    const body = { ...form, price: parseFloat(form.price), mrp: parseFloat(form.mrp), category_id: parseInt(form.category_id), stock: parseInt(form.stock) };
+    const body = {
+      ...form,
+      price: parseFloat(form.price),
+      mrp: parseFloat(form.mrp),
+      discount_percent: parseFloat(form.discount_percent || 0),
+      dealer_price: form.dealer_price === '' ? null : parseFloat(form.dealer_price),
+      distributor_price: form.distributor_price === '' ? null : parseFloat(form.distributor_price),
+      category_id: parseInt(form.category_id),
+      stock: parseInt(form.stock)
+    };
     if (!body.name || !body.description || !Number.isFinite(body.price) || !Number.isFinite(body.mrp) || !Number.isInteger(body.category_id) || !Number.isInteger(body.stock)) {
       setMessage('Please fill product name, description, price, MRP, category, and stock correctly.');
       return;
@@ -145,7 +155,31 @@ function AdminPage({ user }) {
     }
   };
 
-  const startEdit = (p) => { setEditProduct(p); setForm({ name: p.name, description: p.description, price: p.price, mrp: p.mrp, image: p.image, category_id: p.category_id.toString(), stock: p.stock, unit: p.unit }); setShowForm(true); };
+  const startEdit = (p) => { setEditProduct(p); setForm({ name: p.name, description: p.description, price: p.price, mrp: p.mrp, discount_percent: p.discount_percent || '', dealer_price: p.dealer_price || '', distributor_price: p.distributor_price || '', image: p.image, category_id: p.category_id.toString(), stock: p.stock, unit: p.unit }); setShowForm(true); };
+
+  const handleImageFile = (file) => {
+    if (!file) return;
+    if (file.size > 650000) {
+      setMessage('Please choose a smaller image under 650 KB for web/app upload.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setForm(prev => ({ ...prev, image: reader.result }));
+    reader.readAsDataURL(file);
+  };
+
+  const handleSendNotification = async (e) => {
+    e.preventDefault();
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_URL}/admin/notifications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(notificationForm)
+    });
+    const data = await res.json().catch(() => ({}));
+    setMessage(res.ok ? 'Notification sent to app.' : (data.error || 'Notification failed.'));
+    if (res.ok) setNotificationForm({ title: '', message: '', target: 'customer' });
+  };
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
@@ -177,6 +211,7 @@ function AdminPage({ user }) {
         <button className={`btn btn-sm ${activeTab === 'products' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('products')}><Package size={16} /> Products ({products.length})</button>
         <button className={`btn btn-sm ${activeTab === 'delivery' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('delivery')}><Truck size={16} /> Delivery Partners ({deliveryPartners.length})</button>
         <button className={`btn btn-sm ${activeTab === 'hubs' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('hubs')}><MapPin size={16} /> Hubs ({hubs.length})</button>
+        <button className={`btn btn-sm ${activeTab === 'notifications' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('notifications')}><Bell size={16} /> Notifications</button>
       </div>
 
       {activeTab === 'users' && (
@@ -185,7 +220,7 @@ function AdminPage({ user }) {
             <h3 style={{ marginTop: 0 }}>Create staff / trade login</h3>
             <form className="admin-product-form" onSubmit={handleCreateUser}>
               <div className="form-group"><label>Name</label><input value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} required /></div>
-              <div className="form-group"><label>Email / Login ID</label><input type="email" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} required /></div>
+              <div className="form-group"><label>Login ID</label><input type="text" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} required /></div>
               <div className="form-group"><label>Password</label><input value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} required /></div>
               <div className="form-group"><label>Phone</label><input value={userForm.phone} onChange={e => setUserForm({...userForm, phone: e.target.value})} /></div>
               <div className="form-group"><label>Address</label><input value={userForm.address} onChange={e => setUserForm({...userForm, address: e.target.value})} /></div>
@@ -224,7 +259,7 @@ function AdminPage({ user }) {
               <tbody>{deliveryPartners.map(p => (
                 <tr key={p.id}>
                   <td>{p.name}</td>
-                  <td><input value={p.email || ''} onChange={e => handlePartnerDetail(p, { email: e.target.value })} placeholder="partner@email.com" /></td>
+                  <td><input value={p.email || ''} onBlur={e => handlePartnerDetail(p, { email: e.target.value })} onChange={e => setDeliveryPartners(prev => prev.map(item => item.id === p.id ? { ...item, email: e.target.value } : item))} placeholder="partner ID" /></td>
                   <td>
                     <div className="partner-password-cell">
                       <span className="partner-current-pass">Current: {p.plaintext_password || 'hidden'}</span>
@@ -248,6 +283,18 @@ function AdminPage({ user }) {
               ))}</tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'notifications' && (
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Send app notification</h3>
+          <form className="admin-product-form" onSubmit={handleSendNotification}>
+            <div className="form-group"><label>Title</label><input value={notificationForm.title} onChange={e => setNotificationForm({...notificationForm, title: e.target.value})} required /></div>
+            <div className="form-group"><label>Target App</label><select value={notificationForm.target} onChange={e => setNotificationForm({...notificationForm, target: e.target.value})}><option value="customer">Customer app</option><option value="delivery">Delivery partner app</option><option value="all">Both apps</option></select></div>
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}><label>Message</label><textarea value={notificationForm.message} onChange={e => setNotificationForm({...notificationForm, message: e.target.value})} rows="3" required /></div>
+            <button className="btn btn-primary" type="submit">Send Notification</button>
+          </form>
         </div>
       )}
 
@@ -304,6 +351,9 @@ function AdminPage({ user }) {
                 <div className="form-group"><label>Description</label><input value={form.description} onChange={e => setForm({...form, description: e.target.value})} required /></div>
                 <div className="form-group"><label>Price</label><input type="number" value={form.price} onChange={e => setForm({...form, price: e.target.value})} required /></div>
                 <div className="form-group"><label>MRP</label><input type="number" value={form.mrp} onChange={e => setForm({...form, mrp: e.target.value})} required /></div>
+                <div className="form-group"><label>Discount % Label</label><input type="number" value={form.discount_percent} onChange={e => setForm({...form, discount_percent: e.target.value})} placeholder="Auto if blank" /></div>
+                <div className="form-group"><label>Dealer Price</label><input type="number" value={form.dealer_price} onChange={e => setForm({...form, dealer_price: e.target.value})} placeholder="Optional" /></div>
+                <div className="form-group"><label>Distributor Price</label><input type="number" value={form.distributor_price} onChange={e => setForm({...form, distributor_price: e.target.value})} placeholder="Optional" /></div>
                 <div className="form-group"><label>Stock</label><input type="number" value={form.stock} onChange={e => setForm({...form, stock: e.target.value})} required /></div>
                 <div className="form-group"><label>Unit</label><input value={form.unit} onChange={e => setForm({...form, unit: e.target.value})} required /></div>
                 <div className="form-group"><label>Category</label>
@@ -311,7 +361,8 @@ function AdminPage({ user }) {
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
-                <div className="form-group"><label>Image Path</label><input value={form.image} onChange={e => setForm({...form, image: e.target.value})} required /></div>
+                <div className="form-group"><label>Image Path / URL</label><input value={form.image} onChange={e => setForm({...form, image: e.target.value})} required /></div>
+                <div className="form-group"><label>Browse Product Photo</label><input type="file" accept="image/*" onChange={e => handleImageFile(e.target.files?.[0])} /></div>
                 <div className="admin-image-preview">
                   <span>Image preview</span>
                   <img src={form.image || '/images/cgi-hd3e.jpg'} alt="Product preview" />
@@ -327,12 +378,14 @@ function AdminPage({ user }) {
           <div className="card" style={{ overflow: 'hidden' }}>
             <div style={{ overflowX: 'auto' }}>
               <table className="admin-table">
-                <thead><tr><th>ID</th><th>Name</th><th>Price</th><th>MRP</th><th>Stock</th><th>Category</th><th>Actions</th></tr></thead>
+                <thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Dealer</th><th>Distributor</th><th>MRP</th><th>Stock</th><th>Category</th><th>Actions</th></tr></thead>
                 <tbody>{products.map(p => (
                   <tr key={p.id}>
                     <td>{p.id}</td>
                     <td>{p.name}</td>
                     <td>Rs {p.price}</td>
+                    <td>{p.dealer_price ? `Rs ${p.dealer_price}` : '-'}</td>
+                    <td>{p.distributor_price ? `Rs ${p.distributor_price}` : '-'}</td>
                     <td>Rs {p.mrp}</td>
                     <td>{p.stock}</td>
                     <td>{p.category_name || categories.find(c => c.id === p.category_id)?.name}</td>

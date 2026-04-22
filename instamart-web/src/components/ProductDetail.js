@@ -46,8 +46,13 @@ function ProductDetail({ products, onAdd, user, onLogin, priceForRole }) {
     );
   }
 
-  const discount = product.mrp ? Math.max(0, Math.round((1 - product.price / product.mrp) * 100)) : 0;
+  const discount = Number(product.discount_percent) > 0
+    ? Math.round(Number(product.discount_percent))
+    : product.mrp ? Math.max(0, Math.round((1 - product.price / product.mrp) * 100)) : 0;
   const sellingPrice = priceForRole ? priceForRole(product, user) : product.price;
+  const relatedProducts = products
+    .filter(item => item.id !== product.id && item.category_id === product.category_id)
+    .slice(0, 4);
 
   const handleAdd = () => {
     if (!user) { onLogin(); return; }
@@ -89,6 +94,22 @@ function ProductDetail({ products, onAdd, user, onLogin, priceForRole }) {
           </button>
         </div>
       </div>
+
+      {relatedProducts.length > 0 && (
+        <section className="related-products">
+          <span className="eyebrow">Suggested for this setup</span>
+          <h2>Related products</h2>
+          <div className="related-product-grid">
+            {relatedProducts.map(item => (
+              <button key={item.id} className="related-product-card" onClick={() => navigate(`/product/${item.id}`)}>
+                <img src={item.image} alt={item.name} />
+                <strong>{item.name}</strong>
+                <span>Rs {priceForRole ? priceForRole(item, user) : item.price}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -36,7 +36,7 @@ function CategoryPage({ categories, products, onAdd, user, priceForRole }) {
 
       <div className="shop-product-grid">
         {categoryProducts.map(product => {
-          const discount = product.mrp ? Math.max(0, Math.round((1 - product.price / product.mrp) * 100)) : 0;
+          const discount = Number(product.discount_percent) > 0 ? Math.round(Number(product.discount_percent)) : product.mrp ? Math.max(0, Math.round((1 - product.price / product.mrp) * 100)) : 0;
           return (
             <div key={product.id} className="product-card" onClick={() => navigate(`/product/${product.id}`)}>
               <div className="product-img-wrap">

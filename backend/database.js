@@ -5,6 +5,10 @@ const bcrypt = require('bcryptjs');
 const dbPath = path.join(__dirname, 'instamart.db');
 const db = new sqlite3.Database(dbPath);
 
+const addColumn = (table, definition) => {
+  db.run(`ALTER TABLE ${table} ADD COLUMN ${definition}`, [], () => {});
+};
+
 db.serialize(async () => {
   db.run(`CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,6 +35,9 @@ db.serialize(async () => {
     description TEXT,
     price REAL,
     mrp REAL,
+    discount_percent REAL DEFAULT 0,
+    dealer_price REAL,
+    distributor_price REAL,
     image TEXT,
     category_id INTEGER,
     stock INTEGER DEFAULT 100,
@@ -115,6 +122,18 @@ db.serialize(async () => {
     active INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    message TEXT,
+    target TEXT DEFAULT 'customer',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  addColumn('products', 'discount_percent REAL DEFAULT 0');
+  addColumn('products', 'dealer_price REAL');
+  addColumn('products', 'distributor_price REAL');
 
   const hashedPassword = await bcrypt.hash('password123', 10);
   const adminPassword = await bcrypt.hash('admin123', 10);

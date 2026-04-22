@@ -11,7 +11,7 @@ function Header({ user, cartCount, onCartClick, onLoginClick, onLogout, searchQu
       <div className="header-top">
         <div className="logo-area">
           <a href={homeLink} className="logo">
-            <div className="logo-icon">Cam</div>
+            <img className="logo-icon logo-img" src="/camigo-logo.svg" alt="Camigo" />
             <div className="logo-text" style={{color:"#fff",fontWeight:900,letterSpacing:"-1px",fontSize:"28px"}}>Cam<span style={{color:"#f6c400"}}>igo</span></div>
           </a>
           {!isDeliveryPartner && <a className="location-bar" href="/#/shop">

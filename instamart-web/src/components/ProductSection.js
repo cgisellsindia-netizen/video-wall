@@ -14,7 +14,14 @@ function ProductSection({ title, products, onAdd, user }) {
       </div>
       <div className="product-scroll">
         {products.map(product => {
-          const discount = product.mrp ? Math.max(0, Math.round((1 - product.price / product.mrp) * 100)) : 0;
+          const discount = Number(product.discount_percent) > 0
+            ? Math.round(Number(product.discount_percent))
+            : product.mrp ? Math.max(0, Math.round((1 - product.price / product.mrp) * 100)) : 0;
+          const rolePrice = user?.role === 'dealer' && Number(product.dealer_price) > 0
+            ? Math.round(Number(product.dealer_price))
+            : user?.role === 'distributor' && Number(product.distributor_price) > 0
+              ? Math.round(Number(product.distributor_price))
+              : user?.role === 'dealer' ? Math.round(product.price * 0.90) : user?.role === 'distributor' ? Math.round(product.price * 0.85) : product.price;
 
           return (
             <div key={product.id} className="product-card" onClick={() => navigate(`/product/${product.id}`)}>
@@ -31,7 +38,7 @@ function ProductSection({ title, products, onAdd, user }) {
               <div className="product-weight">{product.unit}</div>
               <div className="product-price-row">
                 <span>
-                  <span className="price-current">Rs {user?.role === 'dealer' ? Math.round(product.price * 0.90) : user?.role === 'distributor' ? Math.round(product.price * 0.85) : product.price}</span>
+                  <span className="price-current">Rs {rolePrice}</span>
                   <span className="price-original">Rs {product.mrp}</span>
                 </span>
               </div>

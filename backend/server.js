@@ -44,6 +44,14 @@ app.use(express.urlencoded({ extended: true }));
 
 const JWT_SECRET = process.env.JWT_SECRET || 'camigo-local-dev-secret-change-before-production';
 
+const priceForUserRole = (product, role) => {
+  if (role === 'distributor' && Number(product.distributor_price) > 0) return Number(product.distributor_price);
+  if (role === 'dealer' && Number(product.dealer_price) > 0) return Number(product.dealer_price);
+  if (role === 'distributor') return Math.round(Number(product.price || 0) * 0.85);
+  if (role === 'dealer') return Math.round(Number(product.price || 0) * 0.90);
+  return Number(product.price || 0);
+};
+
 const requireAdmin = (req, res, next) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
@@ -159,17 +167,32 @@ app.get('/api/products/:id', (req, res) => {
   });
 });
 
+app.get('/api/notifications', (req, res) => {
+  const target = String(req.query.target || 'customer');
+  db.all(
+    `SELECT * FROM notifications
+     WHERE target IN (?, 'all')
+     ORDER BY created_at DESC
+     LIMIT 5`,
+    [target],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+    }
+  );
+});
+
 // Cart
 app.get('/api/cart', authenticateToken, (req, res) => {
   db.all(
-    `SELECT c.*, p.name, p.price, p.image, p.unit 
+    `SELECT c.*, p.name, p.price, p.dealer_price, p.distributor_price, p.image, p.unit 
      FROM cart c 
      JOIN products p ON c.product_id = p.id 
      WHERE c.user_id = ?`,
     [req.user.userId],
     (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
-      res.json(rows);
+      res.json(rows.map(row => ({ ...row, price: priceForUserRole(row, req.user.role) })));
     }
   );
 });
@@ -253,10 +276,10 @@ app.post('/api/orders', authenticateToken, (req, res) => {
   }
 
   const placeholders = normalizedItems.map(() => '?').join(',');
-  db.all(`SELECT id, price FROM products WHERE id IN (${placeholders})`, normalizedItems.map(item => item.product_id), (err, products) => {
+  db.all(`SELECT id, price, dealer_price, distributor_price FROM products WHERE id IN (${placeholders})`, normalizedItems.map(item => item.product_id), (err, products) => {
     if (err) return res.status(500).json({ error: err.message });
 
-    const prices = new Map(products.map(product => [product.id, product.price]));
+    const prices = new Map(products.map(product => [product.id, priceForUserRole(product, req.user.role)]));
     if (prices.size !== normalizedItems.length) {
       return res.status(400).json({ error: 'One or more products were not found' });
     }
@@ -536,8 +559,8 @@ app.put('/api/admin/delivery-partners/:id', authenticateToken, requireAdmin, asy
     return res.status(400).json({ error: 'Invalid vehicle type' });
   }
 
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
-    return res.status(400).json({ error: 'Valid login ID/email is required' });
+  if (email && String(email).trim().length < 3) {
+    return res.status(400).json({ error: 'Login ID must be at least 3 characters' });
   }
 
   const saveDetails = () => {
@@ -568,7 +591,7 @@ app.put('/api/admin/delivery-partners/:id', authenticateToken, requireAdmin, asy
 
     if (email) {
       fields.push('email = ?');
-      values.push(String(email).trim().toLowerCase());
+      values.push(String(email).trim());
     }
 
     if (password) {
@@ -649,6 +672,21 @@ app.delete('/api/admin/hubs/:id', authenticateToken, requireAdmin, (req, res) =>
   });
 });
 
+app.post('/api/admin/notifications', authenticateToken, requireAdmin, (req, res) => {
+  const { title, message, target } = req.body;
+  const safeTarget = ['customer', 'delivery', 'all'].includes(target) ? target : 'customer';
+  if (!title || !message) return res.status(400).json({ error: 'Title and message are required' });
+
+  db.run(
+    'INSERT INTO notifications (title, message, target) VALUES (?, ?, ?)',
+    [title, message, safeTarget],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: this.lastID, message: 'Notification sent' });
+    }
+  );
+});
+
 app.put('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) => {
   const { id } = req.params;
   const allowedFields = ['name', 'phone', 'address', 'role'];
@@ -684,16 +722,16 @@ app.get('/api/users/:id', authenticateToken, (req, res) => {
 
 // Admin Product CRUD
 app.post('/api/admin/products', authenticateToken, requireAdmin, (req, res) => {
-  const { name, description, price, mrp, image, category_id, stock, unit } = req.body;
-  db.run(`INSERT INTO products (name, description, price, mrp, image, category_id, stock, unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [name, description, price, mrp, image, category_id, stock, unit],
+  const { name, description, price, mrp, image, category_id, stock, unit, discount_percent, dealer_price, distributor_price } = req.body;
+  db.run(`INSERT INTO products (name, description, price, mrp, image, category_id, stock, unit, discount_percent, dealer_price, distributor_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [name, description, price, mrp, image, category_id, stock, unit, discount_percent || 0, dealer_price || null, distributor_price || null],
     function(err) { if (err) return res.status(500).json({ error: err.message }); res.json({ id: this.lastID, message: 'Product created' }); });
 });
 
 app.put('/api/admin/products/:id', authenticateToken, requireAdmin, (req, res) => {
-  const { name, description, price, mrp, image, category_id, stock, unit } = req.body;
-  db.run(`UPDATE products SET name=?, description=?, price=?, mrp=?, image=?, category_id=?, stock=?, unit=? WHERE id=?`,
-    [name, description, price, mrp, image, category_id, stock, unit, req.params.id],
+  const { name, description, price, mrp, image, category_id, stock, unit, discount_percent, dealer_price, distributor_price } = req.body;
+  db.run(`UPDATE products SET name=?, description=?, price=?, mrp=?, image=?, category_id=?, stock=?, unit=?, discount_percent=?, dealer_price=?, distributor_price=? WHERE id=?`,
+    [name, description, price, mrp, image, category_id, stock, unit, discount_percent || 0, dealer_price || null, distributor_price || null, req.params.id],
     function(err) { if (err) return res.status(500).json({ error: err.message }); res.json({ message: 'Product updated' }); });
 });
 

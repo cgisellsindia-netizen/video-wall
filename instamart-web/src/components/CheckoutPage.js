@@ -46,7 +46,10 @@ function CheckoutPage({ user, onLogin, onOrderPlaced }) {
   }, [user?.address]);
 
   const subtotal = cartItems.reduce((s, i) => s + (Number(i.price) * Number(i.quantity || 1)), 0);
-  const deliveryFee = subtotal > 2000 ? 0 : 40;
+  const addressText = String(address || '').toLowerCase();
+  const localAddress = addressText.includes('bhubaneswar') || addressText.includes('bbsr') || addressText.includes('cuttack');
+  const deliveryEstimate = localAddress ? 'Today / same-day' : '2-4 days';
+  const deliveryFee = subtotal > 2000 ? 0 : localAddress ? 40 : 120;
   const payable = subtotal + deliveryFee;
 
   const validatePayment = () => {
@@ -151,6 +154,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced }) {
         </div>
         <div className="summary-row"><span>Subtotal</span><strong>Rs {subtotal}</strong></div>
         <div className="summary-row"><span>Delivery</span><strong>{deliveryFee === 0 ? 'FREE' : `Rs ${deliveryFee}`}</strong></div>
+        <div className="summary-row"><span>Estimate</span><strong>{deliveryEstimate}</strong></div>
         <div className="summary-total"><span>Payable</span><strong>Rs {payable}</strong></div>
         <button className="checkout-pay-btn" onClick={handlePlaceOrder} disabled={loading || cartItems.length === 0}>
           {loading ? 'Processing payment...' : `Pay Rs ${payable}`}

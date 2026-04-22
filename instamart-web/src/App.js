@@ -77,6 +77,8 @@ class ErrorBoundary extends React.Component {
 }
 
 const priceForRole = (product, user) => {
+  if (user?.role === 'distributor' && Number(product.distributor_price) > 0) return Math.round(Number(product.distributor_price));
+  if (user?.role === 'dealer' && Number(product.dealer_price) > 0) return Math.round(Number(product.dealer_price));
   const discount = user?.role === 'distributor' ? 0.85 : user?.role === 'dealer' ? 0.90 : 1;
   return Math.round(Number(product.price || 0) * discount);
 };
@@ -120,6 +122,7 @@ function AppContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeOrder, setActiveOrder] = useState(null);
   const [authReady, setAuthReady] = useState(false);
+  const [appNotice, setAppNotice] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -152,6 +155,19 @@ function AppContent() {
     fetchCategories();
     fetchProducts();
     setAuthReady(true);
+  }, []);
+
+  useEffect(() => {
+    const target = APP_MODE === 'delivery' ? 'delivery' : 'customer';
+    fetch(`${API_URL}/notifications?target=${target}`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => {
+        if (!Array.isArray(data) || !data.length) return;
+        const latest = data[0];
+        if (localStorage.getItem(`camigo_notice_${latest.id}`)) return;
+        setAppNotice(latest);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -304,13 +320,14 @@ function AppContent() {
         <Routes>
           <Route path="*" element={<DeliveryPartnerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
         </Routes>
+        {appNotice && <div className="app-notice"><strong>{appNotice.title}</strong><span>{appNotice.message}</span><button onClick={() => { localStorage.setItem(`camigo_notice_${appNotice.id}`, '1'); setAppNotice(null); }}>Close</button></div>}
         <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={handleLogin} />
       </div>
     );
   }
 
   return (
-    <div className="app">
+    <div className={`app ${APP_MODE === 'customer' ? 'customer-app-shell' : ''}`}>
       <Header
         user={user}
         cartCount={cartCount}
@@ -358,6 +375,7 @@ function AppContent() {
       />
 
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={handleLogin} />
+      {appNotice && <div className="app-notice"><strong>{appNotice.title}</strong><span>{appNotice.message}</span><button onClick={() => { localStorage.setItem(`camigo_notice_${appNotice.id}`, '1'); setAppNotice(null); }}>Close</button></div>}
       <FloatingTracker
         activeOrder={activeOrder}
         onDismiss={dismissActiveOrder}

@@ -43,7 +43,7 @@ function ShopPage({ products, categories, onAdd, user, priceForRole }) {
       </div>
       <div className="shop-product-grid">
         {filtered.map(product => {
-          const discount = Math.round((1 - product.price / product.mrp) * 100);
+          const discount = Number(product.discount_percent) > 0 ? Math.round(Number(product.discount_percent)) : Math.round((1 - product.price / product.mrp) * 100);
           return (
             <div key={product.id} className="product-card" onClick={() => navigate(`/product/${product.id}`)}>
               <div className="product-img-wrap">
