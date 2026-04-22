@@ -95,7 +95,7 @@ const priceForRole = (product, user) => {
   return Math.round(Number(product.price || 0) * discount);
 };
 
-function MainPage({ user, cartCount, onCartClick, onLoginClick, onLogout, cartItems, addToCart, products, categories, searchQuery, setSearchQuery }) {
+function MainPage({ user, cartCount, onCartClick, onLoginClick, onLogout, cartItems, addToCart, removeFromCart, products, categories, searchQuery, setSearchQuery }) {
   const filteredProducts = searchQuery
     ? products.filter(p => String(p.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
     : products;
@@ -112,10 +112,10 @@ function MainPage({ user, cartCount, onCartClick, onLoginClick, onLogout, cartIt
         {!searchQuery && <LocationDeliveryStrip />}
         {!searchQuery && <CategoryGrid categories={categories} />}
         {searchQuery ? (
-          <ProductSection title={`Search: "${searchQuery}"`} products={filteredProducts} onAdd={addToCart} user={user} cartItems={cartItems} />
+          <ProductSection title={`Search: "${searchQuery}"`} products={filteredProducts} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} />
         ) : (
           productsByCategory.map(cat => (
-            <ProductSection key={cat.id} title={cat.name} products={cat.products} onAdd={addToCart} user={user} cartItems={cartItems} />
+            <ProductSection key={cat.id} title={cat.name} products={cat.products} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} />
           ))
         )}
       </main>
@@ -273,6 +273,30 @@ function AppContent() {
     } catch (e) {}
   };
 
+  const removeFromCart = async (product, cartItem) => {
+    if (APP_MODE === 'delivery' || user?.role === 'delivery_partner') return;
+    const token = localStorage.getItem('token');
+    if (!token) { setLoginOpen(true); return; }
+    const item = cartItem || cartItems.find(entry => Number(entry.product_id || entry.id) === Number(product.id));
+    if (!item?.id) return;
+    const nextQty = Number(item.quantity || 0) - 1;
+    try {
+      if (nextQty <= 0) {
+        await fetch(`${API_URL}/cart/${item.id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } else {
+        await fetch(`${API_URL}/cart/${item.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ quantity: nextQty })
+        });
+      }
+      fetchCart();
+    } catch (e) {}
+  };
+
   const fetchCart = async () => {
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -345,20 +369,21 @@ function AppContent() {
               user={user} cartCount={cartCount} onCartClick={() => setCartOpen(true)}
               onLoginClick={() => setLoginOpen(true)} onLogout={handleLogout}
               cartItems={cartItems} addToCart={addToCart}
+              removeFromCart={removeFromCart}
               products={products} categories={categories}
               searchQuery={searchQuery} setSearchQuery={setSearchQuery}
             />
           </DeliveryOnlyRoute>
         } />
         <Route path="/product/:id" element={<DeliveryOnlyRoute user={user}><ProductDetail products={products} onAdd={addToCart} user={user} onLogin={() => setLoginOpen(true)} priceForRole={priceForRole} /></DeliveryOnlyRoute>} />
-        <Route path="/category/:id" element={<DeliveryOnlyRoute user={user}><CategoryPage categories={categories} products={products} onAdd={addToCart} user={user} priceForRole={priceForRole} cartItems={cartItems} /></DeliveryOnlyRoute>} />
+        <Route path="/category/:id" element={<DeliveryOnlyRoute user={user}><CategoryPage categories={categories} products={products} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} /></DeliveryOnlyRoute>} />
         <Route path="/orders" element={<DeliveryOnlyRoute user={user}><OrdersPage user={user} onLogin={() => setLoginOpen(true)} /></DeliveryOnlyRoute>} />
         <Route path="/install" element={<DeliveryOnlyRoute user={user}><InstallationPage user={user} onLogin={() => setLoginOpen(true)} /></DeliveryOnlyRoute>} />
         <Route path="/dealer" element={<DealerDashboard user={user} />} />
         <Route path="/distributor" element={<DealerDashboard user={user} />} />
         <Route path="/contact" element={<ContactPage user={user} />} />
         <Route path="/admin" element={<AdminPage user={user} />} />
-        <Route path="/shop" element={<DeliveryOnlyRoute user={user}><ShopPage products={products} categories={categories} onAdd={addToCart} user={user} priceForRole={priceForRole} cartItems={cartItems} /></DeliveryOnlyRoute>} />
+        <Route path="/shop" element={<DeliveryOnlyRoute user={user}><ShopPage products={products} categories={categories} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} /></DeliveryOnlyRoute>} />
         <Route path="/checkout" element={<DeliveryOnlyRoute user={user}><CheckoutPage user={user} onLogin={() => setLoginOpen(true)} onOrderPlaced={handleOrderPlaced} /></DeliveryOnlyRoute>} />
         <Route path="/tracking/:id" element={<TrackingPage />} />
         <Route path="/delivery-partner" element={<DeliveryPartnerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
@@ -370,6 +395,8 @@ function AppContent() {
         items={cartItems}
         total={cartTotal}
         onUpdate={fetchCart}
+        onAdd={addToCart}
+        onRemove={removeFromCart}
         user={user}
       />
 
@@ -381,7 +408,7 @@ function AppContent() {
         onRate={dismissActiveOrder}
       />
       {APP_MODE !== 'delivery' && user?.role !== 'delivery_partner' && !activeOrder?.id && (
-        <FloatingCheckoutBar cartCount={cartCount} cartTotal={cartTotal} onCartClick={() => setCartOpen(true)} />
+        <FloatingCheckoutBar cartCount={cartCount} cartTotal={cartTotal} cartItems={cartItems} onCartClick={() => setCartOpen(true)} />
       )}
       {APP_MODE !== 'delivery' && user?.role !== 'delivery_partner' && <BottomNav cartCount={cartCount} onCartClick={() => setCartOpen(true)} user={user} />}
     </div>

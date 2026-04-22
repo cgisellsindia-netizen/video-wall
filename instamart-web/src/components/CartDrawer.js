@@ -1,20 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Minus, Plus, ShoppingBag } from 'lucide-react';
-import { API_URL } from '../api';
 
-function CartDrawer({ open, onClose, items = [], total = 0, onUpdate, user }) {
+function CartDrawer({ open, onClose, items = [], total = 0, onUpdate, onAdd, onRemove, user }) {
   const [checkingOut, setCheckingOut] = useState(false);
   const navigate = useNavigate();
 
-  const updateQty = async (cartId, delta) => {
-    const token = localStorage.getItem('token');
-    if (!token || delta >= 0) return;
-
-    await fetch(`${API_URL}/cart/${cartId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` }
-    });
+  const updateQty = async (item, delta) => {
+    if (delta > 0) {
+      await onAdd(item);
+      return;
+    }
+    await onRemove(item, item);
     onUpdate();
   };
 
@@ -55,9 +52,9 @@ function CartDrawer({ open, onClose, items = [], total = 0, onUpdate, user }) {
                   <div className="cart-item-weight">{item.unit}</div>
                   <div className="cart-item-price">Rs {item.price * item.quantity}</div>
                   <div className="cart-item-controls">
-                    <button className="qty-btn" onClick={() => updateQty(item.id, -1)}><Minus size={14} /></button>
+                    <button className="qty-btn" onClick={() => updateQty(item, -1)}><Minus size={14} /></button>
                     <span className="qty-value">{item.quantity}</span>
-                    <button className="qty-btn" onClick={() => updateQty(item.id, 1)}><Plus size={14} /></button>
+                    <button className="qty-btn" onClick={() => updateQty(item, 1)}><Plus size={14} /></button>
                   </div>
                 </div>
               </div>

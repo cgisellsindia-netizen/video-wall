@@ -1,24 +1,31 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ShoppingBag } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 
-function FloatingCheckoutBar({ cartCount, cartTotal, onCartClick }) {
+const FREE_DELIVERY_AT = 200;
+
+function FloatingCheckoutBar({ cartCount, cartTotal, cartItems = [], onCartClick }) {
   const navigate = useNavigate();
   const location = useLocation();
 
   if (!cartCount || location.pathname === '/checkout') return null;
+  const remaining = Math.max(0, FREE_DELIVERY_AT - Math.round(cartTotal));
+  const firstItem = cartItems[0];
 
   return (
-    <section className="floating-checkout-bar">
-      <button className="floating-checkout-summary" onClick={onCartClick}>
-        <span className="floating-checkout-icon"><ShoppingBag size={18} /></span>
-        <span>
-          <strong>{cartCount} item{cartCount > 1 ? 's' : ''} selected</strong>
-          <small>Rs {Math.round(cartTotal)} cart total</small>
-        </span>
+    <section className="floating-checkout-bar" onClick={() => navigate('/checkout')}>
+      <button className="floating-checkout-offer" onClick={(event) => { event.stopPropagation(); onCartClick(); }}>
+        {remaining > 0 ? `Add Rs ${remaining} to unlock FREE DELIVERY` : 'FREE DELIVERY unlocked'}
       </button>
-      <button className="floating-checkout-action" onClick={() => navigate('/checkout')}>
-        Checkout
+      <button className="floating-checkout-cart">
+        <span>
+          <strong>CART</strong>
+          <small>{cartCount} ITEM{cartCount > 1 ? 'S' : ''}</small>
+        </span>
+        <span className="floating-checkout-thumb">
+          {firstItem?.image ? <img src={firstItem.image} alt="" /> : 'C'}
+        </span>
+        <ChevronRight size={18} />
       </button>
     </section>
   );

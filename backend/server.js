@@ -275,6 +275,19 @@ app.post('/api/cart', authenticateToken, (req, res) => {
   });
 });
 
+app.put('/api/cart/:id', authenticateToken, (req, res) => {
+  const quantity = Math.max(1, Number(req.body.quantity || 1));
+  db.run(
+    'UPDATE cart SET quantity = ? WHERE id = ? AND user_id = ?',
+    [quantity, req.params.id, req.user.userId],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!this.changes) return res.status(404).json({ error: 'Cart item not found' });
+      res.json({ message: 'Cart quantity updated', quantity });
+    }
+  );
+});
+
 app.delete('/api/cart/:id', authenticateToken, (req, res) => {
   db.run('DELETE FROM cart WHERE id = ? AND user_id = ?', [req.params.id, req.user.userId], function(err) {
     if (err) return res.status(500).json({ error: err.message });

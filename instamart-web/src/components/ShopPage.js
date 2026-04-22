@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Filter, SlidersHorizontal } from 'lucide-react';
 
-function ShopPage({ products, categories, onAdd, user, priceForRole, cartItems = [] }) {
+function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, cartItems = [] }) {
   const [filtered, setFiltered] = useState(products);
   const [selectedCat, setSelectedCat] = useState('all');
   const [sortBy, setSortBy] = useState('default');
@@ -43,7 +43,8 @@ function ShopPage({ products, categories, onAdd, user, priceForRole, cartItems =
       </div>
       <div className="shop-product-grid">
         {filtered.map(product => {
-          const selectedQty = cartItems.find(item => Number(item.product_id || item.id) === Number(product.id))?.quantity || 0;
+          const cartItem = cartItems.find(item => Number(item.product_id || item.id) === Number(product.id));
+          const selectedQty = cartItem?.quantity || 0;
           const discount = Number(product.discount_percent) > 0 ? Math.round(Number(product.discount_percent)) : Math.round((1 - product.price / product.mrp) * 100);
           return (
             <div key={product.id} className="product-card" onClick={() => navigate(`/product/${product.id}`)}>
@@ -60,9 +61,16 @@ function ShopPage({ products, categories, onAdd, user, priceForRole, cartItems =
               <div className="product-price-row">
                 <span><span className="price-current">Rs {priceForRole ? priceForRole(product, user) : product.price}</span><span className="price-original">Rs {product.mrp}</span></span>
               </div>
-              {selectedQty > 0 && <div className="selected-qty-pill">{selectedQty} selected in cart</div>}
               {(user?.role === 'dealer' || user?.role === 'distributor') && <div className="trade-price-note">{user.role} price</div>}
-              <button className={selectedQty > 0 ? 'add-btn added' : 'add-btn'} onClick={(e) => { e.stopPropagation(); onAdd(product); }}>+ {selectedQty > 0 ? 'ADD MORE' : 'ADD'}</button>
+              {selectedQty > 0 ? (
+                <div className="card-qty-stepper" onClick={(e) => e.stopPropagation()}>
+                  <button onClick={() => onRemove(product, cartItem)}>-</button>
+                  <strong>{selectedQty}</strong>
+                  <button onClick={() => onAdd(product)}>+</button>
+                </div>
+              ) : (
+                <button className="add-btn" onClick={(e) => { e.stopPropagation(); onAdd(product); }}>+ ADD</button>
+              )}
             </div>
           );
         })}
