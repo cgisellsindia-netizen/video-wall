@@ -796,11 +796,32 @@ app.get('/api/health', (req, res) => {
 });
 
 // Serve static files from React build
-app.use(express.static(path.join(__dirname, '..', 'instamart-web', 'build')));
+const buildPath = path.join(__dirname, '..', 'instamart-web', 'build');
+
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+  }
+  next();
+});
+
+app.use(express.static(buildPath, {
+  etag: false,
+  lastModified: false,
+  setHeaders(res) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+  }
+}));
 
 // SPA fallback - serve index.html for non-API routes
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'instamart-web', 'build', 'index.html'));
+  res.sendFile(path.join(buildPath, 'index.html'));
 });
 
 app.listen(PORT, () => {
