@@ -2,20 +2,17 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 
-const FREE_DELIVERY_AT = 200;
-
 function FloatingCheckoutBar({ cartCount, cartTotal, cartItems = [], onCartClick }) {
   const navigate = useNavigate();
   const location = useLocation();
 
   if (!cartCount || location.pathname === '/checkout') return null;
-  const remaining = Math.max(0, FREE_DELIVERY_AT - Math.round(cartTotal));
   const firstItem = cartItems[0];
 
   return (
     <section className="floating-checkout-bar" onClick={() => navigate('/checkout')}>
       <button className="floating-checkout-offer" onClick={(event) => { event.stopPropagation(); onCartClick(); }}>
-        {remaining > 0 ? `Add Rs ${remaining} to unlock FREE DELIVERY` : 'FREE DELIVERY unlocked'}
+        Rs {Math.round(cartTotal)} cart total
       </button>
       <button className="floating-checkout-cart">
         <span>

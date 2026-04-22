@@ -355,7 +355,7 @@ app.post('/api/orders', authenticateToken, (req, res) => {
     }
 
     let totalAmount = normalizedItems.reduce((sum, item) => sum + (prices.get(item.product_id) * item.quantity), 0);
-    let finalAmount = totalAmount;
+    let taxableAmount = totalAmount;
 
     const createOrder = () => {
     const deliveryOtp = String(1000 + crypto.randomInt(9000));
@@ -363,9 +363,14 @@ app.post('/api/orders', authenticateToken, (req, res) => {
     const safeCustomerLng = Number.isFinite(Number(customer_lng)) ? Number(customer_lng) : null;
     const safeCustomerAccuracy = Number.isFinite(Number(customer_accuracy)) ? Number(customer_accuracy) : null;
     const safeCustomerLockedAt = Number.isFinite(Number(customer_location_locked_at)) ? Number(customer_location_locked_at) : null;
+    const addressText = String(address || '').toLowerCase();
+    const localAddress = addressText.includes('bhubaneswar') || addressText.includes('bbsr') || addressText.includes('cuttack');
+    const deliveryFee = taxableAmount > 2000 ? 0 : localAddress ? 40 : 120;
+    const gstAmount = Math.round(taxableAmount * 0.18);
+    const finalAmount = taxableAmount + gstAmount + deliveryFee;
     db.run(
-      'INSERT INTO orders (user_id, total_amount, final_amount, status, payment_method, address, customer_lat, customer_lng, customer_accuracy, customer_location_locked_at, delivery_otp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [req.user.userId, totalAmount, finalAmount, 'pending', payment_method, address, safeCustomerLat, safeCustomerLng, safeCustomerAccuracy, safeCustomerLockedAt, deliveryOtp],
+      'INSERT INTO orders (user_id, total_amount, final_amount, gst_amount, delivery_fee, status, payment_method, address, customer_lat, customer_lng, customer_accuracy, customer_location_locked_at, delivery_otp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [req.user.userId, totalAmount, finalAmount, gstAmount, deliveryFee, 'pending', payment_method, address, safeCustomerLat, safeCustomerLng, safeCustomerAccuracy, safeCustomerLockedAt, deliveryOtp],
       function(err) {
         if (err) return res.status(500).json({ error: err.message });
         
@@ -380,7 +385,7 @@ app.post('/api/orders', authenticateToken, (req, res) => {
         // Clear cart
         db.run('DELETE FROM cart WHERE user_id = ?', [req.user.userId]);
         
-        res.json({ order_id: orderId, total_amount: totalAmount, final_amount: finalAmount, status: 'pending' });
+        res.json({ order_id: orderId, total_amount: totalAmount, gst_amount: gstAmount, delivery_fee: deliveryFee, final_amount: finalAmount, status: 'pending' });
       }
     );
     };
@@ -391,7 +396,7 @@ app.post('/api/orders', authenticateToken, (req, res) => {
         if (promo && promo.used_count < promo.usage_limit && totalAmount >= promo.min_order) {
           let discount = (totalAmount * promo.discount_percent) / 100;
           if (discount > promo.max_discount) discount = promo.max_discount;
-          finalAmount = totalAmount - discount;
+          taxableAmount = totalAmount - discount;
 
           db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?', [promo.id]);
         }

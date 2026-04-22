@@ -5,6 +5,15 @@ import { API_URL } from '../api';
 import { captureCustomerLocation, getSavedCustomerLocation } from '../locationLock';
 
 function CheckoutPage({ user, onLogin, onOrderPlaced }) {
+  const [cartItems, setCartItems] = useState(() => {
+    try {
+      const savedCart = JSON.parse(localStorage.getItem('cart_backup') || '[]');
+      return Array.isArray(savedCart) ? savedCart : [];
+    } catch (e) {
+      localStorage.removeItem('cart_backup');
+      return [];
+    }
+  });
   const [address, setAddress] = useState(user?.address || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [paymentMethod, setPaymentMethod] = useState('upi');
@@ -19,17 +28,24 @@ function CheckoutPage({ user, onLogin, onOrderPlaced }) {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  let cartItems = [];
-  try {
-    const savedCart = JSON.parse(localStorage.getItem('cart_backup') || '[]');
-    cartItems = Array.isArray(savedCart) ? savedCart : [];
-  } catch (e) {
-    localStorage.removeItem('cart_backup');
-  }
-
   useEffect(() => {
     if (!user) onLogin();
   }, [user, onLogin]);
+
+  useEffect(() => {
+    if (!user) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API_URL}/cart`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.ok ? res.json() : [])
+      .then(data => {
+        if (Array.isArray(data) && data.length) {
+          setCartItems(data);
+          localStorage.setItem('cart_backup', JSON.stringify(data));
+        }
+      })
+      .catch(() => {});
+  }, [user]);
 
   useEffect(() => {
     let active = true;
@@ -62,7 +78,8 @@ function CheckoutPage({ user, onLogin, onOrderPlaced }) {
   const localAddress = addressText.includes('bhubaneswar') || addressText.includes('bbsr') || addressText.includes('cuttack');
   const deliveryEstimate = localAddress ? 'Today / same-day' : '2-4 days';
   const deliveryFee = subtotal > 2000 ? 0 : localAddress ? 40 : 120;
-  const payable = subtotal + deliveryFee;
+  const gst = Math.round(subtotal * 0.18);
+  const payable = subtotal + gst + deliveryFee;
 
   const validatePayment = () => {
     if (paymentMethod === 'upi' && !upiId.includes('@')) return 'Enter a valid UPI ID, for example name@upi.';
@@ -178,6 +195,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced }) {
           ))}
         </div>
         <div className="summary-row"><span>Subtotal</span><strong>Rs {subtotal}</strong></div>
+        <div className="summary-row"><span>GST 18%</span><strong>Rs {gst}</strong></div>
         <div className="summary-row"><span>Delivery</span><strong>{deliveryFee === 0 ? 'FREE' : `Rs ${deliveryFee}`}</strong></div>
         <div className="summary-row"><span>Estimate</span><strong>{deliveryEstimate}</strong></div>
         <div className="summary-row"><span>GPS accuracy</span><strong>{coords?.accuracy ? `${Math.round(coords.accuracy)}m` : 'Not locked'}</strong></div>

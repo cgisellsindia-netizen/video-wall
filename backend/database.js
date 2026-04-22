@@ -59,6 +59,8 @@ db.serialize(async () => {
     user_id INTEGER,
     total_amount REAL,
     final_amount REAL,
+    gst_amount REAL,
+    delivery_fee REAL,
     status TEXT DEFAULT 'pending',
     payment_method TEXT,
     address TEXT,
@@ -140,6 +142,8 @@ db.serialize(async () => {
   addColumn('orders', 'customer_accuracy REAL');
   addColumn('orders', 'customer_location_locked_at INTEGER');
   addColumn('orders', 'delivery_partner_id INTEGER');
+  addColumn('orders', 'gst_amount REAL');
+  addColumn('orders', 'delivery_fee REAL');
 
   const hashedPassword = await bcrypt.hash('password123', 10);
   const adminPassword = await bcrypt.hash('admin123', 10);

@@ -67,10 +67,19 @@ class ErrorBoundary extends React.Component {
   }
 
   resetApp = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('cart_backup');
-    window.location.href = '/';
+    Object.keys(localStorage)
+      .filter(key => key === 'token' || key === 'user' || key.startsWith('camigo') || key === 'cart_backup')
+      .forEach(key => localStorage.removeItem(key));
+    sessionStorage.clear();
+    if ('caches' in window) {
+      caches.keys().then(keys => keys.forEach(key => caches.delete(key))).catch(() => {});
+    }
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations()
+        .then(registrations => registrations.forEach(registration => registration.unregister()))
+        .catch(() => {});
+    }
+    window.location.href = `/?reset=${Date.now()}`;
   };
 
   render() {
@@ -402,11 +411,13 @@ function AppContent() {
 
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={handleLogin} />
       {appNotice && <div className="app-notice"><strong>{appNotice.title}</strong><span>{appNotice.message}</span><button onClick={() => { localStorage.setItem(`camigo_notice_${appNotice.id}`, '1'); setAppNotice(null); }}>Close</button></div>}
-      <FloatingTracker
-        activeOrder={activeOrder}
-        onDismiss={dismissActiveOrder}
-        onRate={dismissActiveOrder}
-      />
+      {activeOrder?.id && (
+        <FloatingTracker
+          activeOrder={activeOrder}
+          onDismiss={dismissActiveOrder}
+          onRate={dismissActiveOrder}
+        />
+      )}
       {APP_MODE !== 'delivery' && user?.role !== 'delivery_partner' && !activeOrder?.id && (
         <FloatingCheckoutBar cartCount={cartCount} cartTotal={cartTotal} cartItems={cartItems} onCartClick={() => setCartOpen(true)} />
       )}
