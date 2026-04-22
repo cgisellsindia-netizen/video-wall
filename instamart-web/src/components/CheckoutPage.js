@@ -75,7 +75,9 @@ function CheckoutPage({ user, onLogin, onOrderPlaced }) {
   if (!user) return null;
 
   const subtotal = cartItems.reduce((s, i) => s + (Number(i.price) * Number(i.quantity || 1)), 0);
-  const localAddress = isLocalServiceZone(coords?.lat, coords?.lng) || isLocalAddressText(address);
+  const gpsIsLocked = Boolean(coords?.lat && coords?.lng);
+  const gpsLocal = isLocalServiceZone(coords?.lat, coords?.lng);
+  const localAddress = gpsIsLocked ? gpsLocal : isLocalAddressText(address);
   const deliveryEstimate = localAddress ? 'Today / same-day' : '2-4 days';
   const deliveryFee = subtotal > 2000 ? 0 : localAddress ? 40 : 120;
   const gst = Math.round(subtotal * 0.18);
@@ -198,6 +200,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced }) {
         <div className="summary-row"><span>GST 18%</span><strong>Rs {gst}</strong></div>
         <div className="summary-row"><span>Delivery</span><strong>{deliveryFee === 0 ? 'FREE' : `Rs ${deliveryFee}`}</strong></div>
         <div className="summary-row"><span>Estimate</span><strong>{deliveryEstimate}</strong></div>
+        <div className="summary-row"><span>Delivery zone</span><strong>{localAddress ? 'Local GPS zone' : 'Courier zone'}</strong></div>
         <div className="summary-row"><span>GPS accuracy</span><strong>{coords?.accuracy ? `${Math.round(coords.accuracy)}m` : 'Not locked'}</strong></div>
         <div className="summary-total"><span>Payable</span><strong>Rs {payable}</strong></div>
         <button className="checkout-pay-btn" onClick={handlePlaceOrder} disabled={loading || cartItems.length === 0}>
