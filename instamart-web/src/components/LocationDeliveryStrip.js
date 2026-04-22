@@ -1,15 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { MapPin, Navigation, Zap } from 'lucide-react';
 import { captureCustomerLocation, getSavedCustomerLocation } from '../locationLock';
+import { isLocalServiceZone } from '../deliveryZone';
 
 function LocationDeliveryStrip() {
   const [location, setLocation] = useState(localStorage.getItem('camigo_location') || 'Bhubaneswar');
   const [status, setStatus] = useState('Fast delivery zone active');
   const [estimate, setEstimate] = useState(localStorage.getItem('camigo_delivery_estimate') || '26 mins');
-
-  const isLocalServiceZone = (lat, lng) => (
-    lat >= 20.15 && lat <= 20.55 && lng >= 85.65 && lng <= 86.05
-  );
 
   const detectLocation = () => {
     if (!navigator.geolocation) {

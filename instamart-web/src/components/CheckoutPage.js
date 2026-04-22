@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CreditCard, MapPin, Smartphone, Wallet } from 'lucide-react';
 import { API_URL } from '../api';
 import { captureCustomerLocation, getSavedCustomerLocation } from '../locationLock';
+import { isLocalAddressText, isLocalServiceZone } from '../deliveryZone';
 
 function CheckoutPage({ user, onLogin, onOrderPlaced }) {
   const [cartItems, setCartItems] = useState(() => {
@@ -74,8 +75,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced }) {
   if (!user) return null;
 
   const subtotal = cartItems.reduce((s, i) => s + (Number(i.price) * Number(i.quantity || 1)), 0);
-  const addressText = String(address || '').toLowerCase();
-  const localAddress = addressText.includes('bhubaneswar') || addressText.includes('bbsr') || addressText.includes('cuttack');
+  const localAddress = isLocalServiceZone(coords?.lat, coords?.lng) || isLocalAddressText(address);
   const deliveryEstimate = localAddress ? 'Today / same-day' : '2-4 days';
   const deliveryFee = subtotal > 2000 ? 0 : localAddress ? 40 : 120;
   const gst = Math.round(subtotal * 0.18);

@@ -61,6 +61,18 @@ const priceForUserRole = (product, role) => {
   return Number(product.price || 0);
 };
 
+const isLocalServiceZone = (lat, lng) => {
+  const valueLat = Number(lat);
+  const valueLng = Number(lng);
+  if (!Number.isFinite(valueLat) || !Number.isFinite(valueLng)) return false;
+  return valueLat >= 20.05 && valueLat <= 20.65 && valueLng >= 85.50 && valueLng <= 86.10;
+};
+
+const isLocalAddressText = (address = '') => {
+  const text = String(address).toLowerCase();
+  return ['bhubaneswar', 'bbsr', 'cuttack', 'khordha', 'khurda', 'jatni', 'patia'].some(place => text.includes(place));
+};
+
 const requireAdmin = (req, res, next) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
@@ -363,8 +375,7 @@ app.post('/api/orders', authenticateToken, (req, res) => {
     const safeCustomerLng = Number.isFinite(Number(customer_lng)) ? Number(customer_lng) : null;
     const safeCustomerAccuracy = Number.isFinite(Number(customer_accuracy)) ? Number(customer_accuracy) : null;
     const safeCustomerLockedAt = Number.isFinite(Number(customer_location_locked_at)) ? Number(customer_location_locked_at) : null;
-    const addressText = String(address || '').toLowerCase();
-    const localAddress = addressText.includes('bhubaneswar') || addressText.includes('bbsr') || addressText.includes('cuttack');
+    const localAddress = isLocalServiceZone(safeCustomerLat, safeCustomerLng) || isLocalAddressText(address);
     const deliveryFee = taxableAmount > 2000 ? 0 : localAddress ? 40 : 120;
     const gstAmount = Math.round(taxableAmount * 0.18);
     const finalAmount = taxableAmount + gstAmount + deliveryFee;
