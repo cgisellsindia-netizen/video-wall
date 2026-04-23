@@ -166,6 +166,11 @@ db.serialize(async () => {
   addColumn('orders', 'delivery_fee REAL');
   addColumn('notifications', 'personalize INTEGER DEFAULT 0');
   addColumn('notifications', 'product_id INTEGER');
+  db.run(`UPDATE order_items
+          SET warranty_years = COALESCE(warranty_years, 5),
+              warranty_start_at = COALESCE(warranty_start_at, (SELECT created_at FROM orders WHERE orders.id = order_items.order_id)),
+              warranty_end_at = COALESCE(warranty_end_at, datetime((SELECT created_at FROM orders WHERE orders.id = order_items.order_id), '+' || COALESCE(warranty_years, 5) || ' years'))
+          WHERE warranty_start_at IS NULL OR warranty_end_at IS NULL`);
 
   const hashedPassword = await bcrypt.hash('password123', 10);
   const adminPassword = await bcrypt.hash('admin123', 10);
