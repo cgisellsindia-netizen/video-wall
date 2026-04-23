@@ -335,6 +335,19 @@ function AppContent() {
 
   const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0);
   const cartTotal = cartItems.reduce((s, i) => s + (i.price * i.quantity), 0);
+  const firstName = String(user?.name || '').trim().split(/\s+/)[0] || '';
+  const noticeTitle = appNotice?.personalize && firstName ? `${firstName}, ${appNotice.title}` : appNotice?.title;
+  const noticeMessage = appNotice?.personalize && firstName ? `${firstName}, ${appNotice.message}` : appNotice?.message;
+  const handleNoticeOpen = () => {
+    if (appNotice?.product_id) {
+      navigate(`/product/${appNotice.product_id}`);
+    }
+  };
+  const dismissNotice = (event) => {
+    event?.stopPropagation?.();
+    if (appNotice?.id) localStorage.setItem(`camigo_notice_${appNotice.id}`, '1');
+    setAppNotice(null);
+  };
 
   if (APP_MODE === 'delivery') {
     return (
@@ -352,7 +365,7 @@ function AppContent() {
         <Routes>
           <Route path="*" element={<DeliveryPartnerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
         </Routes>
-        {appNotice && <div className="app-notice"><strong>{appNotice.title}</strong><span>{appNotice.message}</span><button onClick={() => { localStorage.setItem(`camigo_notice_${appNotice.id}`, '1'); setAppNotice(null); }}>Close</button></div>}
+        {appNotice && <div className={appNotice.product_id ? 'app-notice clickable' : 'app-notice'} onClick={handleNoticeOpen}><strong>{noticeTitle}</strong><span>{noticeMessage}</span>{appNotice.product_id && <small>Tap to view product</small>}<button onClick={dismissNotice}>Close</button></div>}
         <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={handleLogin} />
       </div>
     );
@@ -410,7 +423,7 @@ function AppContent() {
       />
 
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={handleLogin} />
-      {appNotice && <div className="app-notice"><strong>{appNotice.title}</strong><span>{appNotice.message}</span><button onClick={() => { localStorage.setItem(`camigo_notice_${appNotice.id}`, '1'); setAppNotice(null); }}>Close</button></div>}
+      {appNotice && <div className={appNotice.product_id ? 'app-notice clickable' : 'app-notice'} onClick={handleNoticeOpen}><strong>{noticeTitle}</strong><span>{noticeMessage}</span>{appNotice.product_id && <small>Tap to view product</small>}<button onClick={dismissNotice}>Close</button></div>}
       {activeOrder?.id && (
         <FloatingTracker
           activeOrder={activeOrder}

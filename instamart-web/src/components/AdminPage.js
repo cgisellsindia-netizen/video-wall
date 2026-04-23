@@ -16,7 +16,7 @@ function AdminPage({ user }) {
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState('');
   const [partnerPasswords, setPartnerPasswords] = useState({});
-  const [notificationForm, setNotificationForm] = useState({ title: '', message: '', target: 'customer' });
+  const [notificationForm, setNotificationForm] = useState({ title: '', message: '', target: 'customer', personalize: true, product_id: '' });
   const navigate = useNavigate();
 
   const emptyProduct = { name: '', description: '', price: '', mrp: '', discount_percent: '', dealer_price: '', distributor_price: '', image: '/images/cgi-new.jpg', category_id: '1', stock: '50', unit: '1 Unit' };
@@ -178,7 +178,7 @@ function AdminPage({ user }) {
     });
     const data = await res.json().catch(() => ({}));
     setMessage(res.ok ? 'Notification sent to app.' : (data.error || 'Notification failed.'));
-    if (res.ok) setNotificationForm({ title: '', message: '', target: 'customer' });
+    if (res.ok) setNotificationForm({ title: '', message: '', target: 'customer', personalize: true, product_id: '' });
   };
 
   const handleCreateUser = async (e) => {
@@ -293,7 +293,10 @@ function AdminPage({ user }) {
           <form className="admin-product-form" onSubmit={handleSendNotification}>
             <div className="form-group"><label>Title</label><input value={notificationForm.title} onChange={e => setNotificationForm({...notificationForm, title: e.target.value})} required /></div>
             <div className="form-group"><label>Target App</label><select value={notificationForm.target} onChange={e => setNotificationForm({...notificationForm, target: e.target.value})}><option value="customer">Customer app</option><option value="delivery">Delivery partner app</option><option value="all">Both apps</option></select></div>
+            <div className="form-group"><label>Open product on click</label><select value={notificationForm.product_id} onChange={e => setNotificationForm({...notificationForm, product_id: e.target.value})}><option value="">No product link</option>{products.map(product => <option key={product.id} value={product.id}>{product.name}</option>)}</select></div>
+            <div className="form-group"><label>Customer first name</label><select value={notificationForm.personalize ? '1' : '0'} onChange={e => setNotificationForm({...notificationForm, personalize: e.target.value === '1'})}><option value="1">Add first name automatically</option><option value="0">Do not personalize</option></select></div>
             <div className="form-group" style={{ gridColumn: '1 / -1' }}><label>Message</label><textarea value={notificationForm.message} onChange={e => setNotificationForm({...notificationForm, message: e.target.value})} rows="3" required /></div>
+            <p className="checkout-note" style={{ gridColumn: '1 / -1', margin: 0 }}>Tip: if personalization is on, customers see their first name before your message. Product link opens inside the app.</p>
             <button className="btn btn-primary" type="submit">Send Notification</button>
           </form>
         </div>

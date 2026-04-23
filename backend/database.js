@@ -133,6 +133,8 @@ db.serialize(async () => {
     title TEXT,
     message TEXT,
     target TEXT DEFAULT 'customer',
+    personalize INTEGER DEFAULT 0,
+    product_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
@@ -144,6 +146,8 @@ db.serialize(async () => {
   addColumn('orders', 'delivery_partner_id INTEGER');
   addColumn('orders', 'gst_amount REAL');
   addColumn('orders', 'delivery_fee REAL');
+  addColumn('notifications', 'personalize INTEGER DEFAULT 0');
+  addColumn('notifications', 'product_id INTEGER');
 
   const hashedPassword = await bcrypt.hash('password123', 10);
   const adminPassword = await bcrypt.hash('admin123', 10);

@@ -801,13 +801,14 @@ app.delete('/api/admin/hubs/:id', authenticateToken, requireAdmin, (req, res) =>
 });
 
 app.post('/api/admin/notifications', authenticateToken, requireAdmin, (req, res) => {
-  const { title, message, target } = req.body;
+  const { title, message, target, personalize, product_id } = req.body;
   const safeTarget = ['customer', 'delivery', 'all'].includes(target) ? target : 'customer';
+  const safeProductId = Number.isInteger(Number(product_id)) && Number(product_id) > 0 ? Number(product_id) : null;
   if (!title || !message) return res.status(400).json({ error: 'Title and message are required' });
 
   db.run(
-    'INSERT INTO notifications (title, message, target) VALUES (?, ?, ?)',
-    [title, message, safeTarget],
+    'INSERT INTO notifications (title, message, target, personalize, product_id) VALUES (?, ?, ?, ?, ?)',
+    [title, message, safeTarget, personalize ? 1 : 0, safeProductId],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ id: this.lastID, message: 'Notification sent' });
