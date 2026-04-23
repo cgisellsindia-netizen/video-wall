@@ -54,13 +54,26 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const JWT_SECRET = process.env.JWT_SECRET || 'camigo-local-dev-secret-change-before-production';
-const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT || path.join(__dirname, '..', 'firebase-service-account.json');
+const firebaseServiceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+const firebaseServiceAccountCandidates = [
+  process.env.FIREBASE_SERVICE_ACCOUNT,
+  path.join(__dirname, '..', 'firebase-service-account.json'),
+  '/etc/secrets/firebase-service-account.json'
+].filter(Boolean);
 let firebaseReady = false;
 try {
-  if (fs.existsSync(serviceAccountPath) && !admin.apps.length) {
-    const serviceAccount = require(serviceAccountPath);
-    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-    firebaseReady = true;
+  if (!admin.apps.length) {
+    let serviceAccount = null;
+    if (firebaseServiceAccountJson) {
+      serviceAccount = JSON.parse(firebaseServiceAccountJson);
+    } else {
+      const serviceAccountPath = firebaseServiceAccountCandidates.find(candidate => fs.existsSync(candidate));
+      if (serviceAccountPath) serviceAccount = require(serviceAccountPath);
+    }
+    if (serviceAccount) {
+      admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+      firebaseReady = true;
+    }
   }
 } catch (error) {
   console.warn('Firebase Admin not ready:', error.message);
