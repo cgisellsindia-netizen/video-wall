@@ -144,6 +144,9 @@ function AppContent() {
   const [activeOrder, setActiveOrder] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [appNotice, setAppNotice] = useState(null);
+  const [notificationPermission, setNotificationPermission] = useState(() => (
+    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
+  ));
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -180,15 +183,65 @@ function AppContent() {
 
   useEffect(() => {
     const target = APP_MODE === 'delivery' ? 'delivery' : 'customer';
-    fetch(`${API_URL}/notifications?target=${target}`)
-      .then(res => res.ok ? res.json() : [])
-      .then(data => {
-        if (!Array.isArray(data) || !data.length) return;
-        const latest = data[0];
-        if (localStorage.getItem(`camigo_notice_${latest.id}`)) return;
-        setAppNotice(latest);
-      })
-      .catch(() => {});
+    let stopped = false;
+
+    const notifyPhone = (notice) => {
+      if (!notice?.id || typeof window === 'undefined' || !('Notification' in window)) return;
+      if (localStorage.getItem(`camigo_phone_notice_${notice.id}`)) return;
+
+      let savedUser = null;
+      try {
+        savedUser = JSON.parse(localStorage.getItem('user') || 'null');
+      } catch (e) {}
+      const savedFirstName = String(savedUser?.name || '').trim().split(/\s+/)[0] || '';
+      const title = notice.personalize && savedFirstName ? `${savedFirstName}, ${notice.title}` : notice.title;
+      const body = notice.personalize && savedFirstName ? `${savedFirstName}, ${notice.message}` : notice.message;
+      const showNotification = () => {
+        try {
+          const phoneNotice = new Notification(title, {
+            body,
+            icon: '/logo192.png',
+            badge: '/favicon.ico',
+            tag: `camigo-${notice.id}`
+          });
+          phoneNotice.onclick = () => {
+            window.focus();
+            if (notice.product_id) window.location.hash = `#/product/${notice.product_id}`;
+            phoneNotice.close();
+          };
+          localStorage.setItem(`camigo_phone_notice_${notice.id}`, '1');
+        } catch (e) {}
+      };
+
+      if (Notification.permission === 'granted') {
+        showNotification();
+      } else if (Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') showNotification();
+        }).catch(() => {});
+      }
+    };
+
+    const loadNotifications = () => {
+      fetch(`${API_URL}/notifications?target=${target}&ts=${Date.now()}`)
+        .then(res => res.ok ? res.json() : [])
+        .then(data => {
+          if (stopped || !Array.isArray(data) || !data.length) return;
+          const latest = data[0];
+          if (!localStorage.getItem(`camigo_notice_${latest.id}`)) {
+            setAppNotice(latest);
+          }
+          notifyPhone(latest);
+        })
+        .catch(() => {});
+    };
+
+    loadNotifications();
+    const poller = setInterval(loadNotifications, 10000);
+    return () => {
+      stopped = true;
+      clearInterval(poller);
+    };
   }, []);
 
   useEffect(() => {
@@ -343,11 +396,19 @@ function AppContent() {
       navigate(`/product/${appNotice.product_id}`);
     }
   };
+  const requestPhoneAlerts = (event) => {
+    event?.stopPropagation?.();
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    Notification.requestPermission()
+      .then(permission => setNotificationPermission(permission))
+      .catch(() => {});
+  };
   const dismissNotice = (event) => {
     event?.stopPropagation?.();
     if (appNotice?.id) localStorage.setItem(`camigo_notice_${appNotice.id}`, '1');
     setAppNotice(null);
   };
+  const showEnablePhoneAlerts = notificationPermission === 'default';
 
   if (APP_MODE === 'delivery') {
     return (
@@ -365,7 +426,7 @@ function AppContent() {
         <Routes>
           <Route path="*" element={<DeliveryPartnerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
         </Routes>
-        {appNotice && <div className={appNotice.product_id ? 'app-notice clickable' : 'app-notice'} onClick={handleNoticeOpen}><strong>{noticeTitle}</strong><span>{noticeMessage}</span>{appNotice.product_id && <small>Tap to view product</small>}<button onClick={dismissNotice}>Close</button></div>}
+        {appNotice && <div className={appNotice.product_id ? 'app-notice clickable' : 'app-notice'} onClick={handleNoticeOpen}><strong>{noticeTitle}</strong><span>{noticeMessage}</span>{appNotice.product_id && <small>Tap to view product</small>}{showEnablePhoneAlerts && <button className="notice-enable" onClick={requestPhoneAlerts}>Enable alerts</button>}<button onClick={dismissNotice}>Close</button></div>}
         <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={handleLogin} />
       </div>
     );
@@ -423,7 +484,7 @@ function AppContent() {
       />
 
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={handleLogin} />
-      {appNotice && <div className={appNotice.product_id ? 'app-notice clickable' : 'app-notice'} onClick={handleNoticeOpen}><strong>{noticeTitle}</strong><span>{noticeMessage}</span>{appNotice.product_id && <small>Tap to view product</small>}<button onClick={dismissNotice}>Close</button></div>}
+      {appNotice && <div className={appNotice.product_id ? 'app-notice clickable' : 'app-notice'} onClick={handleNoticeOpen}><strong>{noticeTitle}</strong><span>{noticeMessage}</span>{appNotice.product_id && <small>Tap to view product</small>}{showEnablePhoneAlerts && <button className="notice-enable" onClick={requestPhoneAlerts}>Enable alerts</button>}<button onClick={dismissNotice}>Close</button></div>}
       {activeOrder?.id && (
         <FloatingTracker
           activeOrder={activeOrder}
