@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const path = require('path');
+const fs = require('fs');
+const admin = require('firebase-admin');
 const db = require('./database');
 
 const app = express();
@@ -52,6 +54,17 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const JWT_SECRET = process.env.JWT_SECRET || 'camigo-local-dev-secret-change-before-production';
+const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT || path.join(__dirname, '..', 'firebase-service-account.json');
+let firebaseReady = false;
+try {
+  if (fs.existsSync(serviceAccountPath) && !admin.apps.length) {
+    const serviceAccount = require(serviceAccountPath);
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    firebaseReady = true;
+  }
+} catch (error) {
+  console.warn('Firebase Admin not ready:', error.message);
+}
 
 const priceForUserRole = (product, role) => {
   if (role === 'distributor' && Number(product.distributor_price) > 0) return Number(product.distributor_price);
@@ -72,6 +85,67 @@ const isLocalAddressText = (address = '') => {
   const text = String(address).toLowerCase();
   return ['bhubaneswar', 'bbsr', 'cuttack', 'khordha', 'khurda', 'jatni', 'patia'].some(place => text.includes(place));
 };
+
+const sendPushToTarget = (target, payload) => new Promise((resolve) => {
+  if (!firebaseReady) return resolve({ sent: 0, failed: 0, skipped: true });
+  const roles = target === 'delivery'
+    ? ['delivery_partner']
+    : target === 'all'
+      ? ['user', 'dealer', 'distributor', 'admin', 'delivery_partner']
+      : ['user', 'dealer', 'distributor', 'admin'];
+  const placeholders = roles.map(() => '?').join(',');
+  db.all(
+    `SELECT pt.token, pt.id FROM push_tokens pt
+     JOIN users u ON pt.user_id = u.id
+     WHERE u.role IN (${placeholders})`,
+    roles,
+    async (err, rows = []) => {
+      if (err || !rows.length) return resolve({ sent: 0, failed: rows.length || 0 });
+      const tokens = [...new Set(rows.map(row => row.token).filter(Boolean))];
+      if (!tokens.length) return resolve({ sent: 0, failed: 0 });
+      let sent = 0;
+      let failed = 0;
+      const invalidTokens = [];
+      for (let index = 0; index < tokens.length; index += 500) {
+        const batch = tokens.slice(index, index + 500);
+        try {
+          const response = await admin.messaging().sendEachForMulticast({
+            tokens: batch,
+            notification: {
+              title: payload.title,
+              body: payload.body
+            },
+            data: {
+              product_id: payload.product_id ? String(payload.product_id) : '',
+              notification_id: payload.notification_id ? String(payload.notification_id) : ''
+            },
+            android: {
+              priority: 'high',
+              notification: {
+                channelId: 'camigo-admin',
+                sound: 'default'
+              }
+            }
+          });
+          sent += response.successCount;
+          failed += response.failureCount;
+          response.responses.forEach((item, itemIndex) => {
+            const code = item.error?.code || '';
+            if (code.includes('registration-token-not-registered') || code.includes('invalid-registration-token')) {
+              invalidTokens.push(batch[itemIndex]);
+            }
+          });
+        } catch (error) {
+          failed += batch.length;
+        }
+      }
+      if (invalidTokens.length) {
+        db.run(`DELETE FROM push_tokens WHERE token IN (${invalidTokens.map(() => '?').join(',')})`, invalidTokens);
+      }
+      resolve({ sent, failed });
+    }
+  );
+});
 
 const requireAdmin = (req, res, next) => {
   if (req.user.role !== 'admin') {
@@ -247,6 +321,26 @@ app.get('/api/notifications', (req, res) => {
     (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json(rows);
+    }
+  );
+});
+
+app.post('/api/push/register', authenticateToken, (req, res) => {
+  const { token, platform, app_target } = req.body;
+  if (!token || String(token).length < 20) return res.status(400).json({ error: 'Valid push token is required' });
+  const safeTarget = ['customer', 'delivery'].includes(app_target) ? app_target : (req.user.role === 'delivery_partner' ? 'delivery' : 'customer');
+  db.run(
+    `INSERT INTO push_tokens (user_id, token, platform, app_target, updated_at)
+     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(token) DO UPDATE SET
+       user_id = excluded.user_id,
+       platform = excluded.platform,
+       app_target = excluded.app_target,
+       updated_at = CURRENT_TIMESTAMP`,
+    [req.user.userId, token, platform || 'android', safeTarget],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ message: 'Push token registered' });
     }
   );
 });
@@ -809,9 +903,15 @@ app.post('/api/admin/notifications', authenticateToken, requireAdmin, (req, res)
   db.run(
     'INSERT INTO notifications (title, message, target, personalize, product_id) VALUES (?, ?, ?, ?, ?)',
     [title, message, safeTarget, personalize ? 1 : 0, safeProductId],
-    function(err) {
+    async function(err) {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ id: this.lastID, message: 'Notification sent' });
+      const pushResult = await sendPushToTarget(safeTarget, {
+        title,
+        body: message,
+        product_id: safeProductId,
+        notification_id: this.lastID
+      });
+      res.json({ id: this.lastID, message: 'Notification sent', push: pushResult });
     }
   );
 });

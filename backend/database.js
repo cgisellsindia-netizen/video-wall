@@ -138,6 +138,16 @@ db.serialize(async () => {
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
+  db.run(`CREATE TABLE IF NOT EXISTS push_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    token TEXT UNIQUE,
+    platform TEXT DEFAULT 'android',
+    app_target TEXT DEFAULT 'customer',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  )`);
+
   addColumn('products', 'discount_percent REAL DEFAULT 0');
   addColumn('products', 'dealer_price REAL');
   addColumn('products', 'distributor_price REAL');

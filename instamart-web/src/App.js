@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { PushNotifications } from '@capacitor/push-notifications';
 import Header from './components/Header';
 import HeroBanner from './components/HeroBanner';
 import CategoryGrid from './components/CategoryGrid';
@@ -295,6 +296,55 @@ function AppContent() {
     }).then(handle => { listener = handle; }).catch(() => {});
     return () => { listener?.remove?.(); };
   }, [navigate]);
+
+  useEffect(() => {
+    if (!user || !Capacitor.isNativePlatform()) return undefined;
+    let registrationListener;
+    let actionListener;
+    let receiveListener;
+    const token = localStorage.getItem('token');
+    if (!token) return undefined;
+
+    const setupPush = async () => {
+      try {
+        let permission = await PushNotifications.checkPermissions();
+        if (permission.receive !== 'granted') {
+          permission = await PushNotifications.requestPermissions();
+        }
+        if (permission.receive !== 'granted') return;
+
+        registrationListener = await PushNotifications.addListener('registration', async (deviceToken) => {
+          localStorage.setItem('camigo_fcm_token', deviceToken.value);
+          await fetch(`${API_URL}/push/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              token: deviceToken.value,
+              platform: 'android',
+              app_target: APP_MODE === 'delivery' || user.role === 'delivery_partner' ? 'delivery' : 'customer'
+            })
+          }).catch(() => {});
+        });
+        actionListener = await PushNotifications.addListener('pushNotificationActionPerformed', (event) => {
+          const productId = event.notification?.data?.product_id;
+          if (productId) navigate(`/product/${productId}`);
+        });
+        receiveListener = await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+          if (notification?.data?.product_id) {
+            localStorage.setItem(`camigo_push_product_${notification.id || Date.now()}`, notification.data.product_id);
+          }
+        });
+        await PushNotifications.register();
+      } catch (e) {}
+    };
+
+    setupPush();
+    return () => {
+      registrationListener?.remove?.();
+      actionListener?.remove?.();
+      receiveListener?.remove?.();
+    };
+  }, [user, navigate]);
 
   useEffect(() => {
     if (!user || APP_MODE === 'delivery' || user.role === 'delivery_partner') return;

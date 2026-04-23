@@ -6,6 +6,8 @@ dist/
 .env.production.local
 .env.development.local
 *.log
+firebase-service-account.json
+**/google-services.json
 
 backend/node_modules/
 backend/*.log
