@@ -45,7 +45,8 @@ function LoginModal({ open, onClose, onLogin }) {
     e.preventDefault(); setError(''); setLoading(true);
     try {
       if (mode === 'login') {
-        const data = await postAuth('/auth/login', { email, password });
+        const loginId = email.trim();
+        const data = await postAuth('/auth/login', { email: loginId, loginId, phone: loginId, password });
         onLogin(data);
       } else {
         await postAuth('/auth/register', { email, password, name, phone, address });

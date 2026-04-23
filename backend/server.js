@@ -174,11 +174,12 @@ app.get('/api/debug', (req, res) => {
   res.json({ status: 'debug disabled', node_version: process.version, platform: process.platform });
 });
 
-app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+const loginUser = (req, res) => {
+  const loginId = String(req.body.email || req.body.loginId || req.body.phone || '').trim();
+  const { password } = req.body;
+  if (!loginId || !password) return res.status(400).json({ error: 'Login ID/mobile and password are required' });
 
-  db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
+  db.get('SELECT * FROM users WHERE email = ? OR phone = ?', [loginId, loginId], async (err, user) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
@@ -197,7 +198,9 @@ app.post('/api/auth/login', (req, res) => {
       res.status(500).json({ error: error.message });
     }
   });
-});
+};
+
+app.post('/api/auth/login', loginUser);
 
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, name, phone, address } = req.body;
@@ -222,30 +225,7 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // Backward-compatible aliases for cached app/web builds that may call auth without /api.
-app.post('/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
-
-  db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-
-    try {
-      const ok = await bcrypt.compare(password, user.password);
-      if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-
-      const token = jwt.sign(
-        { userId: user.id, email: user.email, role: user.role },
-        JWT_SECRET,
-        { expiresIn: '24h' }
-      );
-
-      res.json({ token, user: { id: user.id, email: user.email, name: user.name, phone: user.phone, address: user.address, role: user.role } });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-});
+app.post('/auth/login', loginUser);
 
 app.post('/auth/register', async (req, res) => {
   const { email, password, name, phone, address } = req.body;

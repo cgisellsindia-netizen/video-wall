@@ -26,8 +26,8 @@
     "cap:delivery": "node scripts/use-capacitor-config.js delivery",
     "android:add:customer": "npm run cap:customer && npx cap add android",
     "android:add:delivery": "npm run cap:delivery && npx cap add android",
-    "android:sync:customer": "set REACT_APP_APP_MODE=customer&& set REACT_APP_API_URL=http://192.168.1.22:3001/api&& react-scripts build && npm run cap:customer && npx cap sync android",
-    "android:sync:delivery": "set REACT_APP_APP_MODE=delivery&& set REACT_APP_API_URL=http://192.168.1.22:3001/api&& react-scripts build && npm run cap:delivery && npx cap sync android",
+    "android:sync:customer": "set REACT_APP_APP_MODE=customer&& set REACT_APP_API_URL=https://camigo-store.onrender.com/api&& react-scripts build && npm run cap:customer && npx cap sync android",
+    "android:sync:delivery": "set REACT_APP_APP_MODE=delivery&& set REACT_APP_API_URL=https://camigo-store.onrender.com/api&& react-scripts build && npm run cap:delivery && npx cap sync android",
     "android:open:customer": "npm run cap:customer && npx cap open android",
     "android:open:delivery": "npm run cap:delivery && npx cap open android"
   },

@@ -356,6 +356,8 @@ function AppContent() {
     const active = { id: order.order_id, address: order.address, createdAt: Date.now() };
     localStorage.setItem('camigo_active_order', JSON.stringify(active));
     setActiveOrder(active);
+    setCartItems([]);
+    localStorage.removeItem('cart_backup');
   };
 
   const dismissActiveOrder = () => {
@@ -427,14 +429,26 @@ function AppContent() {
     }
     const token = localStorage.getItem('token');
     if (!token) { setLoginOpen(true); return; }
+    setCartItems(current => {
+      const existing = current.find(entry => Number(entry.product_id || entry.id) === Number(product.id));
+      if (existing) {
+        return current.map(entry => Number(entry.product_id || entry.id) === Number(product.id)
+          ? { ...entry, quantity: Number(entry.quantity || 0) + 1 }
+          : entry);
+      }
+      return [...current, { ...product, product_id: product.id, quantity: 1 }];
+    });
     try {
-      await fetch(`${API_URL}/cart`, {
+      const res = await fetch(`${API_URL}/cart`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ product_id: product.id, quantity: 1 })
       });
+      if (!res.ok) throw new Error('Cart add failed');
       await fetchCart();
-    } catch (e) {}
+    } catch (e) {
+      await fetchCart();
+    }
   };
 
   const removeFromCart = async (product, cartItem) => {
@@ -444,21 +458,30 @@ function AppContent() {
     const item = cartItem || cartItems.find(entry => Number(entry.product_id || entry.id) === Number(product.id));
     if (!item?.id) return;
     const nextQty = Number(item.quantity || 0) - 1;
+    setCartItems(current => current
+      .map(entry => Number(entry.product_id || entry.id) === Number(product.id)
+        ? { ...entry, quantity: nextQty }
+        : entry)
+      .filter(entry => Number(entry.quantity || 0) > 0));
     try {
       if (nextQty <= 0) {
-        await fetch(`${API_URL}/cart/${item.id}`, {
+        const res = await fetch(`${API_URL}/cart/${item.id}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` }
         });
+        if (!res.ok) throw new Error('Cart remove failed');
       } else {
-        await fetch(`${API_URL}/cart/${item.id}`, {
+        const res = await fetch(`${API_URL}/cart/${item.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ quantity: nextQty })
         });
+        if (!res.ok) throw new Error('Cart update failed');
       }
       await fetchCart();
-    } catch (e) {}
+    } catch (e) {
+      await fetchCart();
+    }
   };
 
   const fetchCart = async () => {
