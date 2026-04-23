@@ -3,6 +3,42 @@ import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, MapPin, Package, Truck } from 'lucide-react';
 import { API_URL } from '../api';
 
+const formatWarrantyDate = (value) => {
+  if (!value) return 'Not set';
+  return new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const getWarrantyRemaining = (endAt) => {
+  if (!endAt) return 'Warranty date not available';
+  const now = new Date();
+  const end = new Date(endAt);
+  if (Number.isNaN(end.getTime())) return 'Warranty date not available';
+  if (end <= now) return 'Warranty expired';
+
+  let cursor = new Date(now);
+  let years = end.getFullYear() - cursor.getFullYear();
+  cursor.setFullYear(cursor.getFullYear() + years);
+  if (cursor > end) {
+    years -= 1;
+    cursor = new Date(now);
+    cursor.setFullYear(cursor.getFullYear() + years);
+  }
+
+  let months = (end.getFullYear() - cursor.getFullYear()) * 12 + (end.getMonth() - cursor.getMonth());
+  cursor.setMonth(cursor.getMonth() + months);
+  if (cursor > end) {
+    months -= 1;
+    cursor.setMonth(cursor.getMonth() - 1);
+  }
+
+  const days = Math.max(0, Math.floor((end - cursor) / (1000 * 60 * 60 * 24)));
+  const parts = [];
+  if (years) parts.push(`${years} year${years > 1 ? 's' : ''}`);
+  if (months) parts.push(`${months} month${months > 1 ? 's' : ''}`);
+  parts.push(`${days} day${days !== 1 ? 's' : ''}`);
+  return parts.join(' ');
+};
+
 function OrdersPage({ user, onLogin }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +129,27 @@ function OrdersPage({ user, onLogin }) {
                   <span>Delivered</span>
                 </div>
               </div>
+              {Array.isArray(order.items) && order.items.length > 0 && (
+                <div className="order-warranty-list">
+                  <div className="order-warranty-title">Product warranty</div>
+                  {order.items.map(item => (
+                    <div key={item.id} className="order-warranty-item">
+                      <div className="order-warranty-product">
+                        {item.image && <img src={item.image} alt={item.name} />}
+                        <div>
+                          <strong>{item.name}</strong>
+                          <span>Qty {item.quantity} • {item.warranty_years || 5} year warranty</span>
+                        </div>
+                      </div>
+                      <div className="order-warranty-time">
+                        <strong>{getWarrantyRemaining(item.warranty_end_at)} left</strong>
+                        <span>Start: {formatWarrantyDate(item.warranty_start_at)}</span>
+                        <span>Expires: {formatWarrantyDate(item.warranty_end_at)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               <p className="order-address-line"><MapPin size={14} /> {order.address}</p>
             </div>
           ))}

@@ -99,6 +99,34 @@ const isLocalAddressText = (address = '') => {
   return ['bhubaneswar', 'bbsr', 'cuttack', 'khordha', 'khurda', 'jatni', 'patia'].some(place => text.includes(place));
 };
 
+const addYears = (date, years) => {
+  const next = new Date(date);
+  next.setFullYear(next.getFullYear() + Number(years || 5));
+  return next;
+};
+
+const attachOrderItems = (orders, res) => {
+  if (!orders.length) return res.json([]);
+  const placeholders = orders.map(() => '?').join(',');
+  db.all(
+    `SELECT oi.*, p.name, p.image, p.unit
+     FROM order_items oi
+     JOIN products p ON oi.product_id = p.id
+     WHERE oi.order_id IN (${placeholders})
+     ORDER BY oi.id`,
+    orders.map(order => order.id),
+    (err, items) => {
+      if (err) return res.status(500).json({ error: err.message });
+      const grouped = items.reduce((map, item) => {
+        map[item.order_id] = map[item.order_id] || [];
+        map[item.order_id].push(item);
+        return map;
+      }, {});
+      res.json(orders.map(order => ({ ...order, items: grouped[order.id] || [] })));
+    }
+  );
+};
+
 const sendPushToTarget = (target, payload) => new Promise((resolve) => {
   if (!firebaseReady) return resolve({ sent: 0, failed: 0, skipped: true });
   const roles = target === 'delivery'
@@ -445,10 +473,11 @@ app.post('/api/orders', authenticateToken, (req, res) => {
   }
 
   const placeholders = normalizedItems.map(() => '?').join(',');
-  db.all(`SELECT id, price, dealer_price, distributor_price FROM products WHERE id IN (${placeholders})`, normalizedItems.map(item => item.product_id), (err, products) => {
+  db.all(`SELECT id, price, dealer_price, distributor_price, warranty_years FROM products WHERE id IN (${placeholders})`, normalizedItems.map(item => item.product_id), (err, products) => {
     if (err) return res.status(500).json({ error: err.message });
 
     const prices = new Map(products.map(product => [product.id, priceForUserRole(product, req.user.role)]));
+    const warrantyYears = new Map(products.map(product => [product.id, Math.max(1, Number(product.warranty_years || 5))]));
     if (prices.size !== normalizedItems.length) {
       return res.status(400).json({ error: 'One or more products were not found' });
     }
@@ -473,10 +502,20 @@ app.post('/api/orders', authenticateToken, (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
         
         const orderId = this.lastID;
-        const stmt = db.prepare('INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)');
+        const warrantyStartAt = new Date();
+        const stmt = db.prepare('INSERT INTO order_items (order_id, product_id, quantity, price, warranty_years, warranty_start_at, warranty_end_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
         
         normalizedItems.forEach(item => {
-          stmt.run(orderId, item.product_id, item.quantity, prices.get(item.product_id));
+          const years = warrantyYears.get(item.product_id) || 5;
+          stmt.run(
+            orderId,
+            item.product_id,
+            item.quantity,
+            prices.get(item.product_id),
+            years,
+            warrantyStartAt.toISOString(),
+            addYears(warrantyStartAt, years).toISOString()
+          );
         });
         stmt.finalize();
         
@@ -533,7 +572,7 @@ app.get('/api/orders/:id', authenticateToken, (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!order) return res.status(404).json({ error: 'Order not found' });
     
-    db.all('SELECT oi.*, p.name FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?', 
+    db.all('SELECT oi.*, p.name, p.image, p.unit FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?',
       [req.params.id], (err, items) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ ...order, items });
@@ -544,7 +583,7 @@ app.get('/api/orders/:id', authenticateToken, (req, res) => {
 app.get('/api/orders', authenticateToken, (req, res) => {
   db.all('SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC', [req.user.userId], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
+    attachOrderItems(rows, res);
   });
 });
 

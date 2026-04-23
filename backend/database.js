@@ -38,6 +38,7 @@ db.serialize(async () => {
     discount_percent REAL DEFAULT 0,
     dealer_price REAL,
     distributor_price REAL,
+    warranty_years INTEGER DEFAULT 5,
     image TEXT,
     category_id INTEGER,
     stock INTEGER DEFAULT 100,
@@ -80,6 +81,9 @@ db.serialize(async () => {
     product_id INTEGER,
     quantity INTEGER,
     price REAL,
+    warranty_years INTEGER DEFAULT 5,
+    warranty_start_at TEXT,
+    warranty_end_at TEXT,
     FOREIGN KEY (order_id) REFERENCES orders(id),
     FOREIGN KEY (product_id) REFERENCES products(id)
   )`);
@@ -151,6 +155,10 @@ db.serialize(async () => {
   addColumn('products', 'discount_percent REAL DEFAULT 0');
   addColumn('products', 'dealer_price REAL');
   addColumn('products', 'distributor_price REAL');
+  addColumn('products', 'warranty_years INTEGER DEFAULT 5');
+  addColumn('order_items', 'warranty_years INTEGER DEFAULT 5');
+  addColumn('order_items', 'warranty_start_at TEXT');
+  addColumn('order_items', 'warranty_end_at TEXT');
   addColumn('orders', 'customer_accuracy REAL');
   addColumn('orders', 'customer_location_locked_at INTEGER');
   addColumn('orders', 'delivery_partner_id INTEGER');
