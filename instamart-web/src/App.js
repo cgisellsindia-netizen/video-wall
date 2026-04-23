@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import Header from './components/Header';
 import HeroBanner from './components/HeroBanner';
 import CategoryGrid from './components/CategoryGrid';
@@ -185,8 +187,8 @@ function AppContent() {
     const target = APP_MODE === 'delivery' ? 'delivery' : 'customer';
     let stopped = false;
 
-    const notifyPhone = (notice) => {
-      if (!notice?.id || typeof window === 'undefined' || !('Notification' in window)) return;
+    const notifyPhone = async (notice) => {
+      if (!notice?.id || typeof window === 'undefined') return;
       if (localStorage.getItem(`camigo_phone_notice_${notice.id}`)) return;
 
       let savedUser = null;
@@ -196,7 +198,44 @@ function AppContent() {
       const savedFirstName = String(savedUser?.name || '').trim().split(/\s+/)[0] || '';
       const title = notice.personalize && savedFirstName ? `${savedFirstName}, ${notice.title}` : notice.title;
       const body = notice.personalize && savedFirstName ? `${savedFirstName}, ${notice.message}` : notice.message;
-      const showNotification = () => {
+      const showNativeNotification = async () => {
+        try {
+          if (!Capacitor.isNativePlatform()) return false;
+          let permission = await LocalNotifications.checkPermissions();
+          if (permission.display !== 'granted') {
+            permission = await LocalNotifications.requestPermissions();
+          }
+          if (permission.display !== 'granted') return false;
+          await LocalNotifications.createChannel({
+            id: 'camigo-admin',
+            name: 'Camigo Updates',
+            description: 'Product offers and order updates from Camigo',
+            importance: 5,
+            visibility: 1,
+            sound: 'default'
+          }).catch(() => {});
+          if (notice.product_id) {
+            localStorage.setItem(`camigo_native_notice_${notice.id}`, String(notice.product_id));
+          }
+          await LocalNotifications.schedule({
+            notifications: [{
+              id: Number(notice.id),
+              title,
+              body,
+              channelId: 'camigo-admin',
+              smallIcon: 'ic_launcher',
+              extra: { product_id: notice.product_id || null }
+            }]
+          });
+          localStorage.setItem(`camigo_phone_notice_${notice.id}`, '1');
+          return true;
+        } catch (e) {
+          return false;
+        }
+      };
+
+      const showNotification = async () => {
+        if (await showNativeNotification()) return;
         try {
           const phoneNotice = new Notification(title, {
             body,
@@ -213,9 +252,11 @@ function AppContent() {
         } catch (e) {}
       };
 
-      if (Notification.permission === 'granted') {
+      if (Capacitor.isNativePlatform()) {
         showNotification();
-      } else if (Notification.permission === 'default') {
+      } else if ('Notification' in window && Notification.permission === 'granted') {
+        showNotification();
+      } else if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission().then(permission => {
           if (permission === 'granted') showNotification();
         }).catch(() => {});
@@ -243,6 +284,17 @@ function AppContent() {
       clearInterval(poller);
     };
   }, []);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
+    let listener;
+    LocalNotifications.addListener('localNotificationActionPerformed', (event) => {
+      const productId = event.notification?.extra?.product_id
+        || localStorage.getItem(`camigo_native_notice_${event.notification?.id}`);
+      if (productId) navigate(`/product/${productId}`);
+    }).then(handle => { listener = handle; }).catch(() => {});
+    return () => { listener?.remove?.(); };
+  }, [navigate]);
 
   useEffect(() => {
     if (!user || APP_MODE === 'delivery' || user.role === 'delivery_partner') return;
