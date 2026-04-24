@@ -82,8 +82,16 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
 
   if (!user) return null;
 
+  const isCameraItem = (item) => {
+    const categoryId = Number(item.category_id);
+    if ([1, 2, 3].includes(categoryId)) return true;
+    const text = `${item.name || ''} ${item.description || ''} ${item.category_name || ''}`.toLowerCase();
+    if (/(accessor|smps|switch|dvr|nvr|cable|adapter|hard disk|hdd)/.test(text)) return false;
+    return /(camera|bullet|dome|ptz|ip camera|ahd)/.test(text);
+  };
+
   const subtotal = cartItems.reduce((s, i) => s + (Number(i.price) * Number(i.quantity || 1)), 0);
-  const cameraCount = cartItems.reduce((sum, item) => ([1, 2, 3].includes(Number(item.category_id)) ? sum + Number(item.quantity || 1) : sum), 0);
+  const cameraCount = cartItems.reduce((sum, item) => (isCameraItem(item) ? sum + Number(item.quantity || 1) : sum), 0);
   const installationFee = installationRequested ? cameraCount * 500 : 0;
   const gpsIsLocked = Boolean(coords?.lat && coords?.lng);
   const gpsLocal = isLocalServiceZone(coords?.lat, coords?.lng);
@@ -167,15 +175,17 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
           )}
           <div className="form-group"><label>Full Address</label><textarea value={address} onChange={e => setAddress(e.target.value)} rows="3" /></div>
           <div className="form-group"><label>Phone Number</label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} /></div>
-          {cameraCount > 0 && (
-            <div className="form-group">
-              <label><Wrench size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Installation</label>
-              <label className="payment-option active" style={{ justifyContent: 'space-between', cursor: 'pointer' }}>
-                <span>Add installation at Rs 500 per camera. Camera count: {cameraCount}</span>
-                <input type="checkbox" checked={installationRequested} onChange={e => setInstallationRequested(e.target.checked)} />
-              </label>
-            </div>
-          )}
+          <div className="form-group">
+            <label><Wrench size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Installation</label>
+            <label className="payment-option active" style={{ justifyContent: 'space-between', cursor: cameraCount > 0 ? 'pointer' : 'default', opacity: cameraCount > 0 ? 1 : 0.72 }}>
+              <span>
+                {cameraCount > 0
+                  ? `Add installation at Rs 500 per camera. Camera count: ${cameraCount}`
+                  : 'Installation will appear automatically when camera products are in the cart.'}
+              </span>
+              <input type="checkbox" checked={installationRequested} disabled={cameraCount <= 0} onChange={e => setInstallationRequested(e.target.checked)} />
+            </label>
+          </div>
           <div className={`location-lock-card ${coords?.locked ? 'locked' : ''}`}>
             <strong>{coords?.locked ? 'Delivery GPS point locked' : lockingLocation ? 'Locking delivery GPS point...' : 'Delivery GPS point not locked'}</strong>
             <span>
@@ -219,7 +229,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
         <div className="summary-row"><span>Subtotal</span><strong>Rs {subtotal}</strong></div>
         <div className="summary-row"><span>GST 18%</span><strong>Rs {gst}</strong></div>
         <div className="summary-row"><span>Delivery</span><strong>{deliveryFee === 0 ? 'FREE' : `Rs ${deliveryFee}`}</strong></div>
-        {cameraCount > 0 && <div className="summary-row"><span>Installation</span><strong>{installationRequested ? `Rs ${installationFee}` : 'Not added'}</strong></div>}
+        <div className="summary-row"><span>Installation</span><strong>{cameraCount > 0 ? (installationRequested ? `Rs ${installationFee}` : 'Not added') : 'No cameras'}</strong></div>
         <div className="summary-row"><span>Estimate</span><strong>{deliveryEstimate}</strong></div>
         <div className="summary-row"><span>Delivery zone</span><strong>{localAddress ? 'Local GPS zone' : 'Courier zone'}</strong></div>
         <div className="summary-row"><span>GPS accuracy</span><strong>{coords?.accuracy ? `${Math.round(coords.accuracy)}m` : 'Not locked'}</strong></div>
