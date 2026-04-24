@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CreditCard, MapPin, Smartphone, Wallet, Wrench } from 'lucide-react';
+import { CheckCircle2, CreditCard, MapPin, Smartphone, Wallet, Wrench, XCircle } from 'lucide-react';
 import { API_URL } from '../api';
 import { captureCustomerLocation, getSavedCustomerLocation } from '../locationLock';
 import { isLocalAddressText, isLocalServiceZone } from '../deliveryZone';
@@ -223,26 +223,40 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
         <div className="summary-row"><span>Delivery zone</span><strong>{localAddress ? 'Local GPS zone' : 'Courier zone'}</strong></div>
         <div className="summary-row"><span>GPS accuracy</span><strong>{coords?.accuracy ? `${Math.round(coords.accuracy)}m` : 'Not locked'}</strong></div>
         <div className="summary-total"><span>Payable</span><strong>Rs {payable}</strong></div>
-        <div className="checkout-card" style={{ marginTop: 16, padding: 16 }}>
-          <h3 style={{ marginBottom: 12 }}><Wrench size={18} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Installation</h3>
-          <div className="payment-options">
+        <div className="installation-choice-card">
+          <div className="installation-choice-head">
+            <div>
+              <span className="installation-choice-label">Service add-on</span>
+              <h3><Wrench size={18} /> Installation support</h3>
+            </div>
+            {cameraCount > 0 && <span className="installation-choice-badge">{cameraCount} camera{cameraCount > 1 ? 's' : ''}</span>}
+          </div>
+          <div className="installation-choice-buttons">
             <button
               type="button"
-              className={installationRequested ? 'payment-option active' : 'payment-option'}
+              className={installationRequested ? 'installation-choice-button active' : 'installation-choice-button'}
               disabled={cameraCount <= 0}
               onClick={() => setInstallationRequested(true)}
             >
-              <Wrench size={18} /> Add installation
+              <CheckCircle2 size={18} />
+              <span>
+                <strong>Add installation</strong>
+                <small>Rs 500 per camera</small>
+              </span>
             </button>
             <button
               type="button"
-              className={!installationRequested ? 'payment-option active' : 'payment-option'}
+              className={!installationRequested ? 'installation-choice-button active muted' : 'installation-choice-button muted'}
               onClick={() => setInstallationRequested(false)}
             >
-              No installation
+              <XCircle size={18} />
+              <span>
+                <strong>No installation</strong>
+                <small>Products only</small>
+              </span>
             </button>
           </div>
-          <p className="checkout-note" style={{ marginTop: 10, marginBottom: 0 }}>
+          <p className="checkout-note installation-choice-note">
             {cameraCount > 0
               ? `Installation charge is Rs 500 per camera. ${cameraCount} camera(s) detected in this order.`
               : 'Installation becomes available when camera products are in the cart.'}
