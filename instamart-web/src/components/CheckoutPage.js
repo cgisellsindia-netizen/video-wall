@@ -177,14 +177,28 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
           <div className="form-group"><label>Phone Number</label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} /></div>
           <div className="form-group">
             <label><Wrench size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Installation</label>
-            <label className="payment-option active" style={{ justifyContent: 'space-between', cursor: cameraCount > 0 ? 'pointer' : 'default', opacity: cameraCount > 0 ? 1 : 0.72 }}>
-              <span>
-                {cameraCount > 0
-                  ? `Add installation at Rs 500 per camera. Camera count: ${cameraCount}`
-                  : 'Installation will appear automatically when camera products are in the cart.'}
-              </span>
-              <input type="checkbox" checked={installationRequested} disabled={cameraCount <= 0} onChange={e => setInstallationRequested(e.target.checked)} />
-            </label>
+            <div className="payment-options">
+              <button
+                type="button"
+                className={installationRequested ? 'payment-option active' : 'payment-option'}
+                disabled={cameraCount <= 0}
+                onClick={() => setInstallationRequested(true)}
+              >
+                <Wrench size={18} /> Add installation
+              </button>
+              <button
+                type="button"
+                className={!installationRequested ? 'payment-option active' : 'payment-option'}
+                onClick={() => setInstallationRequested(false)}
+              >
+                No installation
+              </button>
+            </div>
+            <p className="checkout-note" style={{ marginTop: 10 }}>
+              {cameraCount > 0
+                ? `Installation charge is Rs 500 per camera. ${cameraCount} camera(s) detected in this order.`
+                : 'Installation becomes available when camera products are in the cart.'}
+            </p>
           </div>
           <div className={`location-lock-card ${coords?.locked ? 'locked' : ''}`}>
             <strong>{coords?.locked ? 'Delivery GPS point locked' : lockingLocation ? 'Locking delivery GPS point...' : 'Delivery GPS point not locked'}</strong>
