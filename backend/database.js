@@ -46,6 +46,15 @@ db.serialize(async () => {
     FOREIGN KEY (category_id) REFERENCES categories(id)
   )`);
 
+  db.run(`CREATE TABLE IF NOT EXISTS product_images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER,
+    image_url TEXT,
+    sort_order INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_id) REFERENCES products(id)
+  )`);
+
   db.run(`CREATE TABLE IF NOT EXISTS cart (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -171,6 +180,14 @@ db.serialize(async () => {
               warranty_start_at = COALESCE(warranty_start_at, (SELECT created_at FROM orders WHERE orders.id = order_items.order_id)),
               warranty_end_at = COALESCE(warranty_end_at, datetime((SELECT created_at FROM orders WHERE orders.id = order_items.order_id), '+' || COALESCE(warranty_years, 5) || ' years'))
           WHERE warranty_start_at IS NULL OR warranty_end_at IS NULL`);
+  db.run(`INSERT INTO product_images (product_id, image_url, sort_order)
+          SELECT p.id, p.image, 0
+          FROM products p
+          WHERE COALESCE(TRIM(p.image), '') <> ''
+            AND NOT EXISTS (
+              SELECT 1 FROM product_images pi
+              WHERE pi.product_id = p.id AND pi.image_url = p.image
+            )`);
 
   const hashedPassword = await bcrypt.hash('password123', 10);
   const adminPassword = await bcrypt.hash('admin123', 10);

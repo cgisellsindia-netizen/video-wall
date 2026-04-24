@@ -127,6 +127,54 @@ const attachOrderItems = (orders, res) => {
   );
 };
 
+const attachProductImages = (products, res, single = false) => {
+  const list = Array.isArray(products) ? products : (products ? [products] : []);
+  if (!list.length) return single ? res.json(null) : res.json([]);
+  const placeholders = list.map(() => '?').join(',');
+  db.all(
+    `SELECT product_id, image_url, sort_order
+     FROM product_images
+     WHERE product_id IN (${placeholders})
+     ORDER BY sort_order ASC, id ASC`,
+    list.map(product => product.id),
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      const grouped = rows.reduce((map, row) => {
+        map[row.product_id] = map[row.product_id] || [];
+        map[row.product_id].push(row.image_url);
+        return map;
+      }, {});
+      const enriched = list.map(product => {
+        const gallery = grouped[product.id] && grouped[product.id].length
+          ? grouped[product.id]
+          : (product.image ? [product.image] : []);
+        return {
+          ...product,
+          image: gallery[0] || product.image,
+          images: gallery
+        };
+      });
+      res.json(single ? enriched[0] : enriched);
+    }
+  );
+};
+
+const saveProductImages = (productId, image, images, callback) => {
+  const gallery = (Array.isArray(images) ? images : [])
+    .map(item => String(item || '').trim())
+    .filter(Boolean);
+  const cover = String(image || '').trim();
+  if (cover && !gallery.includes(cover)) gallery.unshift(cover);
+
+  db.run('DELETE FROM product_images WHERE product_id = ?', [productId], (deleteErr) => {
+    if (deleteErr) return callback(deleteErr);
+    if (!gallery.length) return callback(null);
+    const stmt = db.prepare('INSERT INTO product_images (product_id, image_url, sort_order) VALUES (?, ?, ?)');
+    gallery.forEach((url, index) => stmt.run(productId, url, index));
+    stmt.finalize(callback);
+  });
+};
+
 const sendPushToTarget = (target, payload) => new Promise((resolve) => {
   if (!firebaseReady) return resolve({ sent: 0, failed: 0, skipped: true });
   const roles = target === 'delivery'
@@ -319,7 +367,7 @@ app.get('/api/products', (req, res) => {
   
   db.all(query, params, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
+    attachProductImages(rows, res);
   });
 });
 
@@ -327,7 +375,7 @@ app.get('/api/products/:id', (req, res) => {
   db.get('SELECT * FROM products WHERE id = ?', [req.params.id], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row) return res.status(404).json({ error: 'Product not found' });
-    res.json(row);
+    attachProductImages(row, res, true);
   });
 });
 
@@ -983,23 +1031,38 @@ app.get('/api/users/:id', authenticateToken, (req, res) => {
 
 // Admin Product CRUD
 app.post('/api/admin/products', authenticateToken, requireAdmin, (req, res) => {
-  const { name, description, price, mrp, image, category_id, stock, unit, discount_percent, dealer_price, distributor_price } = req.body;
+  const { name, description, price, mrp, image, images, category_id, stock, unit, discount_percent, dealer_price, distributor_price } = req.body;
   db.run(`INSERT INTO products (name, description, price, mrp, image, category_id, stock, unit, discount_percent, dealer_price, distributor_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [name, description, price, mrp, image, category_id, stock, unit, discount_percent || 0, dealer_price || null, distributor_price || null],
-    function(err) { if (err) return res.status(500).json({ error: err.message }); res.json({ id: this.lastID, message: 'Product created' }); });
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      saveProductImages(this.lastID, image, images, (imageErr) => {
+        if (imageErr) return res.status(500).json({ error: imageErr.message });
+        res.json({ id: this.lastID, message: 'Product created' });
+      });
+    });
 });
 
 app.put('/api/admin/products/:id', authenticateToken, requireAdmin, (req, res) => {
-  const { name, description, price, mrp, image, category_id, stock, unit, discount_percent, dealer_price, distributor_price } = req.body;
+  const { name, description, price, mrp, image, images, category_id, stock, unit, discount_percent, dealer_price, distributor_price } = req.body;
   db.run(`UPDATE products SET name=?, description=?, price=?, mrp=?, image=?, category_id=?, stock=?, unit=?, discount_percent=?, dealer_price=?, distributor_price=? WHERE id=?`,
     [name, description, price, mrp, image, category_id, stock, unit, discount_percent || 0, dealer_price || null, distributor_price || null, req.params.id],
-    function(err) { if (err) return res.status(500).json({ error: err.message }); res.json({ message: 'Product updated' }); });
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      saveProductImages(req.params.id, image, images, (imageErr) => {
+        if (imageErr) return res.status(500).json({ error: imageErr.message });
+        res.json({ message: 'Product updated' });
+      });
+    });
 });
 
 app.delete('/api/admin/products/:id', authenticateToken, requireAdmin, (req, res) => {
-  db.run(`DELETE FROM products WHERE id=?`, [req.params.id], function(err) {
+  db.run('DELETE FROM product_images WHERE product_id = ?', [req.params.id], function(imageErr) {
+    if (imageErr) return res.status(500).json({ error: imageErr.message });
+    db.run(`DELETE FROM products WHERE id=?`, [req.params.id], function(err) {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: 'Product deleted' });
+  });
   });
 });
 

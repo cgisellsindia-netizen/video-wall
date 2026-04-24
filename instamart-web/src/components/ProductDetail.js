@@ -9,6 +9,7 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
   const listProduct = products.find(p => p.id === parseInt(id, 10));
   const [remoteProduct, setRemoteProduct] = useState(null);
   const [loading, setLoading] = useState(!listProduct);
+  const [activeImage, setActiveImage] = useState('');
 
   useEffect(() => {
     if (listProduct) {
@@ -29,6 +30,13 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
   }, [id, listProduct]);
 
   const product = listProduct || remoteProduct;
+  const gallery = Array.isArray(product?.images) && product.images.length
+    ? product.images
+    : (product?.image ? [product.image] : []);
+
+  useEffect(() => {
+    setActiveImage(gallery[0] || '');
+  }, [product?.id, gallery[0]]);
 
   const featureList = useMemo(() => (
     String(product?.description || '')
@@ -83,7 +91,7 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
             {discount > 0 && <span className="discount-badge-large">{discount}% OFF</span>}
             <span className="product-stage-chip chip-blue">{product.category_name || 'CCTV Product'}</span>
             <span className="product-stage-chip chip-gold">{warrantyYears} year warranty</span>
-            {product.image ? <img src={product.image} alt={product.name} /> : <div className="emoji" style={{ fontSize: '120px' }}>CCTV</div>}
+            {activeImage ? <img src={activeImage} alt={product.name} /> : <div className="emoji" style={{ fontSize: '120px' }}>CCTV</div>}
             <div className="product-stage-footer">
               <div>
                 <strong>Ready for fast dispatch</strong>
@@ -91,6 +99,20 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
               </div>
               <Sparkles size={18} />
             </div>
+            {gallery.length > 1 && (
+              <div className="product-gallery-thumbs">
+                {gallery.map(image => (
+                  <button
+                    key={image}
+                    type="button"
+                    className={image === activeImage ? 'product-thumb active' : 'product-thumb'}
+                    onClick={() => setActiveImage(image)}
+                  >
+                    <img src={image} alt="" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="product-detail-info product-buy-panel">

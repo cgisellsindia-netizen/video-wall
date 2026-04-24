@@ -19,7 +19,7 @@ function AdminPage({ user }) {
   const [notificationForm, setNotificationForm] = useState({ title: '', message: '', target: 'customer', personalize: true, product_id: '' });
   const navigate = useNavigate();
 
-  const emptyProduct = { name: '', description: '', price: '', mrp: '', discount_percent: '', dealer_price: '', distributor_price: '', image: '/images/cgi-new.jpg', category_id: '1', stock: '50', unit: '1 Unit' };
+  const emptyProduct = { name: '', description: '', price: '', mrp: '', discount_percent: '', dealer_price: '', distributor_price: '', image: '/images/cgi-new.jpg', images: ['/images/cgi-new.jpg'], category_id: '1', stock: '50', unit: '1 Unit' };
   const [form, setForm] = useState(emptyProduct);
   const emptyUser = { name: '', email: '', password: '', phone: '', address: '', role: 'dealer' };
   const [userForm, setUserForm] = useState(emptyUser);
@@ -132,8 +132,12 @@ function AdminPage({ user }) {
       dealer_price: form.dealer_price === '' ? null : parseFloat(form.dealer_price),
       distributor_price: form.distributor_price === '' ? null : parseFloat(form.distributor_price),
       category_id: parseInt(form.category_id),
-      stock: parseInt(form.stock)
+      stock: parseInt(form.stock),
+      images: (Array.isArray(form.images) ? form.images : [])
+        .map(item => String(item || '').trim())
+        .filter(Boolean)
     };
+    body.image = body.images[0] || body.image;
     if (!body.name || !body.description || !Number.isFinite(body.price) || !Number.isFinite(body.mrp) || !Number.isInteger(body.category_id) || !Number.isInteger(body.stock)) {
       setMessage('Please fill product name, description, price, MRP, category, and stock correctly.');
       return;
@@ -155,7 +159,24 @@ function AdminPage({ user }) {
     }
   };
 
-  const startEdit = (p) => { setEditProduct(p); setForm({ name: p.name, description: p.description, price: p.price, mrp: p.mrp, discount_percent: p.discount_percent || '', dealer_price: p.dealer_price || '', distributor_price: p.distributor_price || '', image: p.image, category_id: p.category_id.toString(), stock: p.stock, unit: p.unit }); setShowForm(true); };
+  const startEdit = (p) => {
+    setEditProduct(p);
+    setForm({
+      name: p.name,
+      description: p.description,
+      price: p.price,
+      mrp: p.mrp,
+      discount_percent: p.discount_percent || '',
+      dealer_price: p.dealer_price || '',
+      distributor_price: p.distributor_price || '',
+      image: p.image,
+      images: Array.isArray(p.images) && p.images.length ? p.images : [p.image].filter(Boolean),
+      category_id: p.category_id.toString(),
+      stock: p.stock,
+      unit: p.unit
+    });
+    setShowForm(true);
+  };
 
   const handleImageFile = (file) => {
     if (!file) return;
@@ -164,8 +185,34 @@ function AdminPage({ user }) {
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => setForm(prev => ({ ...prev, image: reader.result }));
+    reader.onload = () => setForm(prev => {
+      const nextImages = [...(prev.images || []), reader.result];
+      return { ...prev, image: nextImages[0], images: nextImages };
+    });
     reader.readAsDataURL(file);
+  };
+
+  const handleMultiImageFiles = (files) => {
+    Array.from(files || []).forEach(file => handleImageFile(file));
+  };
+
+  const updateGalleryImage = (index, value) => {
+    setForm(prev => {
+      const nextImages = [...(prev.images || [])];
+      nextImages[index] = value;
+      return { ...prev, image: nextImages[0] || '', images: nextImages };
+    });
+  };
+
+  const addGalleryField = () => {
+    setForm(prev => ({ ...prev, images: [...(prev.images || []), ''] }));
+  };
+
+  const removeGalleryImage = (index) => {
+    setForm(prev => {
+      const nextImages = [...(prev.images || [])].filter((_, itemIndex) => itemIndex !== index);
+      return { ...prev, image: nextImages[0] || '', images: nextImages.length ? nextImages : [''] };
+    });
   };
 
   const handleSendNotification = async (e) => {
@@ -365,11 +412,27 @@ function AdminPage({ user }) {
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
-                <div className="form-group"><label>Image Path / URL</label><input value={form.image} onChange={e => setForm({...form, image: e.target.value})} required /></div>
-                <div className="form-group"><label>Browse Product Photo</label><input type="file" accept="image/*" onChange={e => handleImageFile(e.target.files?.[0])} /></div>
+                <div className="form-group"><label>Cover Image Path / URL</label><input value={form.image} onChange={e => updateGalleryImage(0, e.target.value)} required /></div>
+                <div className="form-group"><label>Browse Product Photos</label><input type="file" accept="image/*" multiple onChange={e => handleMultiImageFiles(e.target.files)} /></div>
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label>Gallery Images</label>
+                  <div className="admin-gallery-list">
+                    {(form.images || []).map((img, index) => (
+                      <div key={index} className="admin-gallery-row">
+                        <input
+                          value={img}
+                          onChange={e => updateGalleryImage(index, e.target.value)}
+                          placeholder={index === 0 ? 'Cover image URL' : `Gallery image ${index + 1}`}
+                        />
+                        <button type="button" className="btn btn-sm btn-outline" onClick={() => removeGalleryImage(index)}>Remove</button>
+                      </div>
+                    ))}
+                    <button type="button" className="btn btn-outline btn-sm" onClick={addGalleryField}>Add another photo field</button>
+                  </div>
+                </div>
                 <div className="admin-image-preview">
                   <span>Image preview</span>
-                  <img src={form.image || '/images/cgi-hd3e.jpg'} alt="Product preview" />
+                  <img src={(form.images && form.images[0]) || form.image || '/images/cgi-hd3e.jpg'} alt="Product preview" />
                 </div>
                 <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '10px' }}>
                   <button type="submit" className="btn btn-primary">{editProduct ? 'Update' : 'Create'}</button>
