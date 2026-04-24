@@ -501,7 +501,7 @@ app.post('/api/push/register', authenticateToken, (req, res) => {
 // Cart
 app.get('/api/cart', authenticateToken, (req, res) => {
   db.all(
-    `SELECT c.*, p.name, p.price, p.dealer_price, p.distributor_price, p.image, p.unit 
+    `SELECT c.*, p.name, p.price, p.dealer_price, p.distributor_price, p.image, p.unit, p.category_id
      FROM cart c 
      JOIN products p ON c.product_id = p.id 
      WHERE c.user_id = ?`,
