@@ -179,8 +179,10 @@ const sendPushToTarget = (target, payload) => new Promise((resolve) => {
   if (!firebaseReady) return resolve({ sent: 0, failed: 0, skipped: true });
   const roles = target === 'delivery'
     ? ['delivery_partner']
+    : target === 'installer'
+      ? ['installer']
     : target === 'all'
-      ? ['user', 'dealer', 'distributor', 'admin', 'delivery_partner']
+      ? ['user', 'dealer', 'distributor', 'admin', 'delivery_partner', 'installer']
       : ['user', 'dealer', 'distributor', 'admin'];
   const placeholders = roles.map(() => '?').join(',');
   db.all(
@@ -235,6 +237,79 @@ const sendPushToTarget = (target, payload) => new Promise((resolve) => {
     }
   );
 });
+
+const sendPushToUserIds = (userIds, payload, appTarget = 'customer') => new Promise((resolve) => {
+  const ids = [...new Set((Array.isArray(userIds) ? userIds : [userIds]).map(Number).filter(Number.isInteger))];
+  if (!firebaseReady || !ids.length) return resolve({ sent: 0, failed: 0, skipped: true });
+  const placeholders = ids.map(() => '?').join(',');
+  db.all(
+    `SELECT token FROM push_tokens
+     WHERE user_id IN (${placeholders})
+       AND app_target = ?`,
+    [...ids, appTarget],
+    async (err, rows = []) => {
+      if (err || !rows.length) return resolve({ sent: 0, failed: rows.length || 0 });
+      const tokens = [...new Set(rows.map(row => row.token).filter(Boolean))];
+      if (!tokens.length) return resolve({ sent: 0, failed: 0 });
+      try {
+        const response = await admin.messaging().sendEachForMulticast({
+          tokens,
+          notification: {
+            title: payload.title,
+            body: payload.body
+          },
+          data: Object.entries(payload).reduce((acc, [key, value]) => {
+            if (value === undefined || value === null) return acc;
+            acc[key] = String(value);
+            return acc;
+          }, {})
+        });
+        resolve({ sent: response.successCount || 0, failed: response.failureCount || 0 });
+      } catch (sendError) {
+        resolve({ sent: 0, failed: tokens.length, error: sendError.message });
+      }
+    }
+  );
+});
+
+const createUserNotification = ({ userId = null, target = 'customer', title, message, personalize = 0, productId = null, imageUrl = null }) => new Promise((resolve) => {
+  db.run(
+    'INSERT INTO notifications (title, message, target, personalize, product_id, image_url, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [title, message, target, personalize ? 1 : 0, productId, imageUrl, userId],
+    function(err) {
+      if (err) return resolve({ ok: false, error: err.message });
+      resolve({ ok: true, id: this.lastID });
+    }
+  );
+});
+
+const notifyOrderStatusChange = (orderId, status) => {
+  const labels = {
+    accepted: 'Order accepted',
+    arrived_at_store: 'Partner reached the store',
+    picked_up: 'Order picked up',
+    packed: 'Order packed',
+    out_for_delivery: 'Out for delivery',
+    delivered: 'Order delivered',
+    rejected: 'Order update'
+  };
+  const messages = {
+    accepted: 'A delivery partner accepted your Camigo order.',
+    arrived_at_store: 'Your delivery partner has reached the Camigo store/hub.',
+    picked_up: 'Your order has been picked up and is ready to move.',
+    packed: 'Your order is packed and being prepared for dispatch.',
+    out_for_delivery: 'Your order is now on the way.',
+    delivered: 'Your order has been marked delivered.',
+    rejected: 'Your order needs attention. Please check the app.'
+  };
+  db.get('SELECT id, user_id, status FROM orders WHERE id = ?', [orderId], async (err, order) => {
+    if (err || !order) return;
+    const title = labels[status] || 'Order updated';
+    const message = messages[status] || `Your order status changed to ${String(status).replaceAll('_', ' ')}.`;
+    await createUserNotification({ userId: order.user_id, target: 'customer', title, message, personalize: 1 });
+    await sendPushToUserIds(order.user_id, { title, body: message, order_id: orderId, status }, 'customer');
+  });
+};
 
 const requireAdmin = (req, res, next) => {
   if (req.user.role !== 'admin') {
@@ -381,12 +456,21 @@ app.get('/api/products/:id', (req, res) => {
 
 app.get('/api/notifications', (req, res) => {
   const target = String(req.query.target || 'customer');
+  const authHeader = req.headers['authorization'];
+  let currentUserId = null;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+      currentUserId = decoded.userId;
+    } catch (e) {}
+  }
   db.all(
     `SELECT * FROM notifications
      WHERE target IN (?, 'all')
+       AND (user_id IS NULL OR user_id = ?)
      ORDER BY created_at DESC
      LIMIT 5`,
-    [target],
+    [target, currentUserId],
     (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json(rows);
@@ -397,7 +481,7 @@ app.get('/api/notifications', (req, res) => {
 app.post('/api/push/register', authenticateToken, (req, res) => {
   const { token, platform, app_target } = req.body;
   if (!token || String(token).length < 20) return res.status(400).json({ error: 'Valid push token is required' });
-  const safeTarget = ['customer', 'delivery'].includes(app_target) ? app_target : (req.user.role === 'delivery_partner' ? 'delivery' : 'customer');
+  const safeTarget = ['customer', 'delivery', 'installer'].includes(app_target) ? app_target : (req.user.role === 'delivery_partner' ? 'delivery' : req.user.role === 'installer' ? 'installer' : 'customer');
   db.run(
     `INSERT INTO push_tokens (user_id, token, platform, app_target, updated_at)
      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -500,7 +584,7 @@ app.post('/api/promo/apply', authenticateToken, (req, res) => {
 
 // Orders
 app.post('/api/orders', authenticateToken, (req, res) => {
-  const { items, address, payment_method, promo_code, customer_lat, customer_lng, customer_accuracy, customer_location_locked_at } = req.body;
+  const { items, address, payment_method, promo_code, customer_lat, customer_lng, customer_accuracy, customer_location_locked_at, installation_requested } = req.body;
 
   if (!Array.isArray(items) || !items.length) {
     return res.status(400).json({ error: 'Order items are required' });
@@ -521,17 +605,23 @@ app.post('/api/orders', authenticateToken, (req, res) => {
   }
 
   const placeholders = normalizedItems.map(() => '?').join(',');
-  db.all(`SELECT id, price, dealer_price, distributor_price, warranty_years FROM products WHERE id IN (${placeholders})`, normalizedItems.map(item => item.product_id), (err, products) => {
+  db.all(`SELECT id, price, dealer_price, distributor_price, warranty_years, category_id FROM products WHERE id IN (${placeholders})`, normalizedItems.map(item => item.product_id), (err, products) => {
     if (err) return res.status(500).json({ error: err.message });
 
     const prices = new Map(products.map(product => [product.id, priceForUserRole(product, req.user.role)]));
     const warrantyYears = new Map(products.map(product => [product.id, Math.max(1, Number(product.warranty_years || 5))]));
+    const productCategory = new Map(products.map(product => [product.id, Number(product.category_id)]));
     if (prices.size !== normalizedItems.length) {
       return res.status(400).json({ error: 'One or more products were not found' });
     }
 
     let totalAmount = normalizedItems.reduce((sum, item) => sum + (prices.get(item.product_id) * item.quantity), 0);
     let taxableAmount = totalAmount;
+    const cameraCount = normalizedItems.reduce((sum, item) => (
+      [1, 2, 3].includes(productCategory.get(item.product_id)) ? sum + item.quantity : sum
+    ), 0);
+    const installationRequested = Boolean(installation_requested) && cameraCount > 0;
+    const installationFee = installationRequested ? cameraCount * 500 : 0;
 
     const createOrder = () => {
     const deliveryOtp = String(1000 + crypto.randomInt(9000));
@@ -542,10 +632,10 @@ app.post('/api/orders', authenticateToken, (req, res) => {
     const localAddress = isLocalServiceZone(safeCustomerLat, safeCustomerLng) || isLocalAddressText(address);
     const deliveryFee = taxableAmount > 2000 ? 0 : localAddress ? 40 : 120;
     const gstAmount = Math.round(taxableAmount * 0.18);
-    const finalAmount = taxableAmount + gstAmount + deliveryFee;
+    const finalAmount = taxableAmount + gstAmount + deliveryFee + installationFee;
     db.run(
-      'INSERT INTO orders (user_id, total_amount, final_amount, gst_amount, delivery_fee, status, payment_method, address, customer_lat, customer_lng, customer_accuracy, customer_location_locked_at, delivery_otp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [req.user.userId, totalAmount, finalAmount, gstAmount, deliveryFee, 'pending', payment_method, address, safeCustomerLat, safeCustomerLng, safeCustomerAccuracy, safeCustomerLockedAt, deliveryOtp],
+      'INSERT INTO orders (user_id, total_amount, final_amount, gst_amount, delivery_fee, installation_requested, installation_fee, installation_status, camera_count, status, payment_method, address, customer_lat, customer_lng, customer_accuracy, customer_location_locked_at, delivery_otp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [req.user.userId, totalAmount, finalAmount, gstAmount, deliveryFee, installationRequested ? 1 : 0, installationFee, installationRequested ? 'requested' : 'not_requested', cameraCount, 'pending', payment_method, address, safeCustomerLat, safeCustomerLng, safeCustomerAccuracy, safeCustomerLockedAt, deliveryOtp],
       function(err) {
         if (err) return res.status(500).json({ error: err.message });
         
@@ -570,7 +660,7 @@ app.post('/api/orders', authenticateToken, (req, res) => {
         // Clear cart
         db.run('DELETE FROM cart WHERE user_id = ?', [req.user.userId]);
         
-        res.json({ order_id: orderId, total_amount: totalAmount, gst_amount: gstAmount, delivery_fee: deliveryFee, final_amount: finalAmount, status: 'pending' });
+        res.json({ order_id: orderId, total_amount: totalAmount, gst_amount: gstAmount, delivery_fee: deliveryFee, installation_fee: installationFee, camera_count: cameraCount, final_amount: finalAmount, status: 'pending' });
       }
     );
     };
@@ -658,6 +748,60 @@ app.get('/api/delivery/orders', authenticateToken, (req, res) => {
   });
 });
 
+app.get('/api/installer/orders', authenticateToken, (req, res) => {
+  if (!['installer', 'admin'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Installer access required' });
+  }
+  db.all(`SELECT o.*, u.name as user_name, u.phone as user_phone
+          FROM orders o
+          JOIN users u ON o.user_id = u.id
+          WHERE o.installation_requested = 1
+            AND o.installation_status != 'completed'
+          ORDER BY o.created_at DESC`, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+app.put('/api/installer/orders/:id/status', authenticateToken, (req, res) => {
+  if (!['installer', 'admin'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Installer access required' });
+  }
+  const { installation_status } = req.body;
+  const allowedStatuses = ['requested', 'assigned', 'in_progress', 'completed'];
+  if (!allowedStatuses.includes(installation_status)) {
+    return res.status(400).json({ error: 'Invalid installation status' });
+  }
+  const params = req.user.role === 'installer'
+    ? [installation_status, req.user.userId, req.params.id]
+    : [installation_status, req.params.id];
+  const query = req.user.role === 'installer'
+    ? 'UPDATE orders SET installation_status = ?, installer_id = ? WHERE id = ? AND installation_requested = 1'
+    : 'UPDATE orders SET installation_status = ? WHERE id = ? AND installation_requested = 1';
+  db.run(query, params, function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!this.changes) return res.status(404).json({ error: 'Installation order not found' });
+    db.get('SELECT user_id FROM orders WHERE id = ?', [req.params.id], async (orderErr, order) => {
+      if (orderErr || !order) return;
+      const labels = {
+        assigned: 'Installer assigned',
+        in_progress: 'Installation started',
+        completed: 'Installation completed'
+      };
+      const messages = {
+        assigned: 'A Camigo installer has been assigned to your order.',
+        in_progress: 'Your CCTV installation is now in progress.',
+        completed: 'Your CCTV installation has been completed successfully.'
+      };
+      const title = labels[installation_status] || 'Installation updated';
+      const message = messages[installation_status] || `Installation status changed to ${String(installation_status).replaceAll('_', ' ')}.`;
+      await createUserNotification({ userId: order.user_id, target: 'customer', title, message, personalize: 1 });
+      await sendPushToUserIds(order.user_id, { title, body: message, order_id: req.params.id, installation_status }, 'customer');
+    });
+    res.json({ message: 'Installation status updated', installation_status });
+  });
+});
+
 app.put('/api/delivery/orders/:id/status', authenticateToken, (req, res) => {
   if (!['delivery_partner', 'admin'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Delivery partner access required' });
@@ -679,6 +823,7 @@ app.put('/api/delivery/orders/:id/status', authenticateToken, (req, res) => {
   db.run(query, params, function(err) {
     if (err) return res.status(500).json({ error: err.message });
     if (!this.changes) return res.status(404).json({ error: 'Order not found' });
+    notifyOrderStatusChange(req.params.id, status);
     res.json({ message: 'Order status updated', status });
   });
 });
@@ -705,6 +850,7 @@ app.post('/api/delivery/orders/:id/verify-otp', authenticateToken, (req, res) =>
 
     db.run(query, params, function(updateErr) {
       if (updateErr) return res.status(500).json({ error: updateErr.message });
+      notifyOrderStatusChange(req.params.id, 'delivered');
       res.json({ message: 'OTP verified. Order delivered.', status: 'delivered' });
     });
   });
@@ -810,7 +956,7 @@ app.post('/api/admin/users', authenticateToken, requireAdmin, async (req, res) =
   if (!email || !password || !name || !role) {
     return res.status(400).json({ error: 'Email, password, name, and role are required' });
   }
-  if (!['user', 'dealer', 'distributor', 'delivery_partner', 'admin'].includes(role)) {
+  if (!['user', 'dealer', 'distributor', 'delivery_partner', 'installer', 'admin'].includes(role)) {
     return res.status(400).json({ error: 'Invalid role' });
   }
 
@@ -975,20 +1121,22 @@ app.delete('/api/admin/hubs/:id', authenticateToken, requireAdmin, (req, res) =>
 });
 
 app.post('/api/admin/notifications', authenticateToken, requireAdmin, (req, res) => {
-  const { title, message, target, personalize, product_id } = req.body;
-  const safeTarget = ['customer', 'delivery', 'all'].includes(target) ? target : 'customer';
+  const { title, message, target, personalize, product_id, image_url } = req.body;
+  const safeTarget = ['customer', 'delivery', 'installer', 'all'].includes(target) ? target : 'customer';
   const safeProductId = Number.isInteger(Number(product_id)) && Number(product_id) > 0 ? Number(product_id) : null;
+  const safeImageUrl = String(image_url || '').trim() || null;
   if (!title || !message) return res.status(400).json({ error: 'Title and message are required' });
 
   db.run(
-    'INSERT INTO notifications (title, message, target, personalize, product_id) VALUES (?, ?, ?, ?, ?)',
-    [title, message, safeTarget, personalize ? 1 : 0, safeProductId],
+    'INSERT INTO notifications (title, message, target, personalize, product_id, image_url) VALUES (?, ?, ?, ?, ?, ?)',
+    [title, message, safeTarget, personalize ? 1 : 0, safeProductId, safeImageUrl],
     async function(err) {
       if (err) return res.status(500).json({ error: err.message });
       const pushResult = await sendPushToTarget(safeTarget, {
         title,
         body: message,
         product_id: safeProductId,
+        image_url: safeImageUrl,
         notification_id: this.lastID
       });
       res.json({ id: this.lastID, message: 'Notification sent', push: pushResult });
@@ -1005,7 +1153,7 @@ app.put('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'No valid fields to update' });
   }
 
-  const invalidRole = updates.find(([field, value]) => field === 'role' && !['user', 'dealer', 'distributor', 'delivery_partner', 'admin'].includes(value));
+  const invalidRole = updates.find(([field, value]) => field === 'role' && !['user', 'dealer', 'distributor', 'delivery_partner', 'installer', 'admin'].includes(value));
   if (invalidRole) return res.status(400).json({ error: 'Invalid role' });
 
   const setClause = updates.map(([field]) => `${field} = ?`).join(', ');

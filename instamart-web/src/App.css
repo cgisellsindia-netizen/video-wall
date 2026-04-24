@@ -2139,11 +2139,29 @@
 .app-notice span {
   display: block;
 }
+.app-notice-body {
+  min-width: 0;
+}
 .app-notice span {
   margin-top: 2px;
   color: #64748b;
   font-size: 13px;
   font-weight: 700;
+}
+.app-notice-image {
+  width: 100%;
+  max-width: 220px;
+  height: 96px;
+  object-fit: cover;
+  display: block;
+  margin-top: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(9, 36, 82, 0.08);
+}
+.app-notice-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
 }
 .app-notice button {
   border: 0;

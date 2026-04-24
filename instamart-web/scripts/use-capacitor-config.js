@@ -2,10 +2,10 @@ const fs = require('fs');
 const path = require('path');
 
 const target = process.argv[2];
-const allowed = new Set(['customer', 'delivery']);
+const allowed = new Set(['customer', 'delivery', 'installer']);
 
 if (!allowed.has(target)) {
-  console.error('Usage: node scripts/use-capacitor-config.js <customer|delivery>');
+  console.error('Usage: node scripts/use-capacitor-config.js <customer|delivery|installer>');
   process.exit(1);
 }
 

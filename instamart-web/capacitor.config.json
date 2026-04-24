@@ -1,13 +1,13 @@
 {
-  "appId": "com.camigo.deliverypartner",
-  "appName": "Camigo Delivery Partner",
+  "appId": "com.camigo.customer",
+  "appName": "Camigo Customer",
   "webDir": "build",
   "bundledWebRuntime": false,
   "android": {
-    "path": "android-delivery"
+    "path": "android-customer"
   },
   "server": {
-    "url": "https://camigo-store.onrender.com/?app=delivery",
+    "url": "https://camigo-store.onrender.com/?app=customer",
     "androidScheme": "https"
   }
 }

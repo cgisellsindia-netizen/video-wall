@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CreditCard, MapPin, Smartphone, Wallet } from 'lucide-react';
+import { CreditCard, MapPin, Smartphone, Wallet, Wrench } from 'lucide-react';
 import { API_URL } from '../api';
 import { captureCustomerLocation, getSavedCustomerLocation } from '../locationLock';
 import { isLocalAddressText, isLocalServiceZone } from '../deliveryZone';
@@ -20,6 +20,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [upiId, setUpiId] = useState('');
   const [cardNumber, setCardNumber] = useState('');
+  const [installationRequested, setInstallationRequested] = useState(false);
   const [coords, setCoords] = useState(() => {
     const saved = getSavedCustomerLocation();
     return saved?.lat && saved?.lng ? saved : null;
@@ -82,13 +83,15 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
   if (!user) return null;
 
   const subtotal = cartItems.reduce((s, i) => s + (Number(i.price) * Number(i.quantity || 1)), 0);
+  const cameraCount = cartItems.reduce((sum, item) => ([1, 2, 3].includes(Number(item.category_id)) ? sum + Number(item.quantity || 1) : sum), 0);
+  const installationFee = installationRequested ? cameraCount * 500 : 0;
   const gpsIsLocked = Boolean(coords?.lat && coords?.lng);
   const gpsLocal = isLocalServiceZone(coords?.lat, coords?.lng);
   const localAddress = gpsIsLocked ? gpsLocal : isLocalAddressText(address);
   const deliveryEstimate = localAddress ? 'Today / same-day' : '2-4 days';
   const deliveryFee = subtotal > 2000 ? 0 : localAddress ? 40 : 120;
   const gst = Math.round(subtotal * 0.18);
-  const payable = subtotal + gst + deliveryFee;
+  const payable = subtotal + gst + deliveryFee + installationFee;
 
   const validatePayment = () => {
     if (paymentMethod === 'upi' && !upiId.includes('@')) return 'Enter a valid UPI ID, for example name@upi.';
@@ -121,6 +124,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
           items: cartItems.map(i => ({ product_id: i.product_id || i.id, quantity: i.quantity })),
           address,
           payment_method: paymentMethod,
+          installation_requested: installationRequested,
           customer_lat: customerCoords?.lat,
           customer_lng: customerCoords?.lng,
           customer_accuracy: customerCoords?.accuracy,
@@ -163,6 +167,15 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
           )}
           <div className="form-group"><label>Full Address</label><textarea value={address} onChange={e => setAddress(e.target.value)} rows="3" /></div>
           <div className="form-group"><label>Phone Number</label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} /></div>
+          {cameraCount > 0 && (
+            <div className="form-group">
+              <label><Wrench size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Installation</label>
+              <label className="payment-option active" style={{ justifyContent: 'space-between', cursor: 'pointer' }}>
+                <span>Add installation at Rs 500 per camera. Camera count: {cameraCount}</span>
+                <input type="checkbox" checked={installationRequested} onChange={e => setInstallationRequested(e.target.checked)} />
+              </label>
+            </div>
+          )}
           <div className={`location-lock-card ${coords?.locked ? 'locked' : ''}`}>
             <strong>{coords?.locked ? 'Delivery GPS point locked' : lockingLocation ? 'Locking delivery GPS point...' : 'Delivery GPS point not locked'}</strong>
             <span>
@@ -206,6 +219,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
         <div className="summary-row"><span>Subtotal</span><strong>Rs {subtotal}</strong></div>
         <div className="summary-row"><span>GST 18%</span><strong>Rs {gst}</strong></div>
         <div className="summary-row"><span>Delivery</span><strong>{deliveryFee === 0 ? 'FREE' : `Rs ${deliveryFee}`}</strong></div>
+        {cameraCount > 0 && <div className="summary-row"><span>Installation</span><strong>{installationRequested ? `Rs ${installationFee}` : 'Not added'}</strong></div>}
         <div className="summary-row"><span>Estimate</span><strong>{deliveryEstimate}</strong></div>
         <div className="summary-row"><span>Delivery zone</span><strong>{localAddress ? 'Local GPS zone' : 'Courier zone'}</strong></div>
         <div className="summary-row"><span>GPS accuracy</span><strong>{coords?.accuracy ? `${Math.round(coords.accuracy)}m` : 'Not locked'}</strong></div>

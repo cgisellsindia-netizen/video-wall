@@ -16,7 +16,7 @@ function AdminPage({ user }) {
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState('');
   const [partnerPasswords, setPartnerPasswords] = useState({});
-  const [notificationForm, setNotificationForm] = useState({ title: '', message: '', target: 'customer', personalize: true, product_id: '' });
+  const [notificationForm, setNotificationForm] = useState({ title: '', message: '', target: 'customer', personalize: true, product_id: '', image_url: '' });
   const navigate = useNavigate();
 
   const emptyProduct = { name: '', description: '', price: '', mrp: '', discount_percent: '', dealer_price: '', distributor_price: '', image: '/images/cgi-new.jpg', images: ['/images/cgi-new.jpg'], category_id: '1', stock: '50', unit: '1 Unit' };
@@ -192,6 +192,13 @@ function AdminPage({ user }) {
     reader.readAsDataURL(file);
   };
 
+  const handleNotificationImageFile = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setNotificationForm(prev => ({ ...prev, image_url: reader.result }));
+    reader.readAsDataURL(file);
+  };
+
   const handleMultiImageFiles = (files) => {
     Array.from(files || []).forEach(file => handleImageFile(file));
   };
@@ -225,7 +232,7 @@ function AdminPage({ user }) {
     });
     const data = await res.json().catch(() => ({}));
     setMessage(res.ok ? 'Notification sent to app.' : (data.error || 'Notification failed.'));
-    if (res.ok) setNotificationForm({ title: '', message: '', target: 'customer', personalize: true, product_id: '' });
+    if (res.ok) setNotificationForm({ title: '', message: '', target: 'customer', personalize: true, product_id: '', image_url: '' });
   };
 
   const handleCreateUser = async (e) => {
@@ -271,7 +278,7 @@ function AdminPage({ user }) {
               <div className="form-group"><label>Password</label><input value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} required /></div>
               <div className="form-group"><label>Phone</label><input value={userForm.phone} onChange={e => setUserForm({...userForm, phone: e.target.value})} /></div>
               <div className="form-group"><label>Address</label><input value={userForm.address} onChange={e => setUserForm({...userForm, address: e.target.value})} /></div>
-              <div className="form-group"><label>Role</label><select value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value})}><option value="dealer">Dealer</option><option value="distributor">Distributor</option><option value="delivery_partner">Delivery Partner</option><option value="user">Customer</option><option value="admin">Admin</option></select></div>
+              <div className="form-group"><label>Role</label><select value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value})}><option value="dealer">Dealer</option><option value="distributor">Distributor</option><option value="delivery_partner">Delivery Partner</option><option value="installer">Installer</option><option value="user">Customer</option><option value="admin">Admin</option></select></div>
               <button className="btn btn-primary" type="submit">Create Login</button>
             </form>
           </div>
@@ -339,9 +346,11 @@ function AdminPage({ user }) {
           <h3 style={{ marginTop: 0 }}>Send app notification</h3>
           <form className="admin-product-form" onSubmit={handleSendNotification}>
             <div className="form-group"><label>Title</label><input value={notificationForm.title} onChange={e => setNotificationForm({...notificationForm, title: e.target.value})} required /></div>
-            <div className="form-group"><label>Target App</label><select value={notificationForm.target} onChange={e => setNotificationForm({...notificationForm, target: e.target.value})}><option value="customer">Customer app</option><option value="delivery">Delivery partner app</option><option value="all">Both apps</option></select></div>
+            <div className="form-group"><label>Target App</label><select value={notificationForm.target} onChange={e => setNotificationForm({...notificationForm, target: e.target.value})}><option value="customer">Customer app</option><option value="delivery">Delivery partner app</option><option value="installer">Installer app</option><option value="all">All apps</option></select></div>
             <div className="form-group"><label>Open product on click</label><select value={notificationForm.product_id} onChange={e => setNotificationForm({...notificationForm, product_id: e.target.value})}><option value="">No product link</option>{products.map(product => <option key={product.id} value={product.id}>{product.name}</option>)}</select></div>
             <div className="form-group"><label>Customer first name</label><select value={notificationForm.personalize ? '1' : '0'} onChange={e => setNotificationForm({...notificationForm, personalize: e.target.value === '1'})}><option value="1">Add first name automatically</option><option value="0">Do not personalize</option></select></div>
+            <div className="form-group"><label>Image URL</label><input value={notificationForm.image_url} onChange={e => setNotificationForm({...notificationForm, image_url: e.target.value})} placeholder="Optional image URL" /></div>
+            <div className="form-group"><label>Upload image</label><input type="file" accept="image/*" onChange={e => handleNotificationImageFile(e.target.files?.[0])} /></div>
             <div className="form-group" style={{ gridColumn: '1 / -1' }}><label>Message</label><textarea value={notificationForm.message} onChange={e => setNotificationForm({...notificationForm, message: e.target.value})} rows="3" required /></div>
             <p className="checkout-note" style={{ gridColumn: '1 / -1', margin: 0 }}>Tip: if personalization is on, customers see their first name before your message. Product link opens inside the app.</p>
             <button className="btn btn-primary" type="submit">Send Notification</button>

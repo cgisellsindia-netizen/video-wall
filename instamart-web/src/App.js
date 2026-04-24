@@ -20,6 +20,7 @@ import CheckoutPage from './components/CheckoutPage';
 import CategoryPage from './components/CategoryPage';
 import TrackingPage from './components/TrackingPage';
 import DeliveryPartnerPage from './components/DeliveryPartnerPage';
+import InstallerPage from './components/InstallerPage';
 import LocationDeliveryStrip from './components/LocationDeliveryStrip';
 import FloatingTracker from './components/FloatingTracker';
 import FloatingCheckoutBar from './components/FloatingCheckoutBar';
@@ -35,7 +36,7 @@ const getRuntimeAppMode = () => {
 
   if (typeof window === 'undefined') return 'web';
   const mode = new URLSearchParams(window.location.search).get('app');
-  if (mode === 'customer' || mode === 'delivery') return mode;
+  if (mode === 'customer' || mode === 'delivery' || mode === 'installer') return mode;
   return 'web';
 };
 
@@ -45,11 +46,16 @@ function DeliveryOnlyRoute({ user, children }) {
   useEffect(() => {
     if (user?.role === 'delivery_partner') {
       window.location.hash = '#/delivery-partner';
+    } else if (user?.role === 'installer') {
+      window.location.hash = '#/installer';
     }
   }, [user]);
 
   if (user?.role === 'delivery_partner') {
     return <DeliveryPartnerPage user={user} authReady={true} onLogin={() => {}} />;
+  }
+  if (user?.role === 'installer') {
+    return <InstallerPage user={user} authReady={true} onLogin={() => {}} />;
   }
 
   return children;
@@ -185,7 +191,15 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    const target = APP_MODE === 'delivery' ? 'delivery' : 'customer';
+    const target = APP_MODE === 'delivery'
+      ? 'delivery'
+      : APP_MODE === 'installer'
+        ? 'installer'
+        : user?.role === 'delivery_partner'
+          ? 'delivery'
+          : user?.role === 'installer'
+            ? 'installer'
+            : 'customer';
     let stopped = false;
 
     const notifyPhone = async (notice) => {
@@ -265,7 +279,10 @@ function AppContent() {
     };
 
     const loadNotifications = () => {
-      fetch(`${API_URL}/notifications?target=${target}&ts=${Date.now()}`)
+      const token = localStorage.getItem('token');
+      fetch(`${API_URL}/notifications?target=${target}&ts=${Date.now()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      })
         .then(res => res.ok ? res.json() : [])
         .then(data => {
           if (stopped || !Array.isArray(data) || !data.length) return;
@@ -284,7 +301,7 @@ function AppContent() {
       stopped = true;
       clearInterval(poller);
     };
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return undefined;
@@ -321,7 +338,11 @@ function AppContent() {
             body: JSON.stringify({
               token: deviceToken.value,
               platform: 'android',
-              app_target: APP_MODE === 'delivery' || user.role === 'delivery_partner' ? 'delivery' : 'customer'
+              app_target: APP_MODE === 'delivery' || user.role === 'delivery_partner'
+                ? 'delivery'
+                : APP_MODE === 'installer' || user.role === 'installer'
+                  ? 'installer'
+                  : 'customer'
             })
           }).catch(() => {});
         });
@@ -347,7 +368,7 @@ function AppContent() {
   }, [user, navigate]);
 
   useEffect(() => {
-    if (!user || APP_MODE === 'delivery' || user.role === 'delivery_partner') return;
+    if (!user || APP_MODE === 'delivery' || APP_MODE === 'installer' || user.role === 'delivery_partner' || user.role === 'installer') return;
     if (getSavedCustomerLocation()) return;
     captureCustomerLocation({ source: 'first-login', timeout: 8000, maximumAge: 300000 });
   }, [user]);
@@ -373,7 +394,7 @@ function AppContent() {
   }, [user]);
 
   const restoreActiveOrder = async (currentUser) => {
-    if (!currentUser || currentUser.role === 'delivery_partner') return;
+    if (!currentUser || ['delivery_partner', 'installer'].includes(currentUser.role)) return;
     const token = localStorage.getItem('token');
     if (!token) return;
     try {
@@ -404,6 +425,9 @@ function AppContent() {
     if (user?.role === 'delivery_partner' && location.pathname !== '/delivery-partner') {
       navigate('/delivery-partner', { replace: true });
     }
+    if (user?.role === 'installer' && location.pathname !== '/installer') {
+      navigate('/installer', { replace: true });
+    }
   }, [user, location.pathname, navigate]);
 
   const fetchCategories = async () => {
@@ -425,6 +449,10 @@ function AppContent() {
   const addToCart = async (product) => {
     if (APP_MODE === 'delivery' || user?.role === 'delivery_partner') {
       navigate('/delivery-partner');
+      return;
+    }
+    if (APP_MODE === 'installer' || user?.role === 'installer') {
+      navigate('/installer');
       return;
     }
     const token = localStorage.getItem('token');
@@ -452,7 +480,7 @@ function AppContent() {
   };
 
   const removeFromCart = async (product, cartItem) => {
-    if (APP_MODE === 'delivery' || user?.role === 'delivery_partner') return;
+    if (APP_MODE === 'delivery' || APP_MODE === 'installer' || user?.role === 'delivery_partner' || user?.role === 'installer') return;
     const token = localStorage.getItem('token');
     if (!token) { setLoginOpen(true); return; }
     const item = cartItem || cartItems.find(entry => Number(entry.product_id || entry.id) === Number(product.id));
@@ -501,6 +529,8 @@ function AppContent() {
     setLoginOpen(false);
     if (APP_MODE === 'delivery' || data.user?.role === 'delivery_partner') {
       navigate('/delivery-partner', { replace: true });
+    } else if (APP_MODE === 'installer' || data.user?.role === 'installer') {
+      navigate('/installer', { replace: true });
     }
   };
 
@@ -534,6 +564,21 @@ function AppContent() {
     setAppNotice(null);
   };
   const showEnablePhoneAlerts = notificationPermission === 'default';
+  const renderAppNotice = () => appNotice && (
+    <div className={appNotice.product_id ? 'app-notice clickable' : 'app-notice'} onClick={handleNoticeOpen}>
+      <div className="app-notice-icon">{(noticeTitle || 'C').charAt(0)}</div>
+      <div className="app-notice-body">
+        <strong>{noticeTitle}</strong>
+        <span>{noticeMessage}</span>
+        {appNotice.image_url && <img className="app-notice-image" src={appNotice.image_url} alt={noticeTitle || 'Notification'} />}
+        {appNotice.product_id && <small>Tap to view product</small>}
+      </div>
+      <div className="app-notice-actions">
+        {showEnablePhoneAlerts && <button className="notice-enable" onClick={requestPhoneAlerts}>Enable alerts</button>}
+        <button onClick={dismissNotice}>Close</button>
+      </div>
+    </div>
+  );
 
   if (APP_MODE === 'delivery') {
     return (
@@ -551,7 +596,29 @@ function AppContent() {
         <Routes>
           <Route path="*" element={<DeliveryPartnerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
         </Routes>
-        {appNotice && <div className={appNotice.product_id ? 'app-notice clickable' : 'app-notice'} onClick={handleNoticeOpen}><strong>{noticeTitle}</strong><span>{noticeMessage}</span>{appNotice.product_id && <small>Tap to view product</small>}{showEnablePhoneAlerts && <button className="notice-enable" onClick={requestPhoneAlerts}>Enable alerts</button>}<button onClick={dismissNotice}>Close</button></div>}
+        {renderAppNotice()}
+        <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={handleLogin} />
+      </div>
+    );
+  }
+
+  if (APP_MODE === 'installer') {
+    return (
+      <div className="app delivery-app-shell installer-app-shell">
+        <Header
+          user={user}
+          cartCount={0}
+          onCartClick={() => {}}
+          onLoginClick={() => setLoginOpen(true)}
+          onLogout={handleLogout}
+          searchQuery=""
+          onSearch={() => {}}
+          appMode={APP_MODE}
+        />
+        <Routes>
+          <Route path="*" element={<InstallerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
+        </Routes>
+        {renderAppNotice()}
         <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={handleLogin} />
       </div>
     );
@@ -595,10 +662,11 @@ function AppContent() {
         <Route path="/checkout" element={<DeliveryOnlyRoute user={user}><CheckoutPage user={user} liveCartItems={cartItems} onLogin={() => setLoginOpen(true)} onOrderPlaced={handleOrderPlaced} /></DeliveryOnlyRoute>} />
         <Route path="/tracking/:id" element={<TrackingPage />} />
         <Route path="/delivery-partner" element={<DeliveryPartnerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
+        <Route path="/installer" element={<InstallerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
       </Routes>
 
       <CartDrawer
-        open={APP_MODE !== 'delivery' && user?.role !== 'delivery_partner' && cartOpen}
+        open={APP_MODE !== 'delivery' && APP_MODE !== 'installer' && user?.role !== 'delivery_partner' && user?.role !== 'installer' && cartOpen}
         onClose={() => setCartOpen(false)}
         items={cartItems}
         total={cartTotal}
@@ -609,7 +677,7 @@ function AppContent() {
       />
 
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} onLogin={handleLogin} />
-      {appNotice && <div className={appNotice.product_id ? 'app-notice clickable' : 'app-notice'} onClick={handleNoticeOpen}><strong>{noticeTitle}</strong><span>{noticeMessage}</span>{appNotice.product_id && <small>Tap to view product</small>}{showEnablePhoneAlerts && <button className="notice-enable" onClick={requestPhoneAlerts}>Enable alerts</button>}<button onClick={dismissNotice}>Close</button></div>}
+      {renderAppNotice()}
       {activeOrder?.id && (
         <FloatingTracker
           activeOrder={activeOrder}
@@ -617,10 +685,10 @@ function AppContent() {
           onRate={dismissActiveOrder}
         />
       )}
-      {APP_MODE !== 'delivery' && user?.role !== 'delivery_partner' && !activeOrder?.id && (
+      {APP_MODE !== 'delivery' && APP_MODE !== 'installer' && user?.role !== 'delivery_partner' && user?.role !== 'installer' && !activeOrder?.id && (
         <FloatingCheckoutBar cartCount={cartCount} cartTotal={cartTotal} cartItems={cartItems} onCartClick={() => setCartOpen(true)} />
       )}
-      {APP_MODE !== 'delivery' && user?.role !== 'delivery_partner' && <BottomNav cartCount={cartCount} onCartClick={() => setCartOpen(true)} user={user} />}
+      {APP_MODE !== 'delivery' && APP_MODE !== 'installer' && user?.role !== 'delivery_partner' && user?.role !== 'installer' && <BottomNav cartCount={cartCount} onCartClick={() => setCartOpen(true)} user={user} />}
     </div>
   );
 }

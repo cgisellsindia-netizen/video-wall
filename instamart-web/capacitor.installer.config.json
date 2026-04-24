@@ -1,0 +1,13 @@
+{
+  "appId": "com.camigo.installer",
+  "appName": "Camigo Installer",
+  "webDir": "build",
+  "bundledWebRuntime": false,
+  "android": {
+    "path": "android-installer"
+  },
+  "server": {
+    "url": "https://camigo-store.onrender.com/?app=installer",
+    "androidScheme": "https"
+  }
+}

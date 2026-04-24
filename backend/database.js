@@ -78,6 +78,11 @@ db.serialize(async () => {
     customer_lng REAL,
     customer_accuracy REAL,
     customer_location_locked_at INTEGER,
+    installation_requested INTEGER DEFAULT 0,
+    installation_fee REAL DEFAULT 0,
+    installation_status TEXT DEFAULT 'not_requested',
+    installer_id INTEGER,
+    camera_count INTEGER DEFAULT 0,
     delivery_partner_id INTEGER,
     delivery_otp TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -148,6 +153,8 @@ db.serialize(async () => {
     target TEXT DEFAULT 'customer',
     personalize INTEGER DEFAULT 0,
     product_id INTEGER,
+    image_url TEXT,
+    user_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
@@ -170,11 +177,18 @@ db.serialize(async () => {
   addColumn('order_items', 'warranty_end_at TEXT');
   addColumn('orders', 'customer_accuracy REAL');
   addColumn('orders', 'customer_location_locked_at INTEGER');
+  addColumn('orders', 'installation_requested INTEGER DEFAULT 0');
+  addColumn('orders', 'installation_fee REAL DEFAULT 0');
+  addColumn('orders', 'installation_status TEXT DEFAULT "not_requested"');
+  addColumn('orders', 'installer_id INTEGER');
+  addColumn('orders', 'camera_count INTEGER DEFAULT 0');
   addColumn('orders', 'delivery_partner_id INTEGER');
   addColumn('orders', 'gst_amount REAL');
   addColumn('orders', 'delivery_fee REAL');
   addColumn('notifications', 'personalize INTEGER DEFAULT 0');
   addColumn('notifications', 'product_id INTEGER');
+  addColumn('notifications', 'image_url TEXT');
+  addColumn('notifications', 'user_id INTEGER');
   db.run(`UPDATE order_items
           SET warranty_years = COALESCE(warranty_years, 5),
               warranty_start_at = COALESCE(warranty_start_at, (SELECT created_at FROM orders WHERE orders.id = order_items.order_id)),
@@ -198,14 +212,16 @@ db.serialize(async () => {
     (3, 'victim@test.com', ?, 'password123', 'Victim User', '9876543212', '456 Oak Ave, Cuttack', 'user'),
     (4, 'dealer@test.com', ?, 'password123', 'Dealer User', '9876543213', '789 Trade Center, Bhubaneswar', 'dealer'),
     (5, 'distributor@test.com', ?, 'password123', 'Distributor User', '9876543214', '101 Industrial Zone, Cuttack', 'distributor'),
-    (6, 'delivery@test.com', ?, 'password123', 'Delivery Partner', '9876543215', 'Bhubaneswar Delivery Hub', 'delivery_partner')`,
-    [hashedPassword, adminPassword, hashedPassword, hashedPassword, hashedPassword, hashedPassword]);
+    (6, 'delivery@test.com', ?, 'password123', 'Delivery Partner', '9876543215', 'Bhubaneswar Delivery Hub', 'delivery_partner'),
+    (7, 'installer@test.com', ?, 'password123', 'Installer Partner', '9876543216', 'Bhubaneswar Service Hub', 'installer')`,
+    [hashedPassword, adminPassword, hashedPassword, hashedPassword, hashedPassword, hashedPassword, hashedPassword]);
 
   db.run(`INSERT OR IGNORE INTO hubs (id, name, address, lat, lng, map_url, active) VALUES
     (1, 'First Hub - CGI CCTV CAMERA INDIA H.O', 'CGI CCTV CAMERA INDIA H.O, Bhubaneswar, Odisha', 20.34986, 85.82418, 'https://share.google/UtXmTRALSt0cZk0gZ', 1)`);
 
   db.run(`INSERT OR IGNORE INTO delivery_partner_details (id, user_id, vehicle_type, vehicle_number, license_number, hub_id, active) VALUES
-    (1, 6, 'bike', 'OD-02-CAMIGO', 'DL-DEMO-001', 1, 1)`);
+    (1, 6, 'bike', 'OD-02-CAMIGO', 'DL-DEMO-001', 1, 1),
+    (2, 7, 'bike', 'OD-02-INSTALL', 'DL-INSTALL-001', 1, 1)`);
 
   db.run(`INSERT OR IGNORE INTO categories (id, name, image, sort_order) VALUES 
     (1, 'Night Color AHD Cameras', '/images/ahd.jpg', 1),

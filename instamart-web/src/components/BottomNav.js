@@ -8,6 +8,8 @@ function BottomNav({ cartCount, onCartClick, user }) {
     ? '/admin'
     : user?.role === 'delivery_partner'
       ? '/delivery-partner'
+      : user?.role === 'installer'
+        ? '/installer'
       : '/#/orders';
   const accountPath = accountLink.replace('/#', '');
   const itemClass = (path) => location.pathname === path ? 'bottom-nav-item active' : 'bottom-nav-item';

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Camigo Installer</string>
+    <string name="title_activity_main">Camigo Installer</string>
+    <string name="package_name">com.camigo.installer</string>
+    <string name="custom_url_scheme">com.camigo.installer</string>
+</resources>
