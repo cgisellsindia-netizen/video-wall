@@ -9,6 +9,10 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
     event.preventDefault();
     event.stopPropagation();
   };
+  const handlePointerAction = (handler) => (event) => {
+    stopCardTap(event);
+    handler();
+  };
 
   return (
     <div className="product-section">
@@ -51,12 +55,12 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
               {(user?.role === 'dealer' || user?.role === 'distributor') && <div className="trade-price-note">{user.role} price</div>}
               {selectedQty > 0 ? (
                 <div className="card-qty-stepper" onClick={(e) => e.stopPropagation()}>
-                  <button type="button" onTouchStart={stopCardTap} onMouseDown={stopCardTap} onClick={(e) => { stopCardTap(e); onRemove(product, cartItem); }}><Minus size={15} /></button>
+                  <button type="button" onPointerDown={handlePointerAction(() => onRemove(product, cartItem))} onClick={stopCardTap}><Minus size={15} /></button>
                   <strong>{selectedQty}</strong>
-                  <button type="button" onTouchStart={stopCardTap} onMouseDown={stopCardTap} onClick={(e) => { stopCardTap(e); onAdd(product); }}><Plus size={15} /></button>
+                  <button type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}><Plus size={15} /></button>
                 </div>
               ) : (
-                <button className="add-btn" type="button" onTouchStart={stopCardTap} onMouseDown={stopCardTap} onClick={(e) => { stopCardTap(e); onAdd(product); }}>
+                <button className="add-btn" type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}>
                   <Plus size={16} /> ADD
                 </button>
               )}

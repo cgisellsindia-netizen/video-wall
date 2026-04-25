@@ -11,6 +11,10 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
     event.preventDefault();
     event.stopPropagation();
   };
+  const handlePointerAction = (handler) => (event) => {
+    stopCardTap(event);
+    handler();
+  };
 
   useEffect(() => {
     let result = [...products];
@@ -68,12 +72,12 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
               {(user?.role === 'dealer' || user?.role === 'distributor') && <div className="trade-price-note">{user.role} price</div>}
               {selectedQty > 0 ? (
                 <div className="card-qty-stepper" onClick={(e) => e.stopPropagation()}>
-                  <button type="button" onTouchStart={stopCardTap} onMouseDown={stopCardTap} onClick={(e) => { stopCardTap(e); onRemove(product, cartItem); }}>-</button>
+                  <button type="button" onPointerDown={handlePointerAction(() => onRemove(product, cartItem))} onClick={stopCardTap}>-</button>
                   <strong>{selectedQty}</strong>
-                  <button type="button" onTouchStart={stopCardTap} onMouseDown={stopCardTap} onClick={(e) => { stopCardTap(e); onAdd(product); }}>+</button>
+                  <button type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}>+</button>
                 </div>
               ) : (
-                <button className="add-btn" type="button" onTouchStart={stopCardTap} onMouseDown={stopCardTap} onClick={(e) => { stopCardTap(e); onAdd(product); }}>+ ADD</button>
+                <button className="add-btn" type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}>+ ADD</button>
               )}
             </div>
           );
