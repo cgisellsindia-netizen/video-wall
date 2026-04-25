@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
@@ -156,8 +156,16 @@ function AppContent() {
   const [notificationPermission, setNotificationPermission] = useState(() => (
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
   ));
+  const cartBusyRef = useRef(new Set());
   const navigate = useNavigate();
   const location = useLocation();
+
+  const setCartBusy = (productId, busy) => {
+    const value = Number(productId);
+    if (!Number.isFinite(value)) return;
+    if (busy) cartBusyRef.current.add(value);
+    else cartBusyRef.current.delete(value);
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -457,6 +465,8 @@ function AppContent() {
     }
     const token = localStorage.getItem('token');
     if (!token) { setLoginOpen(true); return; }
+    if (cartBusyRef.current.has(Number(product.id))) return;
+    setCartBusy(product.id, true);
     setCartItems(current => {
       const existing = current.find(entry => Number(entry.product_id || entry.id) === Number(product.id));
       if (existing) {
@@ -473,9 +483,12 @@ function AppContent() {
         body: JSON.stringify({ product_id: product.id, quantity: 1 })
       });
       if (!res.ok) throw new Error('Cart add failed');
-      await fetchCart();
+      await new Promise(resolve => setTimeout(resolve, 180));
+      await fetchCart({ preserveBusy: false });
     } catch (e) {
-      await fetchCart();
+      await fetchCart({ preserveBusy: false });
+    } finally {
+      setCartBusy(product.id, false);
     }
   };
 
@@ -484,7 +497,9 @@ function AppContent() {
     const token = localStorage.getItem('token');
     if (!token) { setLoginOpen(true); return; }
     const item = cartItem || cartItems.find(entry => Number(entry.product_id || entry.id) === Number(product.id));
+    if (cartBusyRef.current.has(Number(product.id))) return;
     if (!item?.id) return;
+    setCartBusy(product.id, true);
     const nextQty = Number(item.quantity || 0) - 1;
     setCartItems(current => current
       .map(entry => Number(entry.product_id || entry.id) === Number(product.id)
@@ -506,19 +521,43 @@ function AppContent() {
         });
         if (!res.ok) throw new Error('Cart update failed');
       }
-      await fetchCart();
+      await new Promise(resolve => setTimeout(resolve, 180));
+      await fetchCart({ preserveBusy: false });
     } catch (e) {
-      await fetchCart();
+      await fetchCart({ preserveBusy: false });
+    } finally {
+      setCartBusy(product.id, false);
     }
   };
 
-  const fetchCart = async () => {
+  const fetchCart = async ({ preserveBusy = true } = {}) => {
     const token = localStorage.getItem('token');
     if (!token) return;
     try {
       const res = await fetch(`${API_URL}/cart`, { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await res.json();
-      setCartItems(Array.isArray(data) ? data : []);
+      const safeData = Array.isArray(data) ? data : [];
+      setCartItems(current => {
+        if (!preserveBusy || !cartBusyRef.current.size) return safeData;
+        const serverMap = new Map(safeData.map(item => [Number(item.product_id || item.id), item]));
+        const busyIds = cartBusyRef.current;
+        const merged = [];
+
+        current.forEach(item => {
+          const productId = Number(item.product_id || item.id);
+          if (busyIds.has(productId)) merged.push(item);
+          else if (serverMap.has(productId)) merged.push(serverMap.get(productId));
+        });
+
+        safeData.forEach(item => {
+          const productId = Number(item.product_id || item.id);
+          if (!busyIds.has(productId) && !merged.find(entry => Number(entry.product_id || entry.id) === productId)) {
+            merged.push(item);
+          }
+        });
+
+        return merged;
+      });
     } catch (e) {}
   };
 
