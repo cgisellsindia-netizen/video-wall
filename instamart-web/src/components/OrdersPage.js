@@ -39,15 +39,29 @@ const getWarrantyRemaining = (endAt) => {
   return parts.join(' ');
 };
 
+const getCancelRemainingMs = (createdAt, status, nowMs) => {
+  if (String(status || '').toLowerCase() === 'cancelled') return 0;
+  const startedAt = new Date(createdAt).getTime();
+  if (!Number.isFinite(startedAt)) return 0;
+  return Math.max(0, 60 * 1000 - (nowMs - startedAt));
+};
+
 function OrdersPage({ user, onLogin }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [clock, setClock] = useState(Date.now());
+  const [busyOrderId, setBusyOrderId] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!user) { onLogin(); return; }
     fetchOrders();
   }, [user]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const fetchOrders = async () => {
     const token = localStorage.getItem('token');
@@ -81,6 +95,31 @@ function OrdersPage({ user, onLogin }) {
     }
   };
 
+  const cancelOrder = async (orderId) => {
+    const token = localStorage.getItem('token');
+    setBusyOrderId(orderId);
+    try {
+      const res = await fetch(`${API_URL}/orders/${orderId}/cancel`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not cancel order');
+      try {
+        const activeOrder = JSON.parse(localStorage.getItem('camigo_active_order') || 'null');
+        if (String(activeOrder?.id) === String(orderId)) localStorage.removeItem('camigo_active_order');
+      } catch (e) {}
+      setOrders(current => current.map(order => (
+        order.id === orderId
+          ? { ...order, status: 'cancelled', payment_status: data.payment_status }
+          : order
+      )));
+    } catch (error) {
+      alert(error.message);
+    }
+    setBusyOrderId(null);
+  };
+
   if (loading) return <div className="loading">Loading orders...</div>;
 
   return (
@@ -98,6 +137,12 @@ function OrdersPage({ user, onLogin }) {
         <div className="orders-list">
           {orders.map(order => (
             <div key={order.id} className="card order-card">
+              {(() => {
+                const cancelRemainingMs = getCancelRemainingMs(order.created_at, order.status, clock);
+                const canCancel = cancelRemainingMs > 0 && ['pending', 'payment_pending'].includes(String(order.status || '').toLowerCase());
+                const secondsLeft = Math.ceil(cancelRemainingMs / 1000);
+                return (
+                  <>
               <div className="order-card-top">
                 <div>
                   <span className="order-id">Order #{order.id}</span>
@@ -114,6 +159,14 @@ function OrdersPage({ user, onLogin }) {
                   <MapPin size={15} /> Track
                 </button>
               </div>
+              {canCancel && (
+                <div className="order-cancel-strip">
+                  <span>Cancel available for {secondsLeft}s</span>
+                  <button className="btn btn-sm btn-secondary" onClick={() => cancelOrder(order.id)} disabled={busyOrderId === order.id}>
+                    {busyOrderId === order.id ? 'Cancelling...' : 'Cancel order'}
+                  </button>
+                </div>
+              )}
               <div className="order-progress">
                 <div className="order-progress-head">
                   <span><Truck size={15} /> Live delivery status</span>
@@ -151,6 +204,9 @@ function OrdersPage({ user, onLogin }) {
                 </div>
               )}
               <p className="order-address-line"><MapPin size={14} /> {order.address}</p>
+                  </>
+                );
+              })()}
             </div>
           ))}
         </div>

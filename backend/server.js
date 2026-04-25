@@ -304,6 +304,21 @@ const createLocalOrderRecord = async ({ userId, draft, status = 'pending', payme
   return result.lastID;
 };
 
+const canCustomerCancelOrder = (order) => {
+  if (!order) return { allowed: false, reason: 'Order not found' };
+  const createdAt = new Date(order.created_at).getTime();
+  if (!Number.isFinite(createdAt)) return { allowed: false, reason: 'Order cannot be cancelled now' };
+  const ageMs = Date.now() - createdAt;
+  if (ageMs > 60 * 1000) {
+    return { allowed: false, reason: 'The 1 minute cancel window has expired' };
+  }
+  const blockedStatuses = ['accepted', 'arrived_at_store', 'picked_up', 'packed', 'out_for_delivery', 'delivered', 'rejected', 'cancelled'];
+  if (blockedStatuses.includes(String(order.status || '').toLowerCase())) {
+    return { allowed: false, reason: 'This order is already being processed and cannot be cancelled' };
+  }
+  return { allowed: true };
+};
+
 const attachOrderItems = (orders, res) => {
   if (!orders.length) return res.json([]);
   const placeholders = orders.map(() => '?').join(',');
@@ -927,6 +942,48 @@ app.get('/api/orders', authenticateToken, (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     attachOrderItems(rows, res);
   });
+});
+
+app.post('/api/orders/:id/cancel', authenticateToken, async (req, res) => {
+  try {
+    const order = await dbGetAsync(
+      'SELECT * FROM orders WHERE id = ? AND user_id = ?',
+      [req.params.id, req.user.userId]
+    );
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const decision = canCustomerCancelOrder(order);
+    if (!decision.allowed) {
+      return res.status(400).json({ error: decision.reason });
+    }
+
+    const nextPaymentStatus = String(order.payment_status || '').toLowerCase() === 'paid'
+      ? 'refund_pending'
+      : 'cancelled';
+
+    await dbRunAsync(
+      'UPDATE orders SET status = ?, payment_status = ? WHERE id = ? AND user_id = ?',
+      ['cancelled', nextPaymentStatus, req.params.id, req.user.userId]
+    );
+
+    await createUserNotification({
+      userId: req.user.userId,
+      target: 'customer',
+      title: 'Order cancelled',
+      message: nextPaymentStatus === 'refund_pending'
+        ? 'Your order was cancelled within 1 minute. Refund review has started.'
+        : 'Your order was cancelled successfully.',
+      personalize: 1
+    });
+
+    res.json({
+      message: 'Order cancelled',
+      status: 'cancelled',
+      payment_status: nextPaymentStatus
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Admin endpoints
