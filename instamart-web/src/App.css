@@ -855,6 +855,7 @@
 }
 .checkout-card h3 { display: flex; align-items: center; gap: 8px; margin-top: 0; }
 .payment-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.payment-options-two { grid-template-columns: repeat(2, 1fr); }
 .payment-option {
   border: 1px solid #dbe3ef; background: #f8fafc; border-radius: 14px; padding: 12px;
   font-weight: 900; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px;

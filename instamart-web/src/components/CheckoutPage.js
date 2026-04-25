@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, CreditCard, MapPin, Smartphone, Wallet, Wrench, XCircle } from 'lucide-react';
+import { CheckCircle2, CreditCard, MapPin, Smartphone, Wrench, XCircle } from 'lucide-react';
 import { API_URL } from '../api';
 import { captureCustomerLocation, getSavedCustomerLocation } from '../locationLock';
 import { isLocalAddressText, isLocalServiceZone } from '../deliveryZone';
@@ -157,7 +157,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
       <div className="checkout-main">
         <span className="eyebrow">Secure checkout</span>
         <h1>Confirm delivery and payment</h1>
-        <p className="checkout-subtitle">Camigo demo gateway simulates UPI, card, and COD payments before placing your order.</p>
+        <p className="checkout-subtitle">Camigo checkout now accepts online payments only with UPI or card before placing your order.</p>
 
         {error && <div className="admin-message">{error}</div>}
 
@@ -193,15 +193,14 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
         </section>
 
         <section className="checkout-card">
-          <h3><Wallet size={18} /> Payment gateway</h3>
-          <div className="payment-options">
-            <button className={paymentMethod === 'upi' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('upi')}><Smartphone size={18} /> UPI</button>
-            <button className={paymentMethod === 'card' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('card')}><CreditCard size={18} /> Card</button>
-            <button className={paymentMethod === 'cod' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('cod')}><Wallet size={18} /> COD</button>
+          <h3><CreditCard size={18} /> Payment gateway</h3>
+          <div className="payment-options payment-options-two">
+            <button type="button" className={paymentMethod === 'upi' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('upi')}><Smartphone size={18} /> UPI</button>
+            <button type="button" className={paymentMethod === 'card' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('card')}><CreditCard size={18} /> Card</button>
           </div>
           {paymentMethod === 'upi' && <div className="form-group"><label>UPI ID</label><input value={upiId} onChange={e => setUpiId(e.target.value)} placeholder="yourname@upi" /></div>}
-          {paymentMethod === 'card' && <div className="form-group"><label>Demo Card Number</label><input value={cardNumber} onChange={e => setCardNumber(e.target.value)} placeholder="4111 1111 1111 1111" /></div>}
-          {paymentMethod === 'cod' && <p className="checkout-note">Cash will be collected at delivery or installation handoff.</p>}
+          {paymentMethod === 'card' && <div className="form-group"><label>Card Number</label><input value={cardNumber} onChange={e => setCardNumber(e.target.value)} placeholder="4111 1111 1111 1111" /></div>}
+          <p className="checkout-note">Cash on delivery is disabled. Orders are placed only after online payment selection.</p>
         </section>
       </div>
 

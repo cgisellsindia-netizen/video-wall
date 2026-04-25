@@ -592,6 +592,9 @@ app.post('/api/orders', authenticateToken, (req, res) => {
   if (!address || !payment_method) {
     return res.status(400).json({ error: 'Address and payment method are required' });
   }
+  if (!['upi', 'card'].includes(String(payment_method || '').toLowerCase())) {
+    return res.status(400).json({ error: 'Only UPI and card payments are allowed' });
+  }
 
   const normalizedItems = items
     .map(item => ({
