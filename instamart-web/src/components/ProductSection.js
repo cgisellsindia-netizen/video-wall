@@ -5,6 +5,10 @@ import { Minus, Plus } from 'lucide-react';
 function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [] }) {
   const navigate = useNavigate();
   if (!products || products.length === 0) return null;
+  const stopCardTap = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
 
   return (
     <div className="product-section">
@@ -47,12 +51,12 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
               {(user?.role === 'dealer' || user?.role === 'distributor') && <div className="trade-price-note">{user.role} price</div>}
               {selectedQty > 0 ? (
                 <div className="card-qty-stepper" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => onRemove(product, cartItem)}><Minus size={15} /></button>
+                  <button type="button" onTouchStart={stopCardTap} onMouseDown={stopCardTap} onClick={(e) => { stopCardTap(e); onRemove(product, cartItem); }}><Minus size={15} /></button>
                   <strong>{selectedQty}</strong>
-                  <button onClick={() => onAdd(product)}><Plus size={15} /></button>
+                  <button type="button" onTouchStart={stopCardTap} onMouseDown={stopCardTap} onClick={(e) => { stopCardTap(e); onAdd(product); }}><Plus size={15} /></button>
                 </div>
               ) : (
-                <button className="add-btn" onClick={(e) => { e.stopPropagation(); onAdd(product); }}>
+                <button className="add-btn" type="button" onTouchStart={stopCardTap} onMouseDown={stopCardTap} onClick={(e) => { stopCardTap(e); onAdd(product); }}>
                   <Plus size={16} /> ADD
                 </button>
               )}

@@ -7,6 +7,10 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
   const [selectedCat, setSelectedCat] = useState('all');
   const [sortBy, setSortBy] = useState('default');
   const navigate = useNavigate();
+  const stopCardTap = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
 
   useEffect(() => {
     let result = [...products];
@@ -64,12 +68,12 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
               {(user?.role === 'dealer' || user?.role === 'distributor') && <div className="trade-price-note">{user.role} price</div>}
               {selectedQty > 0 ? (
                 <div className="card-qty-stepper" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => onRemove(product, cartItem)}>-</button>
+                  <button type="button" onTouchStart={stopCardTap} onMouseDown={stopCardTap} onClick={(e) => { stopCardTap(e); onRemove(product, cartItem); }}>-</button>
                   <strong>{selectedQty}</strong>
-                  <button onClick={() => onAdd(product)}>+</button>
+                  <button type="button" onTouchStart={stopCardTap} onMouseDown={stopCardTap} onClick={(e) => { stopCardTap(e); onAdd(product); }}>+</button>
                 </div>
               ) : (
-                <button className="add-btn" onClick={(e) => { e.stopPropagation(); onAdd(product); }}>+ ADD</button>
+                <button className="add-btn" type="button" onTouchStart={stopCardTap} onMouseDown={stopCardTap} onClick={(e) => { stopCardTap(e); onAdd(product); }}>+ ADD</button>
               )}
             </div>
           );

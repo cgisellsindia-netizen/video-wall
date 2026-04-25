@@ -10,6 +10,10 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
   const [remoteProduct, setRemoteProduct] = useState(null);
   const [loading, setLoading] = useState(!listProduct);
   const [activeImage, setActiveImage] = useState('');
+  const stopActionTap = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
 
   useEffect(() => {
     if (listProduct) {
@@ -149,12 +153,12 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
             <div className="product-action-block">
               {selectedQty > 0 ? (
                 <div className="detail-qty-stepper">
-                  <button onClick={() => onRemove(product, cartItem)}><Minus size={18} /></button>
+                  <button type="button" onTouchStart={stopActionTap} onMouseDown={stopActionTap} onClick={(e) => { stopActionTap(e); onRemove(product, cartItem); }}><Minus size={18} /></button>
                   <strong>{selectedQty}</strong>
-                  <button onClick={handleAdd}><Plus size={18} /></button>
+                  <button type="button" onTouchStart={stopActionTap} onMouseDown={stopActionTap} onClick={(e) => { stopActionTap(e); handleAdd(); }}><Plus size={18} /></button>
                 </div>
               ) : (
-                <button className="add-btn-large" onClick={handleAdd}>
+                <button className="add-btn-large" type="button" onTouchStart={stopActionTap} onMouseDown={stopActionTap} onClick={(e) => { stopActionTap(e); handleAdd(); }}>
                   <Plus size={20} /> Add to Cart
                 </button>
               )}
