@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Minus, Plus } from 'lucide-react';
 
 function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRole, cartItems = [] }) {
   const { id } = useParams();
@@ -8,6 +8,14 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
   const categoryId = parseInt(id);
   const category = categories.find(c => c.id === categoryId);
   const categoryProducts = products.filter(p => p.category_id === categoryId);
+  const stopCardTap = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  const handlePointerAction = (handler) => (event) => {
+    stopCardTap(event);
+    handler();
+  };
 
   if (!category && categories.length > 0) {
     return (
@@ -45,6 +53,17 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
                 {product.image ? <img src={product.image} alt={product.name} loading="lazy" /> : <div className="emoji">CCTV</div>}
                 {discount > 0 && <span className="discount-badge">{discount}% OFF</span>}
                 <span className="delivery-badge">8 min</span>
+                <div className="product-image-action-wrap" onClick={stopCardTap}>
+                  {selectedQty > 0 ? (
+                    <div className="card-qty-stepper image-stepper">
+                      <button type="button" onPointerDown={handlePointerAction(() => onRemove(product, cartItem))} onClick={stopCardTap}><Minus size={15} /></button>
+                      <strong>{selectedQty}</strong>
+                      <button type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}><Plus size={15} /></button>
+                    </div>
+                  ) : (
+                    <button className="add-btn image-add-btn" type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}>ADD</button>
+                  )}
+                </div>
               </div>
               <div className="product-name">{product.name}</div>
               <div className="product-weight">{product.unit}</div>
@@ -52,15 +71,6 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
                 <span><span className="price-current">Rs {priceForRole ? priceForRole(product, user) : product.price}</span><span className="price-original">Rs {product.mrp}</span></span>
               </div>
               {(user?.role === 'dealer' || user?.role === 'distributor') && <div className="trade-price-note">{user.role} price</div>}
-              {selectedQty > 0 ? (
-                <div className="card-qty-stepper" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => onRemove(product, cartItem)}>-</button>
-                  <strong>{selectedQty}</strong>
-                  <button onClick={() => onAdd(product)}>+</button>
-                </div>
-              ) : (
-                <button className="add-btn" onClick={(e) => { e.stopPropagation(); onAdd(product); }}>+ ADD</button>
-              )}
             </div>
           );
         })}

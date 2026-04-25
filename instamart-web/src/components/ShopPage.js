@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Filter, SlidersHorizontal } from 'lucide-react';
+import { Filter, Minus, Plus, SlidersHorizontal } from 'lucide-react';
 
 function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, cartItems = [] }) {
   const [filtered, setFiltered] = useState(products);
@@ -63,6 +63,17 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
                   <div className="emoji">PROD</div>
                 )}
                 {discount > 0 && <span className="discount-badge">{discount}% OFF</span>}
+                <div className="product-image-action-wrap" onClick={stopCardTap}>
+                  {selectedQty > 0 ? (
+                    <div className="card-qty-stepper image-stepper">
+                      <button type="button" onPointerDown={handlePointerAction(() => onRemove(product, cartItem))} onClick={stopCardTap}><Minus size={15} /></button>
+                      <strong>{selectedQty}</strong>
+                      <button type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}><Plus size={15} /></button>
+                    </div>
+                  ) : (
+                    <button className="add-btn image-add-btn" type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}>ADD</button>
+                  )}
+                </div>
               </div>
               <div className="product-name">{product.name}</div>
               <div className="product-weight">{product.unit}</div>
@@ -70,15 +81,6 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
                 <span><span className="price-current">Rs {priceForRole ? priceForRole(product, user) : product.price}</span><span className="price-original">Rs {product.mrp}</span></span>
               </div>
               {(user?.role === 'dealer' || user?.role === 'distributor') && <div className="trade-price-note">{user.role} price</div>}
-              {selectedQty > 0 ? (
-                <div className="card-qty-stepper" onClick={(e) => e.stopPropagation()}>
-                  <button type="button" onPointerDown={handlePointerAction(() => onRemove(product, cartItem))} onClick={stopCardTap}>-</button>
-                  <strong>{selectedQty}</strong>
-                  <button type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}>+</button>
-                </div>
-              ) : (
-                <button className="add-btn" type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}>+ ADD</button>
-              )}
             </div>
           );
         })}

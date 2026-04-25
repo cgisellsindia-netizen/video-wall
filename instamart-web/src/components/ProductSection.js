@@ -43,6 +43,19 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
                 )}
                 {discount > 0 && <span className="discount-badge">{discount}% OFF</span>}
                 <span className="delivery-badge">8 min</span>
+                <div className="product-image-action-wrap" onClick={stopCardTap}>
+                  {selectedQty > 0 ? (
+                    <div className="card-qty-stepper image-stepper">
+                      <button type="button" onPointerDown={handlePointerAction(() => onRemove(product, cartItem))} onClick={stopCardTap}><Minus size={15} /></button>
+                      <strong>{selectedQty}</strong>
+                      <button type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}><Plus size={15} /></button>
+                    </div>
+                  ) : (
+                    <button className="add-btn image-add-btn" type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}>
+                      ADD
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="product-name">{product.name}</div>
               <div className="product-weight">{product.unit}</div>
@@ -53,17 +66,6 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
                 </span>
               </div>
               {(user?.role === 'dealer' || user?.role === 'distributor') && <div className="trade-price-note">{user.role} price</div>}
-              {selectedQty > 0 ? (
-                <div className="card-qty-stepper" onClick={(e) => e.stopPropagation()}>
-                  <button type="button" onPointerDown={handlePointerAction(() => onRemove(product, cartItem))} onClick={stopCardTap}><Minus size={15} /></button>
-                  <strong>{selectedQty}</strong>
-                  <button type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}><Plus size={15} /></button>
-                </div>
-              ) : (
-                <button className="add-btn" type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}>
-                  <Plus size={16} /> ADD
-                </button>
-              )}
             </div>
           );
         })}
