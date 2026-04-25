@@ -1244,6 +1244,54 @@ app.get('/api/admin/orders', authenticateToken, requireAdmin, (req, res) => {
   });
 });
 
+app.post('/api/admin/orders/:id/cancel', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const order = await dbGetAsync('SELECT * FROM orders WHERE id = ?', [req.params.id]);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const currentStatus = String(order.status || '').toLowerCase();
+    if (['cancelled', 'delivered'].includes(currentStatus)) {
+      return res.status(400).json({ error: 'This order cannot be cancelled' });
+    }
+
+    const nextPaymentStatus = String(order.payment_status || '').toLowerCase() === 'paid'
+      ? 'refund_pending'
+      : 'cancelled';
+
+    await dbRunAsync(
+      'UPDATE orders SET status = ?, payment_status = ? WHERE id = ?',
+      ['cancelled', nextPaymentStatus, req.params.id]
+    );
+
+    await createUserNotification({
+      userId: order.user_id,
+      target: 'customer',
+      title: 'Order cancelled by admin',
+      message: nextPaymentStatus === 'refund_pending'
+        ? 'Your Camigo order was cancelled by admin. Refund review has started.'
+        : 'Your Camigo order was cancelled by admin.',
+      personalize: 1
+    });
+
+    await sendPushToUserIds(order.user_id, {
+      title: 'Order cancelled by admin',
+      body: nextPaymentStatus === 'refund_pending'
+        ? 'Your Camigo order was cancelled. Refund review has started.'
+        : 'Your Camigo order was cancelled by admin.',
+      order_id: req.params.id,
+      status: 'cancelled'
+    }, 'customer');
+
+    res.json({
+      message: 'Order cancelled',
+      status: 'cancelled',
+      payment_status: nextPaymentStatus
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/admin/delivery-partners', authenticateToken, requireAdmin, (req, res) => {
   db.all(`SELECT u.id, u.name, u.email, u.plaintext_password, u.phone, u.address, u.role,
                  dp.vehicle_type, dp.vehicle_number, dp.license_number, dp.hub_id, dp.active,

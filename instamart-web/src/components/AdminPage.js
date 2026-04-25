@@ -248,6 +248,24 @@ function AdminPage({ user }) {
     if (res.ok) { setUserForm(emptyUser); fetchData(); }
   };
 
+  const handleAdminCancelOrder = async (order) => {
+    if (!window.confirm(`Cancel order #${order.id}?`)) return;
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_URL}/admin/orders/${order.id}/cancel`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json().catch(() => ({}));
+    setMessage(res.ok ? 'Order cancelled from admin panel.' : (data.error || 'Could not cancel order.'));
+    if (res.ok) {
+      setOrders(current => current.map(item => (
+        item.id === order.id
+          ? { ...item, status: 'cancelled', payment_status: data.payment_status }
+          : item
+      )));
+    }
+  };
+
   if (loading) return <div className="loading">Loading admin panel...</div>;
 
   return (
@@ -297,8 +315,33 @@ function AdminPage({ user }) {
         <div className="card" style={{ overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
             <table className="admin-table">
-              <thead><tr><th>Order</th><th>Customer</th><th>Email</th><th>Amount</th><th>Status</th><th>Payment</th><th>Date</th></tr></thead>
-              <tbody>{orders.map(o => (<tr key={o.id}><td>#{o.id}</td><td>{o.user_name}</td><td>{o.email}</td><td>Rs {o.final_amount}</td><td><span className={`tag ${o.status === 'delivered' ? 'tag-success' : o.status === 'pending' ? 'tag-warning' : 'tag-info'}`}>{o.status}</span></td><td>{o.payment_method.toUpperCase()}</td><td>{new Date(o.created_at).toLocaleDateString()}</td></tr>))}</tbody>
+              <thead><tr><th>Order</th><th>Customer</th><th>Email</th><th>Amount</th><th>Status</th><th>Payment</th><th>Date</th><th>Action</th></tr></thead>
+              <tbody>{orders.map(o => {
+                const canCancel = !['cancelled', 'delivered'].includes(String(o.status || '').toLowerCase());
+                return (
+                  <tr key={o.id}>
+                    <td>#{o.id}</td>
+                    <td>{o.user_name}</td>
+                    <td>{o.email}</td>
+                    <td>Rs {o.final_amount}</td>
+                    <td><span className={`tag ${o.status === 'delivered' ? 'tag-success' : o.status === 'pending' ? 'tag-warning' : o.status === 'cancelled' ? '' : 'tag-info'}`}>{o.status}</span></td>
+                    <td>
+                      <div style={{ display: 'grid', gap: '4px' }}>
+                        <strong>{o.payment_method?.toUpperCase?.() || '-'}</strong>
+                        <span style={{ fontSize: '12px', color: '#64748b' }}>{o.payment_status || 'created'}</span>
+                      </div>
+                    </td>
+                    <td>{new Date(o.created_at).toLocaleDateString()}</td>
+                    <td>
+                      {canCancel ? (
+                        <button className="btn btn-sm btn-outline" onClick={() => handleAdminCancelOrder(o)}>Cancel</button>
+                      ) : (
+                        <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 700 }}>Locked</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}</tbody>
             </table>
           </div>
         </div>
