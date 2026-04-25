@@ -783,29 +783,9 @@ app.post('/api/promo/apply', authenticateToken, (req, res) => {
 
 // Orders
 app.post('/api/orders', authenticateToken, async (req, res) => {
-  try {
-    const draft = await buildOrderDraft(req.user, req.body);
-    const orderId = await createLocalOrderRecord({
-      userId: req.user.userId,
-      draft,
-      status: 'pending',
-      paymentStatus: 'paid'
-    });
-    await dbRunAsync('DELETE FROM cart WHERE user_id = ?', [req.user.userId]);
-    res.json({
-      order_id: orderId,
-      total_amount: draft.totalAmount,
-      gst_amount: draft.gstAmount,
-      delivery_fee: draft.deliveryFee,
-      installation_fee: draft.installationFee,
-      camera_count: draft.cameraCount,
-      final_amount: draft.finalAmount,
-      status: 'pending',
-      payment_status: 'paid'
-    });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
+  res.status(410).json({
+    error: 'Direct order placement is disabled. Start payment through Razorpay checkout first.'
+  });
 });
 
 app.post('/api/payments/razorpay/order', authenticateToken, async (req, res) => {
