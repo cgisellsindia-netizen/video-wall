@@ -636,6 +636,19 @@ app.get('/api/categories', (req, res) => {
   });
 });
 
+app.get('/api/categories/:id/banners', (req, res) => {
+  db.all(
+    `SELECT * FROM category_banners
+     WHERE category_id = ? AND active = 1
+     ORDER BY sort_order ASC, id ASC`,
+    [req.params.id],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+    }
+  );
+});
+
 // Products
 app.get('/api/products', (req, res) => {
   const { category_id, search } = req.query;
@@ -1241,6 +1254,75 @@ app.get('/api/admin/orders', authenticateToken, requireAdmin, (req, res) => {
           ORDER BY o.created_at DESC`, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
+  });
+});
+
+app.get('/api/admin/category-banners', authenticateToken, requireAdmin, (req, res) => {
+  db.all(
+    `SELECT cb.*, c.name as category_name
+     FROM category_banners cb
+     JOIN categories c ON cb.category_id = c.id
+     ORDER BY c.sort_order ASC, cb.sort_order ASC, cb.id ASC`,
+    [],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+    }
+  );
+});
+
+app.post('/api/admin/category-banners', authenticateToken, requireAdmin, (req, res) => {
+  const { category_id, image_url, width, height, sort_order, active } = req.body;
+  if (!Number.isInteger(Number(category_id)) || !String(image_url || '').trim()) {
+    return res.status(400).json({ error: 'Category and banner image are required' });
+  }
+  db.run(
+    `INSERT INTO category_banners (category_id, image_url, width, height, sort_order, active)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      Number(category_id),
+      String(image_url).trim(),
+      Math.max(320, Number(width) || 1200),
+      Math.max(120, Number(height) || 320),
+      Number(sort_order) || 0,
+      active ? 1 : 0
+    ],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: this.lastID, message: 'Category banner added' });
+    }
+  );
+});
+
+app.put('/api/admin/category-banners/:id', authenticateToken, requireAdmin, (req, res) => {
+  const { category_id, image_url, width, height, sort_order, active } = req.body;
+  if (!Number.isInteger(Number(category_id)) || !String(image_url || '').trim()) {
+    return res.status(400).json({ error: 'Category and banner image are required' });
+  }
+  db.run(
+    `UPDATE category_banners
+     SET category_id = ?, image_url = ?, width = ?, height = ?, sort_order = ?, active = ?
+     WHERE id = ?`,
+    [
+      Number(category_id),
+      String(image_url).trim(),
+      Math.max(320, Number(width) || 1200),
+      Math.max(120, Number(height) || 320),
+      Number(sort_order) || 0,
+      active ? 1 : 0,
+      req.params.id
+    ],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ message: 'Category banner updated' });
+    }
+  );
+});
+
+app.delete('/api/admin/category-banners/:id', authenticateToken, requireAdmin, (req, res) => {
+  db.run('DELETE FROM category_banners WHERE id = ?', [req.params.id], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: 'Category banner deleted' });
   });
 });
 

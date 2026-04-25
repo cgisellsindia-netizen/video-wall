@@ -10,6 +10,7 @@ function AdminPage({ user }) {
   const [categories, setCategories] = useState([]);
   const [hubs, setHubs] = useState([]);
   const [deliveryPartners, setDeliveryPartners] = useState([]);
+  const [categoryBanners, setCategoryBanners] = useState([]);
   const [activeTab, setActiveTab] = useState('products');
   const [loading, setLoading] = useState(true);
   const [editProduct, setEditProduct] = useState(null);
@@ -26,30 +27,35 @@ function AdminPage({ user }) {
   const emptyHub = { name: 'First Hub - CGI CCTV CAMERA INDIA H.O', address: 'CGI CCTV CAMERA INDIA H.O, Bhubaneswar, Odisha', lat: '20.2602964', lng: '85.8394521', map_url: 'https://share.google/UtXmTRALSt0cZk0gZ', active: true };
   const [hubForm, setHubForm] = useState(emptyHub);
   const [editHub, setEditHub] = useState(null);
+  const emptyBanner = { category_id: '1', image_url: '', width: '1200', height: '320', sort_order: '0', active: true };
+  const [bannerForm, setBannerForm] = useState(emptyBanner);
+  const [editBanner, setEditBanner] = useState(null);
 
   useEffect(() => { if (!user) { navigate('/'); return; } fetchData(); }, [user]);
 
   const fetchData = async () => {
     const token = localStorage.getItem('token');
     try {
-      const [uRes, oRes, pRes, cRes, hRes, dRes] = await Promise.all([
+      const [uRes, oRes, pRes, cRes, hRes, dRes, bRes] = await Promise.all([
         fetch(`${API_URL}/admin/users`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${API_URL}/admin/orders`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${API_URL}/products`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${API_URL}/categories`),
         fetch(`${API_URL}/hubs`),
-        fetch(`${API_URL}/admin/delivery-partners`, { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch(`${API_URL}/admin/delivery-partners`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_URL}/admin/category-banners`, { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       if (uRes.status === 403 || oRes.status === 403) {
         setMessage('Admin access required. Login with the admin account to manage products.');
       }
-      const [uData, oData, pData, cData, hData, dData] = await Promise.all([uRes.json(), oRes.json(), pRes.json(), cRes.json(), hRes.json(), dRes.json()]);
+      const [uData, oData, pData, cData, hData, dData, bData] = await Promise.all([uRes.json(), oRes.json(), pRes.json(), cRes.json(), hRes.json(), dRes.json(), bRes.json()]);
       setUsers(Array.isArray(uData) ? uData : []);
       setOrders(Array.isArray(oData) ? oData : []);
       setProducts(Array.isArray(pData) ? pData : []);
       setCategories(Array.isArray(cData) ? cData : []);
       setHubs(Array.isArray(hData) ? hData : []);
       setDeliveryPartners(Array.isArray(dData) ? dData : []);
+      setCategoryBanners(Array.isArray(bData) ? bData : []);
       setLoading(false);
     } catch (e) { setMessage('Could not load admin data. Check backend/login and try again.'); setLoading(false); }
   };
@@ -203,6 +209,17 @@ function AdminPage({ user }) {
     Array.from(files || []).forEach(file => handleImageFile(file));
   };
 
+  const handleBannerImageFile = (file) => {
+    if (!file) return;
+    if (file.size > 950000) {
+      setMessage('Please choose a category banner under 950 KB for fast mobile loading.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setBannerForm(prev => ({ ...prev, image_url: reader.result }));
+    reader.readAsDataURL(file);
+  };
+
   const updateGalleryImage = (index, value) => {
     setForm(prev => {
       const nextImages = [...(prev.images || [])];
@@ -233,6 +250,58 @@ function AdminPage({ user }) {
     const data = await res.json().catch(() => ({}));
     setMessage(res.ok ? 'Notification sent to app.' : (data.error || 'Notification failed.'));
     if (res.ok) setNotificationForm({ title: '', message: '', target: 'customer', personalize: true, product_id: '', image_url: '' });
+  };
+
+  const handleSaveBanner = async (e) => {
+    e.preventDefault();
+    const token = localStorage.getItem('token');
+    const body = {
+      ...bannerForm,
+      category_id: parseInt(bannerForm.category_id, 10),
+      width: parseInt(bannerForm.width, 10),
+      height: parseInt(bannerForm.height, 10),
+      sort_order: parseInt(bannerForm.sort_order, 10) || 0,
+      active: Boolean(bannerForm.active)
+    };
+    const url = editBanner ? `${API_URL}/admin/category-banners/${editBanner.id}` : `${API_URL}/admin/category-banners`;
+    const method = editBanner ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(() => ({}));
+    setMessage(res.ok ? (editBanner ? 'Category banner updated.' : 'Category banner added.') : (data.error || 'Banner save failed.'));
+    if (res.ok) {
+      setBannerForm(emptyBanner);
+      setEditBanner(null);
+      fetchData();
+    }
+  };
+
+  const startEditBanner = (banner) => {
+    setEditBanner(banner);
+    setBannerForm({
+      category_id: String(banner.category_id),
+      image_url: banner.image_url || '',
+      width: String(banner.width || 1200),
+      height: String(banner.height || 320),
+      sort_order: String(banner.sort_order || 0),
+      active: Boolean(banner.active)
+    });
+    setActiveTab('banners');
+  };
+
+  const handleDeleteBanner = async (id) => {
+    if (!window.confirm('Delete this category banner?')) return;
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_URL}/admin/category-banners/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json().catch(() => ({}));
+    setMessage(res.ok ? 'Category banner deleted.' : (data.error || 'Banner delete failed.'));
+    if (res.ok) fetchData();
   };
 
   const handleCreateUser = async (e) => {
@@ -283,6 +352,7 @@ function AdminPage({ user }) {
         <button className={`btn btn-sm ${activeTab === 'products' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('products')}><Package size={16} /> Products ({products.length})</button>
         <button className={`btn btn-sm ${activeTab === 'delivery' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('delivery')}><Truck size={16} /> Delivery Partners ({deliveryPartners.length})</button>
         <button className={`btn btn-sm ${activeTab === 'hubs' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('hubs')}><MapPin size={16} /> Hubs ({hubs.length})</button>
+        <button className={`btn btn-sm ${activeTab === 'banners' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('banners')}><Package size={16} /> Category Banners ({categoryBanners.length})</button>
         <button className={`btn btn-sm ${activeTab === 'notifications' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('notifications')}><Bell size={16} /> Notifications</button>
       </div>
 
@@ -430,6 +500,58 @@ function AdminPage({ user }) {
                     <td>
                       <button className="btn btn-sm btn-outline" onClick={() => { setEditHub(h); setHubForm({ name: h.name, address: h.address || '', lat: h.lat, lng: h.lng, map_url: h.map_url || '', active: Boolean(h.active) }); }}><Edit size={14} /></button>
                       <button className="btn btn-sm" style={{ background: '#ef4444', color: 'white', marginLeft: 8 }} onClick={() => handleDeleteHub(h.id)}><Trash2 size={14} /></button>
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'banners' && (
+        <div>
+          <div className="card" style={{ marginBottom: '18px' }}>
+            <h3 style={{ marginTop: 0 }}>{editBanner ? 'Edit category banner' : 'Add category banner'}</h3>
+            <p className="checkout-note" style={{ marginTop: 0 }}>
+              Recommended mobile-wide banner size: <strong>1200 x 320 px</strong>. Keep banners low in height and wide in width for best mobile fit.
+            </p>
+            <form className="admin-product-form" onSubmit={handleSaveBanner}>
+              <div className="form-group">
+                <label>Category</label>
+                <select value={bannerForm.category_id} onChange={e => setBannerForm({ ...bannerForm, category_id: e.target.value })}>
+                  {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group"><label>Banner Image URL / Data</label><input value={bannerForm.image_url} onChange={e => setBannerForm({ ...bannerForm, image_url: e.target.value })} required /></div>
+              <div className="form-group"><label>Upload Banner</label><input type="file" accept="image/*" onChange={e => handleBannerImageFile(e.target.files?.[0])} /></div>
+              <div className="form-group"><label>Banner Width (px)</label><input type="number" value={bannerForm.width} onChange={e => setBannerForm({ ...bannerForm, width: e.target.value })} required /></div>
+              <div className="form-group"><label>Banner Height (px)</label><input type="number" value={bannerForm.height} onChange={e => setBannerForm({ ...bannerForm, height: e.target.value })} required /></div>
+              <div className="form-group"><label>Order</label><input type="number" value={bannerForm.sort_order} onChange={e => setBannerForm({ ...bannerForm, sort_order: e.target.value })} /></div>
+              <div className="form-group"><label>Active</label><select value={bannerForm.active ? '1' : '0'} onChange={e => setBannerForm({ ...bannerForm, active: e.target.value === '1' })}><option value="1">Active</option><option value="0">Inactive</option></select></div>
+              <div className="admin-image-preview">
+                <span>Banner preview</span>
+                <img src={bannerForm.image_url || '/images/cgi-hd3e.jpg'} alt="Banner preview" style={{ objectFit: 'cover', aspectRatio: `${Number(bannerForm.width) || 1200} / ${Number(bannerForm.height) || 320}` }} />
+              </div>
+              <button className="btn btn-primary" type="submit">{editBanner ? 'Update Banner' : 'Add Banner'}</button>
+              {editBanner && <button className="btn btn-outline" type="button" onClick={() => { setEditBanner(null); setBannerForm(emptyBanner); }}>Cancel</button>}
+            </form>
+          </div>
+
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="admin-table">
+                <thead><tr><th>Preview</th><th>Category</th><th>Size</th><th>Order</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>{categoryBanners.map(banner => (
+                  <tr key={banner.id}>
+                    <td><img src={banner.image_url} alt={banner.category_name} style={{ width: '180px', height: '56px', objectFit: 'cover', borderRadius: '12px', border: '1px solid #e5ebf3' }} /></td>
+                    <td>{banner.category_name}</td>
+                    <td>{banner.width} x {banner.height}</td>
+                    <td>{banner.sort_order}</td>
+                    <td>{banner.active ? <span className="tag tag-success">Active</span> : <span className="tag">Inactive</span>}</td>
+                    <td>
+                      <button className="btn btn-sm btn-outline" onClick={() => startEditBanner(banner)}><Edit size={14} /></button>
+                      <button className="btn btn-sm" style={{ background: '#ef4444', color: 'white', marginLeft: 8 }} onClick={() => handleDeleteBanner(banner.id)}><Trash2 size={14} /></button>
                     </td>
                   </tr>
                 ))}</tbody>

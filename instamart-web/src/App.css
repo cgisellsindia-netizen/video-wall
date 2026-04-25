@@ -274,6 +274,47 @@
   background: linear-gradient(135deg, #eef6ff, #fff8d8);
   border: 1px solid rgba(9,36,82,.08);
 }
+.category-banner-strip {
+  margin: 0 0 18px;
+  overflow: hidden;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #f8fbff, #eef4ff);
+  border: 1px solid #e5edf8;
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
+}
+.category-banner-track {
+  display: flex;
+  transition: transform .55s ease;
+  will-change: transform;
+}
+.category-banner-slide {
+  min-width: 100%;
+  overflow: hidden;
+}
+.category-banner-slide img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.category-banner-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 0 12px;
+}
+.category-banner-dots button {
+  width: 8px;
+  height: 8px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(11, 61, 145, 0.22);
+  cursor: pointer;
+}
+.category-banner-dots button.active {
+  width: 20px;
+  background: #0b64ff;
+}
 
 .category-page-hero h1 {
   margin: 4px 0 8px;
@@ -2417,6 +2458,7 @@
   .shop-product-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .product-card { padding: 10px; }
   .category-page-hero { align-items: flex-start; flex-direction: column; padding: 20px; }
+  .category-banner-strip { border-radius: 18px; margin-bottom: 14px; }
   .admin-product-form { grid-template-columns: 1fr; }
   .admin-image-preview { grid-row: auto; }
   .product-detail-card { grid-template-columns: 1fr; gap: 16px; }
