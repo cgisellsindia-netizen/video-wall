@@ -18,9 +18,8 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
   const [address, setAddress] = useState(user?.address || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [paymentMethod, setPaymentMethod] = useState('upi');
-  const [upiId, setUpiId] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
   const [installationRequested, setInstallationRequested] = useState(false);
+  const [razorpayReady, setRazorpayReady] = useState(Boolean(window.Razorpay));
   const [coords, setCoords] = useState(() => {
     const saved = getSavedCustomerLocation();
     return saved?.lat && saved?.lng ? saved : null;
@@ -67,6 +66,22 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    if (window.Razorpay) {
+      setRazorpayReady(true);
+      return undefined;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => setRazorpayReady(true);
+    script.onerror = () => setError('Could not load Razorpay checkout. Refresh and try again.');
+    document.body.appendChild(script);
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
   const savedAddresses = useMemo(() => {
     let recent = [];
     try {
@@ -101,18 +116,11 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
   const gst = Math.round(subtotal * 0.18);
   const payable = subtotal + gst + deliveryFee + installationFee;
 
-  const validatePayment = () => {
-    if (paymentMethod === 'upi' && !upiId.includes('@')) return 'Enter a valid UPI ID, for example name@upi.';
-    if (paymentMethod === 'card' && cardNumber.replace(/\s/g, '').length < 12) return 'Enter a valid card number for demo payment.';
-    return '';
-  };
-
   const handlePlaceOrder = async () => {
     setError('');
     if (!address || !phone) { setError('Delivery address and phone are required.'); return; }
     if (!cartItems.length) { setError('Cart is empty.'); return; }
-    const paymentError = validatePayment();
-    if (paymentError) { setError(paymentError); return; }
+    if (!razorpayReady || !window.Razorpay) { setError('Payment gateway is still loading. Please wait a moment and try again.'); return; }
 
     setLoading(true);
     const token = localStorage.getItem('token');
@@ -125,12 +133,13 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
         setLockingLocation(false);
       }
       if (!customerCoords) { setError('Please allow location permission to lock your delivery point before checkout.'); setLoading(false); return; }
-      const res = await fetch(`${API_URL}/orders`, {
+      const res = await fetch(`${API_URL}/payments/razorpay/order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           items: cartItems.map(i => ({ product_id: i.product_id || i.id, quantity: i.quantity })),
           address,
+          phone,
           payment_method: paymentMethod,
           installation_requested: installationRequested,
           customer_lat: customerCoords?.lat,
@@ -140,12 +149,65 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
         })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Order failed');
+      if (!res.ok) throw new Error(data.error || 'Could not start payment');
+
+      const verified = await new Promise((resolve, reject) => {
+        const razorpay = new window.Razorpay({
+          key: data.key,
+          amount: data.amount,
+          currency: data.currency || 'INR',
+          name: 'Camigo',
+          description: 'Fast CCTV order payment',
+          order_id: data.razorpay_order_id,
+          prefill: {
+            name: user?.name || 'Camigo Customer',
+            email: user?.email || '',
+            contact: phone
+          },
+          notes: {
+            local_order_id: String(data.local_order_id || ''),
+            payment_method: paymentMethod
+          },
+          theme: {
+            color: '#123c88'
+          },
+          modal: {
+            ondismiss: () => reject(new Error('Payment cancelled'))
+          },
+          handler: async (response) => {
+            try {
+              const verifyRes = await fetch(`${API_URL}/payments/razorpay/verify`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify(response)
+              });
+              const verifyData = await verifyRes.json();
+              if (!verifyRes.ok) throw new Error(verifyData.error || 'Payment verification failed');
+              resolve(verifyData);
+            } catch (verifyError) {
+              reject(verifyError);
+            }
+          },
+          method: {
+            upi: paymentMethod === 'upi',
+            card: paymentMethod === 'card',
+            netbanking: false,
+            wallet: false,
+            emi: false,
+            paylater: false
+          }
+        });
+        razorpay.on('payment.failed', (response) => {
+          reject(new Error(response.error?.description || 'Payment failed'));
+        });
+        razorpay.open();
+      });
+
       localStorage.removeItem('cart_backup');
       const nextAddresses = [address, ...savedAddresses].filter(Boolean).filter((value, index, arr) => arr.indexOf(value) === index).slice(0, 4);
       localStorage.setItem('camigo_saved_addresses', JSON.stringify(nextAddresses));
-      onOrderPlaced?.({ ...data, address });
-      navigate(`/tracking/${data.order_id}`);
+      onOrderPlaced?.({ ...verified, address });
+      navigate(`/tracking/${verified.order_id}`);
     } catch (e) {
       setError(e.message);
     }
@@ -198,9 +260,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
             <button type="button" className={paymentMethod === 'upi' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('upi')}><Smartphone size={18} /> UPI</button>
             <button type="button" className={paymentMethod === 'card' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('card')}><CreditCard size={18} /> Card</button>
           </div>
-          {paymentMethod === 'upi' && <div className="form-group"><label>UPI ID</label><input value={upiId} onChange={e => setUpiId(e.target.value)} placeholder="yourname@upi" /></div>}
-          {paymentMethod === 'card' && <div className="form-group"><label>Card Number</label><input value={cardNumber} onChange={e => setCardNumber(e.target.value)} placeholder="4111 1111 1111 1111" /></div>}
-          <p className="checkout-note">Cash on delivery is disabled. Orders are placed only after online payment selection.</p>
+          <p className="checkout-note">Cash on delivery is disabled. Camigo will now open real Razorpay checkout for the selected payment mode.</p>
         </section>
       </div>
 
@@ -262,7 +322,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
           </p>
         </div>
         <button className="checkout-pay-btn" onClick={handlePlaceOrder} disabled={loading || cartItems.length === 0}>
-          {loading ? 'Processing payment...' : `Pay Rs ${payable}`}
+          {loading ? 'Opening Razorpay...' : razorpayReady ? `Pay Rs ${payable}` : 'Loading payment gateway...'}
         </button>
       </aside>
     </main>

@@ -54,6 +54,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const JWT_SECRET = process.env.JWT_SECRET || 'camigo-local-dev-secret-change-before-production';
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || '';
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || '';
+const hasRazorpayConfig = Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET);
 const firebaseServiceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 const firebaseServiceAccountCandidates = [
   process.env.FIREBASE_SERVICE_ACCOUNT,
@@ -103,6 +106,202 @@ const addYears = (date, years) => {
   const next = new Date(date);
   next.setFullYear(next.getFullYear() + Number(years || 5));
   return next;
+};
+
+const dbGetAsync = (query, params = []) => new Promise((resolve, reject) => {
+  db.get(query, params, (err, row) => {
+    if (err) return reject(err);
+    resolve(row);
+  });
+});
+
+const dbAllAsync = (query, params = []) => new Promise((resolve, reject) => {
+  db.all(query, params, (err, rows) => {
+    if (err) return reject(err);
+    resolve(rows);
+  });
+});
+
+const dbRunAsync = (query, params = []) => new Promise((resolve, reject) => {
+  db.run(query, params, function(err) {
+    if (err) return reject(err);
+    resolve({ lastID: this.lastID, changes: this.changes });
+  });
+});
+
+const createOrderItemsAsync = (orderId, items, prices, warrantyYears) => new Promise((resolve, reject) => {
+  const warrantyStartAt = new Date();
+  const stmt = db.prepare(
+    'INSERT INTO order_items (order_id, product_id, quantity, price, warranty_years, warranty_start_at, warranty_end_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  );
+  items.forEach(item => {
+    const years = warrantyYears.get(item.product_id) || 5;
+    stmt.run(
+      orderId,
+      item.product_id,
+      item.quantity,
+      prices.get(item.product_id),
+      years,
+      warrantyStartAt.toISOString(),
+      addYears(warrantyStartAt, years).toISOString()
+    );
+  });
+  stmt.finalize((err) => {
+    if (err) return reject(err);
+    resolve();
+  });
+});
+
+const callRazorpay = async (endpoint, body) => {
+  const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString('base64');
+  const response = await fetch(`https://api.razorpay.com${endpoint}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${auth}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error?.description || data.error?.reason || 'Razorpay request failed');
+  }
+  return data;
+};
+
+const normalizeOrderItems = (items = []) => items
+  .map(item => ({
+    product_id: Number(item.product_id),
+    quantity: Math.max(1, Number(item.quantity || 1))
+  }))
+  .filter(item => Number.isInteger(item.product_id) && Number.isFinite(item.quantity));
+
+const buildOrderDraft = async (user, body) => {
+  const {
+    items,
+    address,
+    payment_method,
+    promo_code,
+    customer_lat,
+    customer_lng,
+    customer_accuracy,
+    customer_location_locked_at,
+    installation_requested
+  } = body;
+
+  if (!Array.isArray(items) || !items.length) {
+    throw new Error('Order items are required');
+  }
+  if (!address || !payment_method) {
+    throw new Error('Address and payment method are required');
+  }
+  if (!['upi', 'card'].includes(String(payment_method || '').toLowerCase())) {
+    throw new Error('Only UPI and card payments are allowed');
+  }
+
+  const normalizedItems = normalizeOrderItems(items);
+  if (!normalizedItems.length) {
+    throw new Error('Valid order items are required');
+  }
+
+  const placeholders = normalizedItems.map(() => '?').join(',');
+  const products = await dbAllAsync(
+    `SELECT id, price, dealer_price, distributor_price, warranty_years, category_id
+     FROM products
+     WHERE id IN (${placeholders})`,
+    normalizedItems.map(item => item.product_id)
+  );
+
+  const prices = new Map(products.map(product => [product.id, priceForUserRole(product, user.role)]));
+  const warrantyYears = new Map(products.map(product => [product.id, Math.max(1, Number(product.warranty_years || 5))]));
+  const productCategory = new Map(products.map(product => [product.id, Number(product.category_id)]));
+  if (prices.size !== normalizedItems.length) {
+    throw new Error('One or more products were not found');
+  }
+
+  let totalAmount = normalizedItems.reduce((sum, item) => sum + (prices.get(item.product_id) * item.quantity), 0);
+  let taxableAmount = totalAmount;
+  const cameraCount = normalizedItems.reduce((sum, item) => (
+    [1, 2, 3].includes(productCategory.get(item.product_id)) ? sum + item.quantity : sum
+  ), 0);
+  const installationRequested = Boolean(installation_requested) && cameraCount > 0;
+  const installationFee = installationRequested ? cameraCount * 500 : 0;
+
+  if (promo_code) {
+    const promo = await dbGetAsync(
+      'SELECT * FROM promo_codes WHERE code = ? AND active = 1',
+      [promo_code]
+    );
+    if (promo && promo.used_count < promo.usage_limit && totalAmount >= promo.min_order) {
+      let discount = (totalAmount * promo.discount_percent) / 100;
+      if (discount > promo.max_discount) discount = promo.max_discount;
+      taxableAmount = totalAmount - discount;
+      await dbRunAsync('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?', [promo.id]);
+    }
+  }
+
+  const safeCustomerLat = Number.isFinite(Number(customer_lat)) ? Number(customer_lat) : null;
+  const safeCustomerLng = Number.isFinite(Number(customer_lng)) ? Number(customer_lng) : null;
+  const safeCustomerAccuracy = Number.isFinite(Number(customer_accuracy)) ? Number(customer_accuracy) : null;
+  const safeCustomerLockedAt = Number.isFinite(Number(customer_location_locked_at)) ? Number(customer_location_locked_at) : null;
+  const localAddress = isLocalServiceZone(safeCustomerLat, safeCustomerLng) || isLocalAddressText(address);
+  const deliveryFee = taxableAmount > 2000 ? 0 : localAddress ? 40 : 120;
+  const gstAmount = Math.round(taxableAmount * 0.18);
+  const finalAmount = taxableAmount + gstAmount + deliveryFee + installationFee;
+
+  return {
+    normalizedItems,
+    prices,
+    warrantyYears,
+    address,
+    paymentMethod: String(payment_method).toLowerCase(),
+    totalAmount,
+    gstAmount,
+    deliveryFee,
+    installationRequested,
+    installationFee,
+    cameraCount,
+    finalAmount,
+    customerLat: safeCustomerLat,
+    customerLng: safeCustomerLng,
+    customerAccuracy: safeCustomerAccuracy,
+    customerLockedAt: safeCustomerLockedAt
+  };
+};
+
+const createLocalOrderRecord = async ({ userId, draft, status = 'pending', paymentStatus = 'paid', razorpayOrderId = null }) => {
+  const deliveryOtp = String(1000 + crypto.randomInt(9000));
+  const result = await dbRunAsync(
+    `INSERT INTO orders (
+      user_id, total_amount, final_amount, gst_amount, delivery_fee,
+      installation_requested, installation_fee, installation_status, camera_count,
+      status, payment_method, address, customer_lat, customer_lng, customer_accuracy,
+      customer_location_locked_at, delivery_otp, payment_status, razorpay_order_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      userId,
+      draft.totalAmount,
+      draft.finalAmount,
+      draft.gstAmount,
+      draft.deliveryFee,
+      draft.installationRequested ? 1 : 0,
+      draft.installationFee,
+      draft.installationRequested ? 'requested' : 'not_requested',
+      draft.cameraCount,
+      status,
+      draft.paymentMethod,
+      draft.address,
+      draft.customerLat,
+      draft.customerLng,
+      draft.customerAccuracy,
+      draft.customerLockedAt,
+      deliveryOtp,
+      paymentStatus,
+      razorpayOrderId
+    ]
+  );
+  await createOrderItemsAsync(result.lastID, draft.normalizedItems, draft.prices, draft.warrantyYears);
+  return result.lastID;
 };
 
 const attachOrderItems = (orders, res) => {
@@ -583,107 +782,129 @@ app.post('/api/promo/apply', authenticateToken, (req, res) => {
 });
 
 // Orders
-app.post('/api/orders', authenticateToken, (req, res) => {
-  const { items, address, payment_method, promo_code, customer_lat, customer_lng, customer_accuracy, customer_location_locked_at, installation_requested } = req.body;
-
-  if (!Array.isArray(items) || !items.length) {
-    return res.status(400).json({ error: 'Order items are required' });
+app.post('/api/orders', authenticateToken, async (req, res) => {
+  try {
+    const draft = await buildOrderDraft(req.user, req.body);
+    const orderId = await createLocalOrderRecord({
+      userId: req.user.userId,
+      draft,
+      status: 'pending',
+      paymentStatus: 'paid'
+    });
+    await dbRunAsync('DELETE FROM cart WHERE user_id = ?', [req.user.userId]);
+    res.json({
+      order_id: orderId,
+      total_amount: draft.totalAmount,
+      gst_amount: draft.gstAmount,
+      delivery_fee: draft.deliveryFee,
+      installation_fee: draft.installationFee,
+      camera_count: draft.cameraCount,
+      final_amount: draft.finalAmount,
+      status: 'pending',
+      payment_status: 'paid'
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
-  if (!address || !payment_method) {
-    return res.status(400).json({ error: 'Address and payment method are required' });
+});
+
+app.post('/api/payments/razorpay/order', authenticateToken, async (req, res) => {
+  if (!hasRazorpayConfig) {
+    return res.status(503).json({ error: 'Razorpay is not configured on the server yet' });
   }
-  if (!['upi', 'card'].includes(String(payment_method || '').toLowerCase())) {
-    return res.status(400).json({ error: 'Only UPI and card payments are allowed' });
-  }
-
-  const normalizedItems = items
-    .map(item => ({
-      product_id: Number(item.product_id),
-      quantity: Math.max(1, Number(item.quantity || 1))
-    }))
-    .filter(item => Number.isInteger(item.product_id) && Number.isFinite(item.quantity));
-
-  if (!normalizedItems.length) {
-    return res.status(400).json({ error: 'Valid order items are required' });
-  }
-
-  const placeholders = normalizedItems.map(() => '?').join(',');
-  db.all(`SELECT id, price, dealer_price, distributor_price, warranty_years, category_id FROM products WHERE id IN (${placeholders})`, normalizedItems.map(item => item.product_id), (err, products) => {
-    if (err) return res.status(500).json({ error: err.message });
-
-    const prices = new Map(products.map(product => [product.id, priceForUserRole(product, req.user.role)]));
-    const warrantyYears = new Map(products.map(product => [product.id, Math.max(1, Number(product.warranty_years || 5))]));
-    const productCategory = new Map(products.map(product => [product.id, Number(product.category_id)]));
-    if (prices.size !== normalizedItems.length) {
-      return res.status(400).json({ error: 'One or more products were not found' });
-    }
-
-    let totalAmount = normalizedItems.reduce((sum, item) => sum + (prices.get(item.product_id) * item.quantity), 0);
-    let taxableAmount = totalAmount;
-    const cameraCount = normalizedItems.reduce((sum, item) => (
-      [1, 2, 3].includes(productCategory.get(item.product_id)) ? sum + item.quantity : sum
-    ), 0);
-    const installationRequested = Boolean(installation_requested) && cameraCount > 0;
-    const installationFee = installationRequested ? cameraCount * 500 : 0;
-
-    const createOrder = () => {
-    const deliveryOtp = String(1000 + crypto.randomInt(9000));
-    const safeCustomerLat = Number.isFinite(Number(customer_lat)) ? Number(customer_lat) : null;
-    const safeCustomerLng = Number.isFinite(Number(customer_lng)) ? Number(customer_lng) : null;
-    const safeCustomerAccuracy = Number.isFinite(Number(customer_accuracy)) ? Number(customer_accuracy) : null;
-    const safeCustomerLockedAt = Number.isFinite(Number(customer_location_locked_at)) ? Number(customer_location_locked_at) : null;
-    const localAddress = isLocalServiceZone(safeCustomerLat, safeCustomerLng) || isLocalAddressText(address);
-    const deliveryFee = taxableAmount > 2000 ? 0 : localAddress ? 40 : 120;
-    const gstAmount = Math.round(taxableAmount * 0.18);
-    const finalAmount = taxableAmount + gstAmount + deliveryFee + installationFee;
-    db.run(
-      'INSERT INTO orders (user_id, total_amount, final_amount, gst_amount, delivery_fee, installation_requested, installation_fee, installation_status, camera_count, status, payment_method, address, customer_lat, customer_lng, customer_accuracy, customer_location_locked_at, delivery_otp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [req.user.userId, totalAmount, finalAmount, gstAmount, deliveryFee, installationRequested ? 1 : 0, installationFee, installationRequested ? 'requested' : 'not_requested', cameraCount, 'pending', payment_method, address, safeCustomerLat, safeCustomerLng, safeCustomerAccuracy, safeCustomerLockedAt, deliveryOtp],
-      function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        
-        const orderId = this.lastID;
-        const warrantyStartAt = new Date();
-        const stmt = db.prepare('INSERT INTO order_items (order_id, product_id, quantity, price, warranty_years, warranty_start_at, warranty_end_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
-        
-        normalizedItems.forEach(item => {
-          const years = warrantyYears.get(item.product_id) || 5;
-          stmt.run(
-            orderId,
-            item.product_id,
-            item.quantity,
-            prices.get(item.product_id),
-            years,
-            warrantyStartAt.toISOString(),
-            addYears(warrantyStartAt, years).toISOString()
-          );
-        });
-        stmt.finalize();
-        
-        // Clear cart
-        db.run('DELETE FROM cart WHERE user_id = ?', [req.user.userId]);
-        
-        res.json({ order_id: orderId, total_amount: totalAmount, gst_amount: gstAmount, delivery_fee: deliveryFee, installation_fee: installationFee, camera_count: cameraCount, final_amount: finalAmount, status: 'pending' });
+  try {
+    const draft = await buildOrderDraft(req.user, req.body);
+    const razorpayOrder = await callRazorpay('/v1/orders', {
+      amount: Math.round(draft.finalAmount * 100),
+      currency: 'INR',
+      receipt: `camigo_${req.user.userId}_${Date.now()}`,
+      notes: {
+        customer_id: String(req.user.userId),
+        payment_method: draft.paymentMethod,
+        installation_requested: draft.installationRequested ? '1' : '0'
       }
-    );
-    };
+    });
+    const orderId = await createLocalOrderRecord({
+      userId: req.user.userId,
+      draft,
+      status: 'payment_pending',
+      paymentStatus: 'created',
+      razorpayOrderId: razorpayOrder.id
+    });
+    res.json({
+      key: RAZORPAY_KEY_ID,
+      amount: Math.round(draft.finalAmount * 100),
+      currency: 'INR',
+      razorpay_order_id: razorpayOrder.id,
+      local_order_id: orderId,
+      payment_method: draft.paymentMethod,
+      totals: {
+        subtotal: draft.totalAmount,
+        gst_amount: draft.gstAmount,
+        delivery_fee: draft.deliveryFee,
+        installation_fee: draft.installationFee,
+        final_amount: draft.finalAmount
+      },
+      customer: {
+        name: req.user.name || 'Camigo Customer',
+        email: req.user.email || '',
+        contact: req.body.phone || ''
+      }
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
 
-    if (promo_code) {
-      db.get('SELECT * FROM promo_codes WHERE code = ? AND active = 1', [promo_code], (err, promo) => {
-        if (err) return res.status(500).json({ error: err.message });
-        if (promo && promo.used_count < promo.usage_limit && totalAmount >= promo.min_order) {
-          let discount = (totalAmount * promo.discount_percent) / 100;
-          if (discount > promo.max_discount) discount = promo.max_discount;
-          taxableAmount = totalAmount - discount;
+app.post('/api/payments/razorpay/verify', authenticateToken, async (req, res) => {
+  const {
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature
+  } = req.body;
 
-          db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?', [promo.id]);
-        }
-        createOrder();
-      });
-    } else {
-      createOrder();
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    return res.status(400).json({ error: 'Razorpay verification payload is incomplete' });
+  }
+  if (!hasRazorpayConfig) {
+    return res.status(503).json({ error: 'Razorpay is not configured on the server yet' });
+  }
+
+  try {
+    const expectedSignature = crypto
+      .createHmac('sha256', RAZORPAY_KEY_SECRET)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest('hex');
+
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({ error: 'Payment signature verification failed' });
     }
-  });
+
+    const order = await dbGetAsync(
+      'SELECT * FROM orders WHERE razorpay_order_id = ? AND user_id = ?',
+      [razorpay_order_id, req.user.userId]
+    );
+    if (!order) {
+      return res.status(404).json({ error: 'Payment order not found' });
+    }
+
+    await dbRunAsync(
+      `UPDATE orders
+       SET payment_status = ?, status = ?, razorpay_payment_id = ?, razorpay_signature = ?, payment_verified_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      ['paid', 'pending', razorpay_payment_id, razorpay_signature, order.id]
+    );
+    await dbRunAsync('DELETE FROM cart WHERE user_id = ?', [req.user.userId]);
+
+    res.json({
+      order_id: order.id,
+      status: 'pending',
+      payment_status: 'paid',
+      final_amount: order.final_amount
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.get('/api/hubs', (req, res) => {
@@ -744,7 +965,8 @@ app.get('/api/delivery/orders', authenticateToken, (req, res) => {
   db.all(`SELECT o.*, u.name as user_name, u.phone as user_phone
           FROM orders o
           JOIN users u ON o.user_id = u.id
-          WHERE o.status NOT IN ('delivered', 'rejected')
+          WHERE o.payment_status = 'paid'
+            AND o.status NOT IN ('delivered', 'rejected')
           ORDER BY o.created_at DESC`, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
@@ -758,7 +980,8 @@ app.get('/api/installer/orders', authenticateToken, (req, res) => {
   db.all(`SELECT o.*, u.name as user_name, u.phone as user_phone
           FROM orders o
           JOIN users u ON o.user_id = u.id
-          WHERE o.installation_requested = 1
+          WHERE o.payment_status = 'paid'
+            AND o.installation_requested = 1
             AND o.installation_status != 'completed'
           ORDER BY o.created_at DESC`, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });

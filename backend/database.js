@@ -185,6 +185,11 @@ db.serialize(async () => {
   addColumn('orders', 'delivery_partner_id INTEGER');
   addColumn('orders', 'gst_amount REAL');
   addColumn('orders', 'delivery_fee REAL');
+  addColumn('orders', 'payment_status TEXT DEFAULT "created"');
+  addColumn('orders', 'razorpay_order_id TEXT');
+  addColumn('orders', 'razorpay_payment_id TEXT');
+  addColumn('orders', 'razorpay_signature TEXT');
+  addColumn('orders', 'payment_verified_at TEXT');
   addColumn('notifications', 'personalize INTEGER DEFAULT 0');
   addColumn('notifications', 'product_id INTEGER');
   addColumn('notifications', 'image_url TEXT');
