@@ -27,7 +27,7 @@ function AdminPage({ user }) {
   const emptyHub = { name: 'First Hub - CGI CCTV CAMERA INDIA H.O', address: 'CGI CCTV CAMERA INDIA H.O, Bhubaneswar, Odisha', lat: '20.2602964', lng: '85.8394521', map_url: 'https://share.google/UtXmTRALSt0cZk0gZ', active: true };
   const [hubForm, setHubForm] = useState(emptyHub);
   const [editHub, setEditHub] = useState(null);
-  const emptyBanner = { category_id: '1', image_url: '', width: '1200', height: '320', sort_order: '0', active: true };
+  const emptyBanner = { category_id: '0', image_url: '', width: '1200', height: '320', sort_order: '0', active: true };
   const [bannerForm, setBannerForm] = useState(emptyBanner);
   const [editBanner, setEditBanner] = useState(null);
 
@@ -518,8 +518,9 @@ function AdminPage({ user }) {
             </p>
             <form className="admin-product-form" onSubmit={handleSaveBanner}>
               <div className="form-group">
-                <label>Category</label>
+                <label>Banner Position</label>
                 <select value={bannerForm.category_id} onChange={e => setBannerForm({ ...bannerForm, category_id: e.target.value })}>
+                  <option value="0">Above Shop by Category</option>
                   {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
                 </select>
               </div>

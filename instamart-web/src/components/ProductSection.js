@@ -1,8 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Minus, Plus } from 'lucide-react';
+import CategoryBannerCarousel from './CategoryBannerCarousel';
 
-function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [] }) {
+function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [], categoryId = null }) {
   const navigate = useNavigate();
   if (!products || products.length === 0) return null;
   const stopCardTap = (event) => {
@@ -16,6 +17,7 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
 
   return (
     <div className="product-section">
+      {categoryId !== null && categoryId !== undefined && <CategoryBannerCarousel placementId={categoryId} />}
       <div className="section-header">
         <h2 className="section-title">{title}</h2>
         <span className="see-all">See all</span>

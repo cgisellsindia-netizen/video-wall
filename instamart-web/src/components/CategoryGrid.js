@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import CategoryBannerCarousel from './CategoryBannerCarousel';
 
 const categoryImages = {
   'Night Color AHD Cameras': '/category-real/ahd-cameras.jpg',
@@ -20,6 +21,7 @@ function CategoryGrid({ categories }) {
 
   return (
     <div className="category-section">
+      <CategoryBannerCarousel placementId={0} />
       <div className="section-header"><h2 className="section-title">Shop by Category</h2><span className="see-all">See all</span></div>
       <div className="category-grid">
         {categories.map(cat => (

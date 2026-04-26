@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Minus, Plus } from 'lucide-react';
-import { API_URL } from '../api';
+import CategoryBannerCarousel from './CategoryBannerCarousel';
 
 function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRole, cartItems = [] }) {
   const { id } = useParams();
@@ -9,8 +9,6 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
   const categoryId = parseInt(id);
   const category = categories.find(c => c.id === categoryId);
   const categoryProducts = products.filter(p => p.category_id === categoryId);
-  const [banners, setBanners] = useState([]);
-  const [bannerIndex, setBannerIndex] = useState(0);
   const stopCardTap = (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -19,29 +17,6 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
     stopCardTap(event);
     handler();
   };
-
-  useEffect(() => {
-    let alive = true;
-    fetch(`${API_URL}/categories/${categoryId}/banners`)
-      .then(res => res.ok ? res.json() : [])
-      .then(data => {
-        if (!alive) return;
-        setBanners(Array.isArray(data) ? data : []);
-        setBannerIndex(0);
-      })
-      .catch(() => {
-        if (alive) setBanners([]);
-      });
-    return () => { alive = false; };
-  }, [categoryId]);
-
-  useEffect(() => {
-    if (banners.length <= 1) return undefined;
-    const timer = setInterval(() => {
-      setBannerIndex(current => (current + 1) % banners.length);
-    }, 3000);
-    return () => clearInterval(timer);
-  }, [banners]);
 
   if (!category && categories.length > 0) {
     return (
@@ -59,6 +34,7 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
       <button className="back-btn" onClick={() => navigate('/')}>
         <ArrowLeft size={20} /> Back
       </button>
+      <CategoryBannerCarousel placementId={categoryId} />
       <div className="category-page-hero">
         <div>
           <span className="eyebrow">Fast local delivery</span>
@@ -67,37 +43,6 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
         </div>
         <button className="btn btn-primary" onClick={() => navigate('/shop')}>View all products</button>
       </div>
-
-      {banners.length > 0 && (
-        <section className="category-banner-strip">
-          <div
-            className="category-banner-track"
-            style={{ transform: `translateX(-${bannerIndex * 100}%)` }}
-          >
-            {banners.map(banner => (
-              <div
-                key={banner.id}
-                className="category-banner-slide"
-                style={{ aspectRatio: `${banner.width || 1200} / ${banner.height || 320}` }}
-              >
-                <img src={banner.image_url} alt={`${category?.name || 'Category'} banner`} />
-              </div>
-            ))}
-          </div>
-          {banners.length > 1 && (
-            <div className="category-banner-dots">
-              {banners.map((banner, index) => (
-                <button
-                  key={banner.id}
-                  type="button"
-                  className={index === bannerIndex ? 'active' : ''}
-                  onClick={() => setBannerIndex(index)}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-      )}
 
       <div className="shop-product-grid">
         {categoryProducts.map(product => {

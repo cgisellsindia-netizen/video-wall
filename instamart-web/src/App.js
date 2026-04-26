@@ -133,7 +133,7 @@ function MainPage({ user, cartCount, onCartClick, onLoginClick, onLogout, cartIt
           <ProductSection title={`Search: "${searchQuery}"`} products={filteredProducts} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} />
         ) : (
           productsByCategory.map(cat => (
-            <ProductSection key={cat.id} title={cat.name} products={cat.products} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} />
+            <ProductSection key={cat.id} title={cat.name} categoryId={cat.id} products={cat.products} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} />
           ))
         )}
       </main>

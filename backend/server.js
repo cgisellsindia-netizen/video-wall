@@ -1259,10 +1259,10 @@ app.get('/api/admin/orders', authenticateToken, requireAdmin, (req, res) => {
 
 app.get('/api/admin/category-banners', authenticateToken, requireAdmin, (req, res) => {
   db.all(
-    `SELECT cb.*, c.name as category_name
+    `SELECT cb.*, COALESCE(c.name, 'Shop by Category') as category_name
      FROM category_banners cb
-     JOIN categories c ON cb.category_id = c.id
-     ORDER BY c.sort_order ASC, cb.sort_order ASC, cb.id ASC`,
+     LEFT JOIN categories c ON cb.category_id = c.id
+     ORDER BY cb.category_id ASC, c.sort_order ASC, cb.sort_order ASC, cb.id ASC`,
     [],
     (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
@@ -1273,7 +1273,7 @@ app.get('/api/admin/category-banners', authenticateToken, requireAdmin, (req, re
 
 app.post('/api/admin/category-banners', authenticateToken, requireAdmin, (req, res) => {
   const { category_id, image_url, width, height, sort_order, active } = req.body;
-  if (!Number.isInteger(Number(category_id)) || !String(image_url || '').trim()) {
+  if (!Number.isInteger(Number(category_id)) || Number(category_id) < 0 || !String(image_url || '').trim()) {
     return res.status(400).json({ error: 'Category and banner image are required' });
   }
   db.run(
@@ -1296,7 +1296,7 @@ app.post('/api/admin/category-banners', authenticateToken, requireAdmin, (req, r
 
 app.put('/api/admin/category-banners/:id', authenticateToken, requireAdmin, (req, res) => {
   const { category_id, image_url, width, height, sort_order, active } = req.body;
-  if (!Number.isInteger(Number(category_id)) || !String(image_url || '').trim()) {
+  if (!Number.isInteger(Number(category_id)) || Number(category_id) < 0 || !String(image_url || '').trim()) {
     return res.status(400).json({ error: 'Category and banner image are required' });
   }
   db.run(
