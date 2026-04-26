@@ -53,7 +53,6 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
             <div key={product.id} className="product-card" onClick={() => navigate(`/product/${product.id}`)}>
               <div className="product-img-wrap">
                 {product.image ? <img src={product.image} alt={product.name} loading="lazy" /> : <div className="emoji">CCTV</div>}
-                {discount > 0 && <span className="discount-badge">{discount}% OFF</span>}
                 <span className="delivery-badge">8 min</span>
                 <div className="product-image-action-wrap" onClick={stopCardTap}>
                   {selectedQty > 0 ? (
@@ -69,6 +68,7 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
               </div>
               <div className="product-name">{product.name}</div>
               <div className="product-weight">{product.unit}</div>
+              {discount > 0 && <div className="product-offer-line">{discount}% OFF</div>}
               <div className="product-price-row">
                 <span><span className="price-current">Rs {priceForRole ? priceForRole(product, user) : product.price}</span><span className="price-original">Rs {product.mrp}</span></span>
               </div>

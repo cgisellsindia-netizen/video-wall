@@ -43,7 +43,6 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
                 ) : (
                   <div className="emoji">CCTV</div>
                 )}
-                {discount > 0 && <span className="discount-badge">{discount}% OFF</span>}
                 <span className="delivery-badge">8 min</span>
                 <div className="product-image-action-wrap" onClick={stopCardTap}>
                   {selectedQty > 0 ? (
@@ -61,6 +60,7 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
               </div>
               <div className="product-name">{product.name}</div>
               <div className="product-weight">{product.unit}</div>
+              {discount > 0 && <div className="product-offer-line">{discount}% OFF</div>}
               <div className="product-price-row">
                 <span>
                   <span className="price-current">Rs {rolePrice}</span>

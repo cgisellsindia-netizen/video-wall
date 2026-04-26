@@ -96,7 +96,6 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
         <div className="product-detail-card">
           <div className="product-detail-img modern-product-stage">
             <div className="product-stage-noise" />
-            {discount > 0 && <span className="discount-badge-large">{discount}% OFF</span>}
             <span className="product-stage-chip chip-blue">{product.category_name || 'CCTV Product'}</span>
             <span className="product-stage-chip chip-gold">{warrantyYears} year warranty</span>
             {activeImage ? <img src={activeImage} alt={product.name} /> : <div className="emoji" style={{ fontSize: '120px' }}>CCTV</div>}
@@ -137,10 +136,10 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
             </div>
 
             <div className="product-price-panel">
+              {discount > 0 && <div className="product-offer-line product-detail-offer-line">{discount}% OFF</div>}
               <div className="product-detail-price modern-price-row">
                 <span className="price-current product-price-main">Rs {sellingPrice}</span>
                 <span className="price-original product-price-cut">Rs {product.mrp}</span>
-                {discount > 0 && <span className="price-discount">{discount}% off</span>}
               </div>
               {savings > 0 && <div className="product-savings-note">You save Rs {savings} on this product</div>}
               {(user?.role === 'dealer' || user?.role === 'distributor') && (

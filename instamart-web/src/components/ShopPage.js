@@ -62,7 +62,6 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
                 ) : (
                   <div className="emoji">PROD</div>
                 )}
-                {discount > 0 && <span className="discount-badge">{discount}% OFF</span>}
                 <div className="product-image-action-wrap" onClick={stopCardTap}>
                   {selectedQty > 0 ? (
                     <div className="card-qty-stepper image-stepper">
@@ -77,6 +76,7 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
               </div>
               <div className="product-name">{product.name}</div>
               <div className="product-weight">{product.unit}</div>
+              {discount > 0 && <div className="product-offer-line">{discount}% OFF</div>}
               <div className="product-price-row">
                 <span><span className="price-current">Rs {priceForRole ? priceForRole(product, user) : product.price}</span><span className="price-original">Rs {product.mrp}</span></span>
               </div>
