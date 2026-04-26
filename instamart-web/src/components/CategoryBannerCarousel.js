@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { API_URL } from '../api';
 
-function CategoryBannerCarousel({ placementId }) {
+function CategoryBannerCarousel({ placementId, showEmptySlot = false }) {
   const [banners, setBanners] = useState([]);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -28,7 +28,24 @@ function CategoryBannerCarousel({ placementId }) {
     return () => clearInterval(timer);
   }, [banners.length]);
 
-  if (!banners.length) return null;
+  if (!banners.length && !showEmptySlot) return null;
+
+  if (!banners.length) {
+    return (
+      <section className="category-banner-strip category-banner-empty" aria-label="Shop by Category banner space">
+        <div className="category-banner-empty-copy">
+          <span>CAMIGO FAST LANE</span>
+          <strong>Security deals for Bhubaneswar</strong>
+          <small>Same-day CCTV delivery, installation support and warranty care.</small>
+        </div>
+        <div className="category-banner-empty-badges">
+          <span>8 min dispatch</span>
+          <span>Install support</span>
+          <span>5-year warranty</span>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="category-banner-strip">

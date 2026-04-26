@@ -21,7 +21,7 @@ function CategoryGrid({ categories }) {
 
   return (
     <div className="category-section">
-      <CategoryBannerCarousel placementId={0} />
+      <CategoryBannerCarousel placementId={0} showEmptySlot />
       <div className="section-header"><h2 className="section-title">Shop by Category</h2><span className="see-all">See all</span></div>
       <div className="category-grid">
         {categories.map(cat => (
