@@ -135,18 +135,28 @@
 .hero-banner {
   max-width: 1200px; margin: 16px auto;
   padding: 0 16px;
+  overflow: visible;
 }
 .hero-inner {
   background: linear-gradient(180deg, #0a2f75, #0b3d91, #082a63);
-  min-height: 285px;
+  min-height: 270px;
   border-radius: 20px; padding: 40px;
   display: flex; align-items: center; justify-content: space-between;
-  position: relative; overflow: hidden;
+  position: relative; overflow: visible;
 }
 .hero-inner::before {
   content: ''; position: absolute; top: -50%; right: -10%;
   width: 400px; height: 400px; border-radius: 50%;
   background: rgba(255,255,255,0.1);
+  pointer-events: none;
+}
+.hero-inner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
 }
 .hero-content { position: relative; z-index: 2; max-width: 690px; }
 .hero-content h1 {
@@ -186,9 +196,9 @@
 .hero-delivery-visual img {
   position: absolute;
   right: 18px;
-  bottom: -12px;
-  width: min(30vw, 300px);
-  max-height: 300px;
+  bottom: -26px;
+  width: min(32vw, 330px);
+  max-height: none;
   object-fit: contain;
   filter: drop-shadow(0 26px 34px rgba(0,0,0,.28));
   z-index: 2;
@@ -2559,7 +2569,7 @@
   .hero-stats { justify-content: center; }
   .hero-illustration { font-size: 80px; }
   .hero-delivery-visual { width: 100%; min-width: 0; height: 150px; align-self: center; }
-  .hero-delivery-visual img { right: 50%; transform: translateX(50%); bottom: -18px; width: 196px; max-height: 204px; }
+  .hero-delivery-visual img { right: 50%; transform: translateX(50%); bottom: -30px; width: 210px; max-height: none; }
   .hero-brand-watermark { right: 50%; transform: translate(50%, -50%); font-size: 56px; }
   .category-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .category-card { border-radius: 18px; padding: 6px 6px 10px; }
