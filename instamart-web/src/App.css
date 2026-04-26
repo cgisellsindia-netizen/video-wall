@@ -413,10 +413,7 @@
   font-size: 60px; display: flex; align-items: center; justify-content: center;
 }
 .discount-badge {
-  position: absolute; top: 8px; left: 8px;
-  background: var(--green); color: white;
-  padding: 3px 8px; border-radius: 6px;
-  font-size: 11px; font-weight: 700;
+  display: none;
 }
 .delivery-badge {
   position: absolute; bottom: 8px; left: 8px;
@@ -441,16 +438,23 @@
   font-weight: 650;
 }
 .product-offer-line {
-  margin: 0 0 2px;
-  color: #0b8f5a;
-  font-size: 12px;
+  width: fit-content;
+  margin: 0 0 5px;
+  padding: 4px 8px;
+  border-radius: 7px;
+  background: #0ba56d;
+  color: #fff;
+  font-size: 11px;
   font-weight: 950;
-  letter-spacing: -.01em;
+  line-height: 1;
+  letter-spacing: .01em;
   text-transform: uppercase;
+  box-shadow: 0 8px 16px rgba(11, 165, 109, .16);
 }
 .product-detail-offer-line {
-  margin-bottom: 6px;
-  font-size: 14px;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
   letter-spacing: .01em;
 }
 .product-price-row {
