@@ -14,7 +14,10 @@ function HeroBanner() {
             <div className="hero-stat"><div className="hero-stat-icon"><Headphones size={18} /></div><span>5-Year Warranty</span></div>
           </div>
         </div>
-        <div className="hero-illustration" style={{fontSize:'48px',fontWeight:900,color:'rgba(255,255,255,.15)'}}>Camigo</div>
+        <div className="hero-illustration hero-delivery-visual">
+          <div className="hero-brand-watermark">Camigo</div>
+          <img src="/images/camigo-delivery-hero.png" alt="Camigo delivery partner with CCTV order" />
+        </div>
       </div>
     </div>
   );
