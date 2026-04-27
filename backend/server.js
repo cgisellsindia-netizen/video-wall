@@ -50,8 +50,15 @@ app.use((err, req, res, next) => {
   }
   next(err);
 });
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '12mb' }));
+app.use(express.urlencoded({ extended: true, limit: '12mb' }));
+
+app.use((err, req, res, next) => {
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Uploaded image is too large. Please use a smaller banner file.' });
+  }
+  next(err);
+});
 
 const JWT_SECRET = process.env.JWT_SECRET || 'camigo-local-dev-secret-change-before-production';
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || '';
