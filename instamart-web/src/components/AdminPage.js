@@ -32,6 +32,7 @@ function AdminPage({ user }) {
   const [editBanner, setEditBanner] = useState(null);
   const [aiBannerForm, setAiBannerForm] = useState({ category_id: '0', prompt: '', width: '1200', height: '320', theme: 'blue', sort_order: '0', active: true });
   const [aiBannerLoading, setAiBannerLoading] = useState(false);
+  const [lastAiBanners, setLastAiBanners] = useState([]);
 
   useEffect(() => { if (!user) { navigate('/'); return; } fetchData(); }, [user]);
 
@@ -327,8 +328,12 @@ function AdminPage({ user }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'AI banner generation failed.');
-      setBannerForm(prev => ({ ...prev, image_url: data.image_url || '', width: aiBannerForm.width, height: aiBannerForm.height, category_id: aiBannerForm.category_id }));
-      setMessage(data.message || 'AI banner generated and saved.');
+      const generated = Array.isArray(data.generated) ? data.generated : (data.image_url ? [{ image_url: data.image_url, category_id: aiBannerForm.category_id, category_name: 'Selected position', copy: data.copy }] : []);
+      setLastAiBanners(generated);
+      if (generated[0]?.image_url) {
+        setBannerForm(prev => ({ ...prev, image_url: generated[0].image_url, width: aiBannerForm.width, height: aiBannerForm.height, category_id: String(generated[0].category_id ?? aiBannerForm.category_id) }));
+      }
+      setMessage(data.message || `AI generated ${generated.length || 1} banner(s).`);
       fetchData();
     } catch (error) {
       setMessage(error.message);
@@ -553,6 +558,7 @@ function AdminPage({ user }) {
               <div className="form-group">
                 <label>Banner Position</label>
                 <select value={aiBannerForm.category_id} onChange={e => setAiBannerForm({ ...aiBannerForm, category_id: e.target.value })}>
+                  <option value="all">All banner positions</option>
                   <option value="0">Above Shop by Category</option>
                   {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
                 </select>
@@ -581,6 +587,19 @@ function AdminPage({ user }) {
                 {aiBannerLoading ? 'Generating...' : 'Generate and Save Banner'}
               </button>
             </form>
+            {lastAiBanners.length > 0 && (
+              <div style={{ marginTop: 18 }}>
+                <h4 style={{ margin: '0 0 10px' }}>Latest generated banner previews</h4>
+                <div style={{ display: 'grid', gap: 12 }}>
+                  {lastAiBanners.map((banner, index) => (
+                    <div key={`${banner.category_id}-${index}`} style={{ border: '1px solid #dbe7f5', borderRadius: 16, padding: 10, background: '#fff' }}>
+                      <strong>{banner.category_name || `Banner ${index + 1}`}</strong>
+                      <img src={banner.image_url} alt={banner.category_name || 'Generated banner'} style={{ width: '100%', marginTop: 8, borderRadius: 14, objectFit: 'cover', aspectRatio: `${Number(aiBannerForm.width) || 1200} / ${Number(aiBannerForm.height) || 320}` }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="card" style={{ marginBottom: '18px' }}>

@@ -1369,7 +1369,72 @@ app.post('/api/admin/category-banners/ai-generate', authenticateToken, requireAd
       active = true,
       save = true
     } = req.body || {};
-    const categoryId = Number(category_id) || 0;
+    const generateAll = String(category_id) === 'all';
+    const categoryId = generateAll ? 0 : Number(category_id) || 0;
+    const placements = generateAll
+      ? [{ id: 0, name: 'Shop by Category' }, ...(await dbAllAsync('SELECT id, name FROM categories ORDER BY sort_order ASC, id ASC'))]
+      : [];
+    if (generateAll) {
+      const generated = [];
+      for (const placement of placements) {
+        const discountedProducts = await dbAllAsync(
+          `SELECT p.name, p.price, p.mrp, p.discount_percent, c.name as category_name
+           FROM products p
+           LEFT JOIN categories c ON c.id = p.category_id
+           WHERE (? = 0 OR p.category_id = ?)
+           ORDER BY COALESCE(p.discount_percent, CASE WHEN p.mrp > 0 THEN ((p.mrp - p.price) * 100.0 / p.mrp) ELSE 0 END) DESC
+           LIMIT 8`,
+          [placement.id, placement.id]
+        );
+        const offerSummary = discountedProducts.map(product => {
+          const discount = Number(product.discount_percent) > 0
+            ? Math.round(Number(product.discount_percent))
+            : product.mrp ? Math.max(0, Math.round((1 - Number(product.price) / Number(product.mrp)) * 100)) : 0;
+          return `${product.name} (${discount}% off, Rs ${product.price}, MRP Rs ${product.mrp})`;
+        }).join('\n');
+        const ai = await callOpenAiJson({
+          system: `You are Camigo's ecommerce banner copywriter for a CCTV and security delivery app.
+Return only JSON with keys: eyebrow, headline, subheadline, cta, theme.
+Use short punchy Indian quick-commerce style copy. No markdown. No HTML.`,
+          user: `Banner placement: ${placement.name}
+Admin instruction: ${prompt || 'Create the best sales banner from available offers.'}
+Current products and discounts:
+${offerSummary || 'No product discounts available.'}
+Allowed theme values: blue, yellow, green, orange.
+Make headline under 42 characters and subheadline under 85 characters.`
+        });
+        const imageUrl = buildBannerSvgDataUrl({
+          width,
+          height,
+          headline: ai.headline,
+          subheadline: ai.subheadline,
+          eyebrow: ai.eyebrow,
+          cta: ai.cta,
+          theme: ai.theme || theme
+        });
+        if (save) {
+          const result = await dbRunAsync(
+            `INSERT INTO category_banners (category_id, image_url, width, height, sort_order, active)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              placement.id,
+              imageUrl,
+              Math.max(640, Number(width) || 1200),
+              Math.max(180, Number(height) || 320),
+              Number(sort_order) || 0,
+              active ? 1 : 0
+            ]
+          );
+          generated.push({ id: result.lastID, category_id: placement.id, category_name: placement.name, image_url: imageUrl, copy: ai });
+        } else {
+          generated.push({ category_id: placement.id, category_name: placement.name, image_url: imageUrl, copy: ai });
+        }
+      }
+      return res.json({
+        generated,
+        message: `AI generated ${generated.length} banner${generated.length === 1 ? '' : 's'}`
+      });
+    }
     const category = categoryId === 0
       ? { name: 'Shop by Category' }
       : await dbGetAsync('SELECT name FROM categories WHERE id = ?', [categoryId]);
