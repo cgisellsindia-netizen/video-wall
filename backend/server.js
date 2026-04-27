@@ -57,6 +57,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'camigo-local-dev-secret-change-bef
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || '';
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || '';
 const hasRazorpayConfig = Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET);
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const OPENAI_BANNER_MODEL = process.env.OPENAI_BANNER_MODEL || 'gpt-4o-mini';
 const firebaseServiceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 const firebaseServiceAccountCandidates = [
   process.env.FIREBASE_SERVICE_ACCOUNT,
@@ -175,6 +177,90 @@ const normalizeOrderItems = (items = []) => items
     quantity: Math.max(1, Number(item.quantity || 1))
   }))
   .filter(item => Number.isInteger(item.product_id) && Number.isFinite(item.quantity));
+
+const escapeHtml = (value = '') => String(value)
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#39;');
+
+const extractJsonObject = (value = '') => {
+  const text = String(value || '').trim();
+  try { return JSON.parse(text); } catch (error) {}
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('AI did not return valid banner JSON');
+  return JSON.parse(match[0]);
+};
+
+const callOpenAiJson = async ({ system, user }) => {
+  if (!OPENAI_API_KEY) {
+    throw new Error('OpenAI API key is not configured on the server');
+  }
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: OPENAI_BANNER_MODEL,
+      temperature: 0.7,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user }
+      ],
+      response_format: { type: 'json_object' }
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error?.message || 'OpenAI banner generation failed');
+  }
+  return extractJsonObject(data.choices?.[0]?.message?.content || '{}');
+};
+
+const buildBannerSvgDataUrl = ({ width, height, headline, subheadline, eyebrow, cta, theme }) => {
+  const safeWidth = Math.max(640, Number(width) || 1200);
+  const safeHeight = Math.max(180, Number(height) || 320);
+  const palette = {
+    blue: ['#082a63', '#0b49b5', '#f6c400'],
+    yellow: ['#fff5b8', '#ffe27a', '#082a63'],
+    green: ['#eafff3', '#a9f5cf', '#075f45'],
+    orange: ['#fff0d9', '#ffd39b', '#0a2f75']
+  };
+  const [bgA, bgB, accent] = palette[String(theme || '').toLowerCase()] || palette.blue;
+  const darkText = bgA.startsWith('#08') || bgA.startsWith('#0b') ? '#ffffff' : '#082a63';
+  const mutedText = darkText === '#ffffff' ? 'rgba(255,255,255,.86)' : '#53657f';
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${safeWidth}" height="${safeHeight}" viewBox="0 0 ${safeWidth} ${safeHeight}">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="${bgA}"/>
+      <stop offset="100%" stop-color="${bgB}"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#001b40" flood-opacity=".18"/>
+    </filter>
+  </defs>
+  <rect width="100%" height="100%" rx="36" fill="url(#bg)"/>
+  <circle cx="${safeWidth - 135}" cy="${safeHeight / 2}" r="${safeHeight * 0.64}" fill="#ffffff" opacity=".16"/>
+  <circle cx="${safeWidth - 50}" cy="${safeHeight - 34}" r="${safeHeight * 0.32}" fill="${accent}" opacity=".22"/>
+  <g filter="url(#softShadow)">
+    <rect x="${safeWidth - 330}" y="${Math.max(22, safeHeight * .2)}" width="230" height="${Math.max(86, safeHeight * .42)}" rx="24" fill="#ffffff" opacity=".95"/>
+    <circle cx="${safeWidth - 255}" cy="${safeHeight / 2}" r="38" fill="${accent}"/>
+    <path d="M${safeWidth - 278} ${safeHeight / 2}h72v28h-72z" fill="#082a63" opacity=".92"/>
+    <circle cx="${safeWidth - 205}" cy="${safeHeight / 2 + 14}" r="18" fill="#ffffff"/>
+    <circle cx="${safeWidth - 205}" cy="${safeHeight / 2 + 14}" r="9" fill="#082a63"/>
+  </g>
+  <text x="44" y="62" fill="${accent}" font-family="Poppins, Arial, sans-serif" font-size="18" font-weight="900" letter-spacing="3">${escapeHtml(eyebrow || 'CAMIGO FAST LANE')}</text>
+  <text x="44" y="${safeHeight * .48}" fill="${darkText}" font-family="Poppins, Arial, sans-serif" font-size="${Math.max(34, safeHeight * .17)}" font-weight="900" letter-spacing="-2">${escapeHtml(headline || 'CCTV deals delivered fast')}</text>
+  <text x="46" y="${safeHeight * .64}" fill="${mutedText}" font-family="Poppins, Arial, sans-serif" font-size="${Math.max(18, safeHeight * .065)}" font-weight="700">${escapeHtml(subheadline || 'Same-day dispatch, installation support and warranty care.')}</text>
+  <rect x="46" y="${safeHeight - 72}" width="210" height="42" rx="21" fill="${accent}"/>
+  <text x="72" y="${safeHeight - 45}" fill="${darkText === '#ffffff' ? '#082a63' : '#ffffff'}" font-family="Poppins, Arial, sans-serif" font-size="17" font-weight="900">${escapeHtml(cta || 'Shop now')}</text>
+</svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(svg, 'utf8').toString('base64')}`;
+};
 
 const buildOrderDraft = async (user, body) => {
   const {
@@ -1269,6 +1355,87 @@ app.get('/api/admin/category-banners', authenticateToken, requireAdmin, (req, re
       res.json(rows);
     }
   );
+});
+
+app.post('/api/admin/category-banners/ai-generate', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const {
+      category_id = 0,
+      prompt = '',
+      width = 1200,
+      height = 320,
+      theme = 'blue',
+      sort_order = 0,
+      active = true,
+      save = true
+    } = req.body || {};
+    const categoryId = Number(category_id) || 0;
+    const category = categoryId === 0
+      ? { name: 'Shop by Category' }
+      : await dbGetAsync('SELECT name FROM categories WHERE id = ?', [categoryId]);
+    if (categoryId !== 0 && !category) {
+      return res.status(400).json({ error: 'Selected banner category was not found' });
+    }
+
+    const discountedProducts = await dbAllAsync(
+      `SELECT p.name, p.price, p.mrp, p.discount_percent, c.name as category_name
+       FROM products p
+       LEFT JOIN categories c ON c.id = p.category_id
+       WHERE (? = 0 OR p.category_id = ?)
+       ORDER BY COALESCE(p.discount_percent, CASE WHEN p.mrp > 0 THEN ((p.mrp - p.price) * 100.0 / p.mrp) ELSE 0 END) DESC
+       LIMIT 8`,
+      [categoryId, categoryId]
+    );
+    const offerSummary = discountedProducts.map(product => {
+      const discount = Number(product.discount_percent) > 0
+        ? Math.round(Number(product.discount_percent))
+        : product.mrp ? Math.max(0, Math.round((1 - Number(product.price) / Number(product.mrp)) * 100)) : 0;
+      return `${product.name} (${discount}% off, Rs ${product.price}, MRP Rs ${product.mrp})`;
+    }).join('\n');
+
+    const ai = await callOpenAiJson({
+      system: `You are Camigo's ecommerce banner copywriter for a CCTV and security delivery app.
+Return only JSON with keys: eyebrow, headline, subheadline, cta, theme.
+Use short punchy Indian quick-commerce style copy. No markdown. No HTML.`,
+      user: `Banner placement: ${category.name}
+Admin instruction: ${prompt || 'Create the best sales banner from available offers.'}
+Current products and discounts:
+${offerSummary || 'No product discounts available.'}
+Allowed theme values: blue, yellow, green, orange.
+Make headline under 42 characters and subheadline under 85 characters.`
+    });
+
+    const imageUrl = buildBannerSvgDataUrl({
+      width,
+      height,
+      headline: ai.headline,
+      subheadline: ai.subheadline,
+      eyebrow: ai.eyebrow,
+      cta: ai.cta,
+      theme: ai.theme || theme
+    });
+
+    if (!save) {
+      return res.json({ image_url: imageUrl, copy: ai });
+    }
+
+    const result = await dbRunAsync(
+      `INSERT INTO category_banners (category_id, image_url, width, height, sort_order, active)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        categoryId,
+        imageUrl,
+        Math.max(640, Number(width) || 1200),
+        Math.max(180, Number(height) || 320),
+        Number(sort_order) || 0,
+        active ? 1 : 0
+      ]
+    );
+    res.json({ id: result.lastID, image_url: imageUrl, copy: ai, message: 'AI banner generated and saved' });
+  } catch (error) {
+    const status = /OpenAI API key/.test(error.message) ? 503 : 500;
+    res.status(status).json({ error: error.message });
+  }
 });
 
 app.post('/api/admin/category-banners', authenticateToken, requireAdmin, (req, res) => {

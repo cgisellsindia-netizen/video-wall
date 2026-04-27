@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Shield, Users, ShoppingBag, Package, Plus, Trash2, Edit, MapPin, Truck } from 'lucide-react';
+import { Bell, Shield, Users, ShoppingBag, Package, Plus, Trash2, Edit, MapPin, Truck, Sparkles } from 'lucide-react';
 import { API_URL } from '../api';
 
 function AdminPage({ user }) {
@@ -30,6 +30,8 @@ function AdminPage({ user }) {
   const emptyBanner = { category_id: '0', image_url: '', width: '1200', height: '320', sort_order: '0', active: true };
   const [bannerForm, setBannerForm] = useState(emptyBanner);
   const [editBanner, setEditBanner] = useState(null);
+  const [aiBannerForm, setAiBannerForm] = useState({ category_id: '0', prompt: '', width: '1200', height: '320', theme: 'blue', sort_order: '0', active: true });
+  const [aiBannerLoading, setAiBannerLoading] = useState(false);
 
   useEffect(() => { if (!user) { navigate('/'); return; } fetchData(); }, [user]);
 
@@ -304,6 +306,37 @@ function AdminPage({ user }) {
     if (res.ok) fetchData();
   };
 
+  const handleGenerateAiBanner = async (e) => {
+    e.preventDefault();
+    setAiBannerLoading(true);
+    setMessage('Generating AI banner from current products and discounts...');
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`${API_URL}/admin/category-banners/ai-generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          ...aiBannerForm,
+          category_id: parseInt(aiBannerForm.category_id, 10),
+          width: parseInt(aiBannerForm.width, 10),
+          height: parseInt(aiBannerForm.height, 10),
+          sort_order: parseInt(aiBannerForm.sort_order, 10) || 0,
+          active: Boolean(aiBannerForm.active),
+          save: true
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'AI banner generation failed.');
+      setBannerForm(prev => ({ ...prev, image_url: data.image_url || '', width: aiBannerForm.width, height: aiBannerForm.height, category_id: aiBannerForm.category_id }));
+      setMessage(data.message || 'AI banner generated and saved.');
+      fetchData();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setAiBannerLoading(false);
+    }
+  };
+
   const handleCreateUser = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
@@ -511,6 +544,45 @@ function AdminPage({ user }) {
 
       {activeTab === 'banners' && (
         <div>
+          <div className="card" style={{ marginBottom: '18px', border: '1px solid rgba(11, 100, 255, .18)', background: 'linear-gradient(135deg, #eef6ff, #fff9df)' }}>
+            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}><Sparkles size={18} /> AI banner generator</h3>
+            <p className="checkout-note" style={{ marginTop: 0 }}>
+              Generates a wide mobile banner by reading current products, MRP, prices and discount labels. It saves directly into the selected banner position.
+            </p>
+            <form className="admin-product-form" onSubmit={handleGenerateAiBanner}>
+              <div className="form-group">
+                <label>Banner Position</label>
+                <select value={aiBannerForm.category_id} onChange={e => setAiBannerForm({ ...aiBannerForm, category_id: e.target.value })}>
+                  <option value="0">Above Shop by Category</option>
+                  {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>AI Command</label>
+                <input
+                  value={aiBannerForm.prompt}
+                  onChange={e => setAiBannerForm({ ...aiBannerForm, prompt: e.target.value })}
+                  placeholder="Example: Make a same-day delivery banner for the best IP camera discount"
+                />
+              </div>
+              <div className="form-group">
+                <label>Theme</label>
+                <select value={aiBannerForm.theme} onChange={e => setAiBannerForm({ ...aiBannerForm, theme: e.target.value })}>
+                  <option value="blue">Camigo Blue</option>
+                  <option value="yellow">Instamart Yellow</option>
+                  <option value="green">Offer Green</option>
+                  <option value="orange">Warm Orange</option>
+                </select>
+              </div>
+              <div className="form-group"><label>Width</label><input type="number" value={aiBannerForm.width} onChange={e => setAiBannerForm({ ...aiBannerForm, width: e.target.value })} /></div>
+              <div className="form-group"><label>Height</label><input type="number" value={aiBannerForm.height} onChange={e => setAiBannerForm({ ...aiBannerForm, height: e.target.value })} /></div>
+              <div className="form-group"><label>Order</label><input type="number" value={aiBannerForm.sort_order} onChange={e => setAiBannerForm({ ...aiBannerForm, sort_order: e.target.value })} /></div>
+              <button className="btn btn-primary" type="submit" disabled={aiBannerLoading}>
+                {aiBannerLoading ? 'Generating...' : 'Generate and Save Banner'}
+              </button>
+            </form>
+          </div>
+
           <div className="card" style={{ marginBottom: '18px' }}>
             <h3 style={{ marginTop: 0 }}>{editBanner ? 'Edit category banner' : 'Add category banner'}</h3>
             <p className="checkout-note" style={{ marginTop: 0 }}>
