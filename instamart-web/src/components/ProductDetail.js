@@ -98,7 +98,25 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
             <div className="product-stage-noise" />
             <span className="product-stage-chip chip-blue">{product.category_name || 'CCTV Product'}</span>
             <span className="product-stage-chip chip-gold">{warrantyYears} year warranty</span>
-            {activeImage ? <img src={activeImage} alt={product.name} /> : <div className="emoji" style={{ fontSize: '120px' }}>CCTV</div>}
+            <div className="product-stage-visuals">
+              <div className="product-stage-main-shot">
+                {activeImage ? <img src={activeImage} alt={product.name} /> : <div className="emoji" style={{ fontSize: '120px' }}>CCTV</div>}
+              </div>
+              {gallery.length > 1 && (
+                <div className="product-gallery-thumbs">
+                  {gallery.map(image => (
+                    <button
+                      key={image}
+                      type="button"
+                      className={image === activeImage ? 'product-thumb active' : 'product-thumb'}
+                      onClick={() => setActiveImage(image)}
+                    >
+                      <img src={image} alt="" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="product-stage-footer">
               <div>
                 <strong>Ready for fast dispatch</strong>
@@ -106,20 +124,6 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
               </div>
               <Sparkles size={18} />
             </div>
-            {gallery.length > 1 && (
-              <div className="product-gallery-thumbs">
-                {gallery.map(image => (
-                  <button
-                    key={image}
-                    type="button"
-                    className={image === activeImage ? 'product-thumb active' : 'product-thumb'}
-                    onClick={() => setActiveImage(image)}
-                  >
-                    <img src={image} alt="" />
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           <div className="product-detail-info product-buy-panel">

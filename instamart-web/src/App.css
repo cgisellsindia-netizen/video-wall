@@ -2988,20 +2988,47 @@ body.bottom-nav-hidden .floating-tracker {
   backdrop-filter: blur(10px);
 }
 .modern-product-stage {
+  display: flex;
+  flex-direction: column;
   min-height: 560px;
+  padding: 22px;
   background:
     radial-gradient(circle at top left, rgba(246, 196, 0, 0.26), transparent 30%),
     radial-gradient(circle at bottom right, rgba(11, 100, 255, 0.18), transparent 34%),
     linear-gradient(155deg, #f8fbff, #eef4fb 55%, #f9fcff);
 }
+.product-stage-visuals {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+  padding-top: 42px;
+}
+.product-stage-main-shot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 390px;
+  padding: 22px;
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(244, 248, 255, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 20px 45px rgba(15, 23, 42, 0.08);
+}
 .modern-product-stage img {
-  width: 74%;
-  max-width: 460px;
-  height: auto;
+  width: 100%;
+  max-width: 440px;
+  max-height: 360px;
+  height: 100%;
   object-fit: contain;
   position: relative;
   z-index: 2;
-  filter: drop-shadow(0 36px 42px rgba(19, 34, 58, 0.18));
+  filter: drop-shadow(0 22px 34px rgba(19, 34, 58, 0.14));
 }
 .product-stage-noise {
   position: absolute;
@@ -3039,20 +3066,17 @@ body.bottom-nav-hidden .floating-tracker {
 }
 .product-stage-chip.chip-gold {
   left: 22px;
-  bottom: 96px;
+  top: 22px;
   background: rgba(246, 196, 0, 0.18);
   color: #7c5600;
 }
 .product-stage-footer {
-  position: absolute;
-  left: 22px;
-  right: 22px;
-  bottom: 22px;
   z-index: 3;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-top: 16px;
   padding: 16px 18px;
   border-radius: 22px;
   background: rgba(9, 36, 82, 0.82);
@@ -3072,12 +3096,10 @@ body.bottom-nav-hidden .floating-tracker {
   font-size: 12px;
 }
 .product-gallery-thumbs {
-  position: absolute;
-  right: 22px;
-  bottom: 96px;
   z-index: 3;
   display: grid;
   gap: 10px;
+  align-content: center;
 }
 .product-thumb {
   width: 62px;
@@ -3331,15 +3353,19 @@ body.bottom-nav-hidden .floating-tracker {
   }
   .modern-product-stage {
     min-height: 380px;
+    padding: 18px;
   }
-  .product-stage-chip.chip-gold {
-    bottom: 86px;
+  .product-stage-visuals {
+    grid-template-columns: 1fr;
+    padding-top: 52px;
+  }
+  .product-stage-main-shot {
+    min-height: 320px;
+    padding: 18px;
   }
   .product-gallery-thumbs {
-    right: 14px;
-    bottom: 86px;
-    grid-auto-flow: column;
-    grid-auto-columns: 56px;
+    grid-template-columns: repeat(auto-fit, minmax(56px, 56px));
+    justify-content: center;
   }
 }
 
@@ -3349,9 +3375,11 @@ body.bottom-nav-hidden .floating-tracker {
   }
   .modern-product-stage {
     min-height: 340px;
+    padding: 14px;
   }
   .modern-product-stage img {
-    width: 80%;
+    max-width: 100%;
+    max-height: 280px;
   }
   .product-stage-chip.chip-blue {
     right: 14px;
@@ -3359,13 +3387,11 @@ body.bottom-nav-hidden .floating-tracker {
   }
   .product-stage-chip.chip-gold {
     left: 14px;
-    bottom: 82px;
+    top: 14px;
   }
   .product-gallery-thumbs {
-    left: 14px;
-    right: 14px;
-    bottom: 82px;
     display: flex;
+    justify-content: flex-start;
     overflow-x: auto;
   }
   .discount-badge-large {
@@ -3373,9 +3399,6 @@ body.bottom-nav-hidden .floating-tracker {
     top: 14px;
   }
   .product-stage-footer {
-    left: 14px;
-    right: 14px;
-    bottom: 14px;
     padding: 14px;
   }
   .product-detail-name {
