@@ -3054,12 +3054,27 @@ body.bottom-nav-hidden .floating-tracker {
   .marketplace-stage {
     padding: 18px 18px 20px;
   }
+  .product-stage-visuals.single-image {
+    gap: 0;
+  }
   .marketplace-main-shot {
     min-height: 540px;
     padding: 0;
     background: transparent;
     box-shadow: none;
-    border-radius: 24px;
+    border-radius: 26px;
+  }
+  .product-stage-visuals.single-image .marketplace-main-shot {
+    min-height: 620px;
+  }
+  .product-stage-visuals.single-image .marketplace-main-shot img {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    object-fit: cover;
+    object-position: center;
+    filter: none;
   }
   .marketplace-main-shot img {
     max-width: 100%;
