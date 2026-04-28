@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Minus, Plus, Truck, ShieldCheck, Clock3, BadgeCheck, Sparkles, Package2 } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Truck, ShieldCheck, Clock3, BadgeCheck, Sparkles, Package2, ShoppingCart, Zap } from 'lucide-react';
 import { API_URL } from '../api';
 
 function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogin, priceForRole }) {
@@ -101,8 +101,11 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
               <span className="product-stage-chip chip-blue">{product.category_name || 'CCTV Product'}</span>
             </div>
             <div className={gallery.length > 1 ? 'product-stage-visuals has-gallery' : 'product-stage-visuals single-image'}>
+              <div className="product-stage-main-shot marketplace-main-shot">
+                {activeImage ? <img src={activeImage} alt={product.name} /> : <div className="emoji" style={{ fontSize: '120px' }}>CCTV</div>}
+              </div>
               {gallery.length > 1 && (
-                <div className="product-gallery-thumbs product-gallery-thumbs-side">
+                <div className="product-gallery-thumbs product-gallery-thumbs-under">
                   {gallery.map(image => (
                     <button
                       key={image}
@@ -115,9 +118,6 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
                   ))}
                 </div>
               )}
-              <div className="product-stage-main-shot marketplace-main-shot">
-                {activeImage ? <img src={activeImage} alt={product.name} /> : <div className="emoji" style={{ fontSize: '120px' }}>CCTV</div>}
-              </div>
             </div>
             <div className="product-stage-footer marketplace-stage-footer">
               <div>
@@ -178,11 +178,11 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
                 </div>
               ) : (
                 <button className="add-btn-large" type="button" onPointerDown={handlePointerAction(handleAdd)} onClick={stopActionTap}>
-                  <Plus size={20} /> Add to Cart
+                  <ShoppingCart size={20} /> Add to cart
                 </button>
               )}
               <button className="product-secondary-action" onClick={() => navigate('/checkout')}>
-                Buy now
+                <Zap size={19} /> Buy now
               </button>
             </div>
 
