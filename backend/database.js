@@ -180,6 +180,12 @@ db.serialize(async () => {
     FOREIGN KEY (user_id) REFERENCES users(id)
   )`);
 
+  db.run(`CREATE TABLE IF NOT EXISTS app_settings (
+    setting_key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
   addColumn('products', 'discount_percent REAL DEFAULT 0');
   addColumn('products', 'dealer_price REAL');
   addColumn('products', 'distributor_price REAL');
@@ -295,6 +301,50 @@ db.serialize(async () => {
     (42, 'DC Connector Pack', 'Male/female DC power connector set for CCTV camera power lines.', 160, 229, '/images/cgi-accessory-dc.jpg', 8, 100, '10 pcs'),
     (43, 'CCTV Cable Roll 90m', 'High quality CCTV cable roll for camera installation and DVR/NVR wiring.', 1350, 1899, '/images/cgi-accessory-cable.jpg', 8, 40, '90 m'),
     (44, 'Camera Junction Box', 'Weather protected junction box for bullet and dome camera mounting.', 280, 399, '/images/cgi-accessory-box.jpg', 8, 80, '1 Unit')`);
+
+  const march2026TradePrices = [
+    [1, 873.20, 814.20],
+    [2, 873.20, 814.20],
+    [4, 1171.39, 1111.56],
+    [5, 1171.39, 1111.56],
+    [10, 3299.28, 3181.28],
+    [11, 3300.13, 3181.28],
+    [12, 3663.90, 3545.90],
+    [13, 3032.60, 2891.00],
+    [16, 33870.94, 31510.94],
+    [19, 3128.18, 3010.18],
+    [20, 5428.00, 5310.00],
+    [21, 2684.50, 2566.50],
+    [22, 2920.50, 2802.50],
+    [23, 5192.00, 5074.00],
+    [27, 3127.00, 3009.00],
+    [28, 3481.00, 3363.00],
+    [29, 7316.00, 7198.00],
+    [30, 21122.00, 21004.00],
+    [32, 1180.00, 1121.00],
+    [33, 1475.00, 1357.00],
+    [34, 4189.00, 4071.00],
+    [38, 359.90, 330.40],
+    [39, 401.20, 377.60],
+    [41, 168.60, 156.80],
+    [42, 75.50, 70.80]
+  ];
+
+  db.get('SELECT value FROM app_settings WHERE setting_key = ?', ['trade_prices_march_2026'], (settingErr, row) => {
+    if (settingErr || row) return;
+    march2026TradePrices.forEach(([id, dealerPrice, distributorPrice]) => {
+      db.run(
+        `UPDATE products
+         SET dealer_price = ?, distributor_price = ?
+         WHERE id = ?`,
+        [dealerPrice, distributorPrice, id]
+      );
+    });
+    db.run(
+      'INSERT INTO app_settings (setting_key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+      ['trade_prices_march_2026', 'applied']
+    );
+  });
 
   db.run(`INSERT OR IGNORE INTO promo_codes (id, code, discount_percent, max_discount, min_order, usage_limit) VALUES 
     (1, 'SAVE10', 10, 500, 5000, 100),

@@ -20,7 +20,7 @@ function AdminPage({ user }) {
   const [notificationForm, setNotificationForm] = useState({ title: '', message: '', target: 'customer', personalize: true, product_id: '', image_url: '' });
   const navigate = useNavigate();
 
-  const emptyProduct = { name: '', description: '', price: '', mrp: '', discount_percent: '', dealer_price: '', distributor_price: '', image: '/images/cgi-new.jpg', images: ['/images/cgi-new.jpg'], category_id: '1', stock: '50', unit: '1 Unit' };
+  const emptyProduct = { name: '', description: '', price: '', mrp: '', discount_percent: '', dealer_price: '', distributor_price: '', warranty_years: '5', image: '/images/cgi-new.jpg', images: ['/images/cgi-new.jpg'], category_id: '1', stock: '50', unit: '1 Unit' };
   const [form, setForm] = useState(emptyProduct);
   const emptyUser = { name: '', email: '', password: '', phone: '', address: '', role: 'dealer' };
   const [userForm, setUserForm] = useState(emptyUser);
@@ -141,6 +141,7 @@ function AdminPage({ user }) {
       discount_percent: parseFloat(form.discount_percent || 0),
       dealer_price: form.dealer_price === '' ? null : parseFloat(form.dealer_price),
       distributor_price: form.distributor_price === '' ? null : parseFloat(form.distributor_price),
+      warranty_years: Math.max(1, parseInt(form.warranty_years || '5', 10)),
       category_id: parseInt(form.category_id),
       stock: parseInt(form.stock),
       images: (Array.isArray(form.images) ? form.images : [])
@@ -148,8 +149,8 @@ function AdminPage({ user }) {
         .filter(Boolean)
     };
     body.image = body.images[0] || body.image;
-    if (!body.name || !body.description || !Number.isFinite(body.price) || !Number.isFinite(body.mrp) || !Number.isInteger(body.category_id) || !Number.isInteger(body.stock)) {
-      setMessage('Please fill product name, description, price, MRP, category, and stock correctly.');
+    if (!body.name || !body.description || !Number.isFinite(body.price) || !Number.isFinite(body.mrp) || !Number.isInteger(body.category_id) || !Number.isInteger(body.stock) || !Number.isInteger(body.warranty_years)) {
+      setMessage('Please fill product name, description, price, MRP, warranty, category, and stock correctly.');
       return;
     }
     let res;
@@ -179,6 +180,7 @@ function AdminPage({ user }) {
       discount_percent: p.discount_percent || '',
       dealer_price: p.dealer_price || '',
       distributor_price: p.distributor_price || '',
+      warranty_years: p.warranty_years || 5,
       image: p.image,
       images: Array.isArray(p.images) && p.images.length ? p.images : [p.image].filter(Boolean),
       category_id: p.category_id.toString(),
@@ -708,6 +710,7 @@ function AdminPage({ user }) {
                 <div className="form-group"><label>Discount % Label</label><input type="number" value={form.discount_percent} onChange={e => setForm({...form, discount_percent: e.target.value})} placeholder="Auto if blank" /></div>
                 <div className="form-group"><label>Dealer Price</label><input type="number" value={form.dealer_price} onChange={e => setForm({...form, dealer_price: e.target.value})} placeholder="Optional" /></div>
                 <div className="form-group"><label>Distributor Price</label><input type="number" value={form.distributor_price} onChange={e => setForm({...form, distributor_price: e.target.value})} placeholder="Optional" /></div>
+                <div className="form-group"><label>Warranty Years</label><input type="number" min="1" value={form.warranty_years} onChange={e => setForm({...form, warranty_years: e.target.value})} required /></div>
                 <div className="form-group"><label>Stock</label><input type="number" value={form.stock} onChange={e => setForm({...form, stock: e.target.value})} required /></div>
                 <div className="form-group"><label>Unit</label><input value={form.unit} onChange={e => setForm({...form, unit: e.target.value})} required /></div>
                 <div className="form-group"><label>Category</label>
@@ -749,7 +752,7 @@ function AdminPage({ user }) {
           <div className="card" style={{ overflow: 'hidden' }}>
             <div style={{ overflowX: 'auto' }}>
               <table className="admin-table">
-                <thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Dealer</th><th>Distributor</th><th>MRP</th><th>Stock</th><th>Category</th><th>Actions</th></tr></thead>
+                <thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Dealer</th><th>Distributor</th><th>Warranty</th><th>MRP</th><th>Stock</th><th>Category</th><th>Actions</th></tr></thead>
                 <tbody>{products.map(p => (
                   <tr key={p.id}>
                     <td>{p.id}</td>
@@ -757,6 +760,7 @@ function AdminPage({ user }) {
                     <td>Rs {p.price}</td>
                     <td>{p.dealer_price ? `Rs ${p.dealer_price}` : '-'}</td>
                     <td>{p.distributor_price ? `Rs ${p.distributor_price}` : '-'}</td>
+                    <td>{p.warranty_years || 5} years</td>
                     <td>Rs {p.mrp}</td>
                     <td>{p.stock}</td>
                     <td>{p.category_name || categories.find(c => c.id === p.category_id)?.name}</td>

@@ -1811,9 +1811,10 @@ app.get('/api/users/:id', authenticateToken, (req, res) => {
 
 // Admin Product CRUD
 app.post('/api/admin/products', authenticateToken, requireAdmin, (req, res) => {
-  const { name, description, price, mrp, image, images, category_id, stock, unit, discount_percent, dealer_price, distributor_price } = req.body;
-  db.run(`INSERT INTO products (name, description, price, mrp, image, category_id, stock, unit, discount_percent, dealer_price, distributor_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [name, description, price, mrp, image, category_id, stock, unit, discount_percent || 0, dealer_price || null, distributor_price || null],
+  const { name, description, price, mrp, image, images, category_id, stock, unit, discount_percent, dealer_price, distributor_price, warranty_years } = req.body;
+  const warrantyYears = Math.max(1, Number(warranty_years || 5));
+  db.run(`INSERT INTO products (name, description, price, mrp, image, category_id, stock, unit, discount_percent, dealer_price, distributor_price, warranty_years) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [name, description, price, mrp, image, category_id, stock, unit, discount_percent || 0, dealer_price || null, distributor_price || null, warrantyYears],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
       saveProductImages(this.lastID, image, images, (imageErr) => {
@@ -1824,9 +1825,10 @@ app.post('/api/admin/products', authenticateToken, requireAdmin, (req, res) => {
 });
 
 app.put('/api/admin/products/:id', authenticateToken, requireAdmin, (req, res) => {
-  const { name, description, price, mrp, image, images, category_id, stock, unit, discount_percent, dealer_price, distributor_price } = req.body;
-  db.run(`UPDATE products SET name=?, description=?, price=?, mrp=?, image=?, category_id=?, stock=?, unit=?, discount_percent=?, dealer_price=?, distributor_price=? WHERE id=?`,
-    [name, description, price, mrp, image, category_id, stock, unit, discount_percent || 0, dealer_price || null, distributor_price || null, req.params.id],
+  const { name, description, price, mrp, image, images, category_id, stock, unit, discount_percent, dealer_price, distributor_price, warranty_years } = req.body;
+  const warrantyYears = Math.max(1, Number(warranty_years || 5));
+  db.run(`UPDATE products SET name=?, description=?, price=?, mrp=?, image=?, category_id=?, stock=?, unit=?, discount_percent=?, dealer_price=?, distributor_price=?, warranty_years=? WHERE id=?`,
+    [name, description, price, mrp, image, category_id, stock, unit, discount_percent || 0, dealer_price || null, distributor_price || null, warrantyYears, req.params.id],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
       saveProductImages(req.params.id, image, images, (imageErr) => {
