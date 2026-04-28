@@ -30,6 +30,7 @@ function AdminPage({ user }) {
   const emptyBanner = { category_id: '0', image_url: '', width: '1200', height: '320', sort_order: '0', active: true };
   const [bannerForm, setBannerForm] = useState(emptyBanner);
   const [editBanner, setEditBanner] = useState(null);
+  const [bannerUploadBusy, setBannerUploadBusy] = useState(false);
   const [aiBannerForm, setAiBannerForm] = useState({ category_id: '0', prompt: '', width: '1200', height: '320', theme: 'blue', sort_order: '0', active: true });
   const [aiBannerLoading, setAiBannerLoading] = useState(false);
   const [lastAiBanners, setLastAiBanners] = useState([]);
@@ -218,8 +219,18 @@ function AdminPage({ user }) {
       setMessage('Please choose a category banner under 950 KB for fast mobile loading.');
       return;
     }
+    setBannerUploadBusy(true);
+    setMessage(`Reading banner file: ${file.name}`);
     const reader = new FileReader();
-    reader.onload = () => setBannerForm(prev => ({ ...prev, image_url: reader.result }));
+    reader.onload = () => {
+      setBannerForm(prev => ({ ...prev, image_url: reader.result }));
+      setBannerUploadBusy(false);
+      setMessage(`Banner file loaded: ${file.name}`);
+    };
+    reader.onerror = () => {
+      setBannerUploadBusy(false);
+      setMessage('Could not read that banner file. Try another image.');
+    };
     reader.readAsDataURL(file);
   };
 
@@ -257,6 +268,14 @@ function AdminPage({ user }) {
 
   const handleSaveBanner = async (e) => {
     e.preventDefault();
+    if (bannerUploadBusy) {
+      setMessage('Banner file is still loading. Please wait a moment and click Add Banner again.');
+      return;
+    }
+    if (!String(bannerForm.image_url || '').trim()) {
+      setMessage('Please choose a banner file or paste a banner image URL first.');
+      return;
+    }
     const token = localStorage.getItem('token');
     const body = {
       ...bannerForm,
@@ -610,22 +629,22 @@ function AdminPage({ user }) {
             <form className="admin-product-form" onSubmit={handleSaveBanner}>
               <div className="form-group">
                 <label>Banner Position</label>
-                <select value={bannerForm.category_id} onChange={e => setBannerForm({ ...bannerForm, category_id: e.target.value })}>
+                <select value={bannerForm.category_id} onChange={e => setBannerForm(prev => ({ ...prev, category_id: e.target.value }))}>
                   <option value="0">Above Shop by Category</option>
                   {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
                 </select>
               </div>
-              <div className="form-group"><label>Banner Image URL / Data</label><input value={bannerForm.image_url} onChange={e => setBannerForm({ ...bannerForm, image_url: e.target.value })} required /></div>
+              <div className="form-group"><label>Banner Image URL / Data</label><input value={bannerForm.image_url} onChange={e => setBannerForm(prev => ({ ...prev, image_url: e.target.value }))} required /></div>
               <div className="form-group"><label>Upload Banner</label><input type="file" accept="image/*" onChange={e => handleBannerImageFile(e.target.files?.[0])} /></div>
-              <div className="form-group"><label>Banner Width (px)</label><input type="number" value={bannerForm.width} onChange={e => setBannerForm({ ...bannerForm, width: e.target.value })} required /></div>
-              <div className="form-group"><label>Banner Height (px)</label><input type="number" value={bannerForm.height} onChange={e => setBannerForm({ ...bannerForm, height: e.target.value })} required /></div>
-              <div className="form-group"><label>Order</label><input type="number" value={bannerForm.sort_order} onChange={e => setBannerForm({ ...bannerForm, sort_order: e.target.value })} /></div>
-              <div className="form-group"><label>Active</label><select value={bannerForm.active ? '1' : '0'} onChange={e => setBannerForm({ ...bannerForm, active: e.target.value === '1' })}><option value="1">Active</option><option value="0">Inactive</option></select></div>
+              <div className="form-group"><label>Banner Width (px)</label><input type="number" value={bannerForm.width} onChange={e => setBannerForm(prev => ({ ...prev, width: e.target.value }))} required /></div>
+              <div className="form-group"><label>Banner Height (px)</label><input type="number" value={bannerForm.height} onChange={e => setBannerForm(prev => ({ ...prev, height: e.target.value }))} required /></div>
+              <div className="form-group"><label>Order</label><input type="number" value={bannerForm.sort_order} onChange={e => setBannerForm(prev => ({ ...prev, sort_order: e.target.value }))} /></div>
+              <div className="form-group"><label>Active</label><select value={bannerForm.active ? '1' : '0'} onChange={e => setBannerForm(prev => ({ ...prev, active: e.target.value === '1' }))}><option value="1">Active</option><option value="0">Inactive</option></select></div>
               <div className="admin-image-preview">
                 <span>Banner preview</span>
                 <img src={bannerForm.image_url || '/images/cgi-hd3e.jpg'} alt="Banner preview" style={{ objectFit: 'cover', aspectRatio: `${Number(bannerForm.width) || 1200} / ${Number(bannerForm.height) || 320}` }} />
               </div>
-              <button className="btn btn-primary" type="submit">{editBanner ? 'Update Banner' : 'Add Banner'}</button>
+              <button className="btn btn-primary" type="submit" disabled={bannerUploadBusy}>{bannerUploadBusy ? 'Loading banner...' : (editBanner ? 'Update Banner' : 'Add Banner')}</button>
               {editBanner && <button className="btn btn-outline" type="button" onClick={() => { setEditBanner(null); setBannerForm(emptyBanner); }}>Cancel</button>}
             </form>
           </div>
