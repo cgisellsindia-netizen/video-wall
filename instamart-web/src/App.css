@@ -2976,6 +2976,7 @@ body.bottom-nav-hidden .floating-tracker {
 .product-detail-card {
   grid-template-columns: minmax(360px, 0.98fr) minmax(320px, 0.9fr) minmax(280px, 0.72fr);
   gap: 22px;
+  align-items: start;
 }
 .product-detail-img,
 .product-detail-info,
@@ -3052,6 +3053,7 @@ body.bottom-nav-hidden .floating-tracker {
 
 @media (min-width: 769px) {
   .marketplace-stage {
+    align-self: start;
     min-height: 0;
     padding: 0;
     overflow: hidden;
