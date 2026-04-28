@@ -3485,7 +3485,10 @@ body.bottom-nav-hidden .floating-tracker {
   }
   .product-stage-main-shot {
     min-height: 320px;
-    padding: 14px;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 22px;
   }
   .product-gallery-thumbs {
     grid-template-columns: repeat(auto-fit, minmax(56px, 56px));
