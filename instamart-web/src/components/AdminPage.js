@@ -234,6 +234,24 @@ function AdminPage({ user }) {
     reader.readAsDataURL(file);
   };
 
+  const handleCoverImageFile = (file) => {
+    if (!file) return;
+    if (file.size > 650000) {
+      setMessage('Please choose a smaller cover photo under 650 KB for web/app upload.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () =>
+      setForm((prev) => {
+        const nextImages = [...(prev.images || [])];
+        if (nextImages.length) nextImages[0] = reader.result;
+        else nextImages.push(reader.result);
+        return { ...prev, image: reader.result, images: nextImages };
+      });
+    reader.onerror = () => setMessage('Failed to read the selected cover photo. Please try another file.');
+    reader.readAsDataURL(file);
+  };
+
   const updateGalleryImage = (index, value) => {
     setForm(prev => {
       const nextImages = [...(prev.images || [])];
@@ -698,6 +716,7 @@ function AdminPage({ user }) {
                   </select>
                 </div>
                 <div className="form-group"><label>Cover Image Path / URL</label><input value={form.image} onChange={e => updateGalleryImage(0, e.target.value)} required /></div>
+                <div className="form-group"><label>Browse Cover Photo</label><input type="file" accept="image/*" onChange={e => handleCoverImageFile(e.target.files?.[0])} /></div>
                 <div className="form-group"><label>Browse Product Photos</label><input type="file" accept="image/*" multiple onChange={e => handleMultiImageFiles(e.target.files)} /></div>
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <label>Gallery Images</label>
