@@ -98,7 +98,7 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
             <div className="product-stage-noise" />
             <span className="product-stage-chip chip-blue">{product.category_name || 'CCTV Product'}</span>
             <span className="product-stage-chip chip-gold">{warrantyYears} year warranty</span>
-            <div className="product-stage-visuals">
+            <div className={gallery.length > 1 ? 'product-stage-visuals has-gallery' : 'product-stage-visuals single-image'}>
               <div className="product-stage-main-shot">
                 {activeImage ? <img src={activeImage} alt={product.name} /> : <div className="emoji" style={{ fontSize: '120px' }}>CCTV</div>}
               </div>
