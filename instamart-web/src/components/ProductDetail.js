@@ -94,16 +94,15 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
 
       <section className="product-hero-shell">
         <div className="product-detail-card">
-          <div className="product-detail-img modern-product-stage">
+          <div className="product-detail-img modern-product-stage marketplace-stage">
             <div className="product-stage-noise" />
-            <span className="product-stage-chip chip-blue">{product.category_name || 'CCTV Product'}</span>
-            <span className="product-stage-chip chip-gold">{warrantyYears} year warranty</span>
+            <div className="product-stage-topline">
+              <span className="product-stage-chip chip-gold">{warrantyYears} year warranty</span>
+              <span className="product-stage-chip chip-blue">{product.category_name || 'CCTV Product'}</span>
+            </div>
             <div className={gallery.length > 1 ? 'product-stage-visuals has-gallery' : 'product-stage-visuals single-image'}>
-              <div className="product-stage-main-shot">
-                {activeImage ? <img src={activeImage} alt={product.name} /> : <div className="emoji" style={{ fontSize: '120px' }}>CCTV</div>}
-              </div>
               {gallery.length > 1 && (
-                <div className="product-gallery-thumbs">
+                <div className="product-gallery-thumbs product-gallery-thumbs-side">
                   {gallery.map(image => (
                     <button
                       key={image}
@@ -116,8 +115,11 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
                   ))}
                 </div>
               )}
+              <div className="product-stage-main-shot marketplace-main-shot">
+                {activeImage ? <img src={activeImage} alt={product.name} /> : <div className="emoji" style={{ fontSize: '120px' }}>CCTV</div>}
+              </div>
             </div>
-            <div className="product-stage-footer">
+            <div className="product-stage-footer marketplace-stage-footer">
               <div>
                 <strong>Ready for fast dispatch</strong>
                 <span>Installation-focused packaging and verified camera stock.</span>
@@ -126,7 +128,7 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
             </div>
           </div>
 
-          <div className="product-detail-info product-buy-panel">
+          <div className="product-detail-info product-info-column">
             <div className="product-top-meta">
               <span className="product-meta-pill">{product.category_name || 'Security device'}</span>
               <span className="product-meta-pill soft">{product.unit || '1 Unit'}</span>
@@ -139,6 +141,16 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
               {featureList.slice(0, 4).map(feature => <span key={feature}>{feature}</span>)}
             </div>
 
+            <div className="product-detail-copy-card">
+              <span className="eyebrow">Why buyers choose this</span>
+              <p>
+                Built for homes, shops and office setups where buyers want quick dispatch, clear specs, stable night
+                vision and a simple buying flow.
+              </p>
+            </div>
+          </div>
+
+          <aside className="product-detail-info product-buy-panel product-purchase-box">
             <div className="product-price-panel">
               {discount > 0 && <div className="product-offer-line product-detail-offer-line">{discount}% OFF</div>}
               <div className="product-detail-price modern-price-row">
@@ -178,7 +190,7 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
               <div><BadgeCheck size={16} /><span>Trusted CGI lineup</span></div>
               <div><Package2 size={16} /><span>Careful packed delivery</span></div>
             </div>
-          </div>
+          </aside>
         </div>
       </section>
 
