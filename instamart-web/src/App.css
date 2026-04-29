@@ -1049,6 +1049,56 @@
   opacity: .6;
   cursor: not-allowed;
 }
+.pincode-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+.pincode-search-row input {
+  width: 100%;
+}
+.pincode-search-row button {
+  border: 0;
+  border-radius: 14px;
+  padding: 0 14px;
+  background: #092452;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.serviceability-status {
+  margin-top: 12px;
+  padding: 14px;
+  display: grid;
+  gap: 5px;
+  border-radius: 18px;
+  border: 1px solid #dbe3ef;
+  background: #f8fafc;
+}
+.serviceability-status strong,
+.serviceability-status span {
+  display: block;
+}
+.serviceability-status span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+.serviceability-status.ok {
+  border-color: rgba(22, 163, 74, .28);
+  background: #f0fdf4;
+}
+.serviceability-status.blocked {
+  border-color: rgba(220, 38, 38, .22);
+  background: #fff1f2;
+}
+.serviceability-status.blocked strong {
+  color: #b91c1c;
+}
 .checkout-card h3 { display: flex; align-items: center; gap: 8px; margin-top: 0; }
 .payment-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
 .payment-options-two { grid-template-columns: repeat(2, 1fr); }
@@ -1058,6 +1108,13 @@
 }
 .payment-option.active { border-color: #f6c400; background: #fff7c7; color: #092452; }
 .checkout-note { color: #64748b; font-weight: 700; }
+.upi-app-note {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #eef6ff;
+  color: #0f3f7a;
+  font-size: 13px;
+}
 .checkout-summary { position: sticky; top: 92px; align-self: start; }
 .checkout-items { display: grid; gap: 10px; max-height: 260px; overflow: auto; margin-bottom: 14px; }
 .checkout-item, .summary-row, .summary-total { display: flex; justify-content: space-between; gap: 14px; }
@@ -1166,6 +1223,10 @@
 .checkout-pay-btn {
   width: 100%; margin-top: 16px; border: 0; border-radius: 16px; padding: 15px;
   background: #f6c400; color: #092452; font-size: 16px; font-weight: 900; cursor: pointer;
+}
+.checkout-pay-btn:disabled {
+  opacity: .58;
+  cursor: not-allowed;
 }
 .tracking-page { max-width: 980px; margin: 0 auto; padding: 28px 16px 100px; color: #13223a; }
 .tracking-card h1 { font-size: clamp(36px, 5vw, 56px); margin: 6px 0; }
@@ -2592,6 +2653,8 @@
   .checkout-page { grid-template-columns: 1fr; }
   .checkout-summary { position: static; }
   .payment-options { grid-template-columns: 1fr; }
+  .pincode-search-row { grid-template-columns: 1fr; }
+  .pincode-search-row button { min-height: 44px; }
   .installation-choice-buttons { grid-template-columns: 1fr; }
   .tracking-steps { grid-template-columns: 1fr; }
   .real-map { height: 280px; }

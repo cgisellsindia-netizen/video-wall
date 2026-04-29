@@ -111,6 +111,32 @@ const isLocalAddressText = (address = '') => {
   return ['bhubaneswar', 'bbsr', 'cuttack', 'khordha', 'khurda', 'jatni', 'patia'].some(place => text.includes(place));
 };
 
+const extractPincode = (value = '') => {
+  const match = String(value).match(/\b(75[123]\d{3})\b/);
+  return match ? match[1] : '';
+};
+
+const isServiceablePincode = (pincode = '') => {
+  const pin = String(pincode || '').trim();
+  if (!/^\d{6}$/.test(pin)) return false;
+  return pin.startsWith('751') || pin.startsWith('753') || /^752[01]\d{2}$/.test(pin);
+};
+
+const checkServiceability = ({ address = '', pincode = '', lat, lng } = {}) => {
+  const detectedPincode = String(pincode || '').trim() || extractPincode(address);
+  const gpsLocal = isLocalServiceZone(lat, lng);
+  const pincodeLocal = isServiceablePincode(detectedPincode);
+  const addressLocal = isLocalAddressText(address);
+  const hasPincode = Boolean(detectedPincode);
+  return {
+    serviceable: hasPincode ? pincodeLocal : (gpsLocal || addressLocal),
+    detectedPincode,
+    gpsLocal,
+    pincodeLocal,
+    addressLocal
+  };
+};
+
 const addYears = (date, years) => {
   const next = new Date(date);
   next.setFullYear(next.getFullYear() + Number(years || 5));
@@ -273,6 +299,7 @@ const buildOrderDraft = async (user, body) => {
   const {
     items,
     address,
+    pincode,
     payment_method,
     promo_code,
     customer_lat,
@@ -337,16 +364,22 @@ const buildOrderDraft = async (user, body) => {
   const safeCustomerLng = Number.isFinite(Number(customer_lng)) ? Number(customer_lng) : null;
   const safeCustomerAccuracy = Number.isFinite(Number(customer_accuracy)) ? Number(customer_accuracy) : null;
   const safeCustomerLockedAt = Number.isFinite(Number(customer_location_locked_at)) ? Number(customer_location_locked_at) : null;
-  const localAddress = isLocalServiceZone(safeCustomerLat, safeCustomerLng) || isLocalAddressText(address);
-  const deliveryFee = taxableAmount > 2000 ? 0 : localAddress ? 40 : 120;
+  const serviceability = checkServiceability({ address, pincode, lat: safeCustomerLat, lng: safeCustomerLng });
+  if (!serviceability.serviceable) {
+    throw new Error('This delivery address is outside Camigo service area. Use a Bhubaneswar, Cuttack, Khordha, or Jatni pincode/address.');
+  }
+  const deliveryFee = taxableAmount > 2000 ? 0 : 40;
   const gstAmount = Math.round(taxableAmount * 0.18);
   const finalAmount = taxableAmount + gstAmount + deliveryFee + installationFee;
+  const addressWithPincode = serviceability.detectedPincode && !String(address).includes(serviceability.detectedPincode)
+    ? `${address}\nPincode: ${serviceability.detectedPincode}`
+    : address;
 
   return {
     normalizedItems,
     prices,
     warrantyYears,
-    address,
+    address: addressWithPincode,
     paymentMethod: String(payment_method).toLowerCase(),
     totalAmount,
     gstAmount,
@@ -625,6 +658,22 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
+const cleanPhone = (phone = '') => String(phone || '').replace(/\D/g, '').slice(-10);
+
+const formatUserForClient = (user) => {
+  const phoneVerified = Number(user.phone_verified || 0) === 1;
+  const staffCanUsePhone = ['admin', 'delivery_partner', 'installer'].includes(user.role);
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    phone: phoneVerified || staffCanUsePhone ? (user.phone || '') : '',
+    phone_verified: phoneVerified,
+    address: user.address,
+    role: user.role
+  };
+};
+
 app.get('/api/debug', (req, res) => {
   if (process.env.NODE_ENV === 'production') {
     return res.status(404).json({ error: 'Not found' });
@@ -651,7 +700,7 @@ const loginUser = (req, res) => {
         { expiresIn: '24h' }
       );
 
-      res.json({ token, user: { id: user.id, email: user.email, name: user.name, phone: user.phone, address: user.address, role: user.role } });
+      res.json({ token, user: formatUserForClient(user) });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -666,10 +715,11 @@ app.post('/api/auth/register', async (req, res) => {
     return res.status(400).json({ error: 'Email, password, and name are required' });
   }
   const hashedPassword = await bcrypt.hash(password, 10);
+  const safePhone = cleanPhone(phone);
   
   db.run(
     'INSERT INTO users (email, password, name, phone, address) VALUES (?, ?, ?, ?, ?)',
-    [email, hashedPassword, name, phone, address],
+    [email, hashedPassword, name, safePhone, address],
     function(err) {
       if (err) {
         if (err.message.includes('UNIQUE constraint failed')) {
@@ -691,10 +741,11 @@ app.post('/auth/register', async (req, res) => {
     return res.status(400).json({ error: 'Email, password, and name are required' });
   }
   const hashedPassword = await bcrypt.hash(password, 10);
+  const safePhone = cleanPhone(phone);
 
   db.run(
     'INSERT INTO users (email, password, name, phone, address) VALUES (?, ?, ?, ?, ?)',
-    [email, hashedPassword, name, phone, address],
+    [email, hashedPassword, name, safePhone, address],
     function(err) {
       if (err) {
         if (err.message.includes('UNIQUE constraint failed')) {
@@ -771,6 +822,21 @@ app.get('/api/products/:id', (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row) return res.status(404).json({ error: 'Product not found' });
     attachProductImages(row, res, true);
+  });
+});
+
+app.get('/api/serviceability', (req, res) => {
+  const check = checkServiceability({
+    address: req.query.address || '',
+    pincode: req.query.pincode || '',
+    lat: req.query.lat,
+    lng: req.query.lng
+  });
+  res.json({
+    ...check,
+    message: check.serviceable
+      ? 'Camigo delivery is available for this area.'
+      : 'Camigo delivery is available only for Bhubaneswar, Cuttack, Khordha, and Jatni service areas.'
   });
 });
 
@@ -922,7 +988,8 @@ app.post('/api/payments/razorpay/order', authenticateToken, async (req, res) => 
       notes: {
         customer_id: String(req.user.userId),
         payment_method: draft.paymentMethod,
-        installation_requested: draft.installationRequested ? '1' : '0'
+        installation_requested: draft.installationRequested ? '1' : '0',
+        service_area: 'verified'
       }
     });
     const orderId = await createLocalOrderRecord({
@@ -1094,7 +1161,7 @@ app.post('/api/orders/:id/cancel', authenticateToken, async (req, res) => {
 
 // Admin endpoints
 app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
-  db.all('SELECT id, email, name, phone, address, role, created_at FROM users', [], (err, rows) => {
+  db.all('SELECT id, email, name, phone, phone_verified, address, role, created_at FROM users', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
@@ -1330,9 +1397,11 @@ app.post('/api/admin/users', authenticateToken, requireAdmin, async (req, res) =
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
+  const safePhone = cleanPhone(phone);
+  const phoneVerified = safePhone && role !== 'user' ? 1 : 0;
   db.run(
-    'INSERT INTO users (email, password, plaintext_password, name, phone, address, role) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [email, hashedPassword, password, name, phone, address, role],
+    'INSERT INTO users (email, password, plaintext_password, name, phone, phone_verified, phone_verified_at, address, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [email, hashedPassword, password, name, safePhone, phoneVerified, phoneVerified ? new Date().toISOString() : null, address, role],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ id: this.lastID, email, password, role, message: 'Login created' });
@@ -1802,10 +1871,10 @@ app.get('/api/users/:id', authenticateToken, (req, res) => {
     return res.status(403).json({ error: 'Access denied' });
   }
 
-  db.get('SELECT id, email, name, phone, address, role FROM users WHERE id = ?', [req.params.id], (err, row) => {
+  db.get('SELECT id, email, name, phone, phone_verified, address, role FROM users WHERE id = ?', [req.params.id], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row) return res.status(404).json({ error: 'User not found' });
-    res.json(row);
+    res.json(formatUserForClient(row));
   });
 });
 

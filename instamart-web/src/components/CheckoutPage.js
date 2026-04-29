@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, CreditCard, MapPin, Smartphone, Wrench, XCircle } from 'lucide-react';
+import { CheckCircle2, CreditCard, MapPin, Search, Smartphone, Wrench, XCircle } from 'lucide-react';
 import { API_URL } from '../api';
 import { captureCustomerLocation, getSavedCustomerLocation } from '../locationLock';
-import { isLocalAddressText, isLocalServiceZone } from '../deliveryZone';
+import { checkServiceability, extractPincode } from '../deliveryZone';
 
 function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
   const [cartItems, setCartItems] = useState(() => {
@@ -16,7 +16,8 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
     }
   });
   const [address, setAddress] = useState(user?.address || '');
-  const [phone, setPhone] = useState(user?.phone || '');
+  const [pincode, setPincode] = useState(() => extractPincode(user?.address || ''));
+  const [phone, setPhone] = useState(user?.phone_verified ? user?.phone || '' : '');
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [installationRequested, setInstallationRequested] = useState(false);
   const [razorpayReady, setRazorpayReady] = useState(Boolean(window.Razorpay));
@@ -108,13 +109,35 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
   const subtotal = cartItems.reduce((s, i) => s + (Number(i.price) * Number(i.quantity || 1)), 0);
   const cameraCount = cartItems.reduce((sum, item) => (isCameraItem(item) ? sum + Number(item.quantity || 1) : sum), 0);
   const installationFee = installationRequested ? cameraCount * 500 : 0;
-  const gpsIsLocked = Boolean(coords?.lat && coords?.lng);
-  const gpsLocal = isLocalServiceZone(coords?.lat, coords?.lng);
-  const localAddress = gpsIsLocked ? gpsLocal : isLocalAddressText(address);
-  const deliveryEstimate = localAddress ? 'Today / same-day' : '2-4 days';
-  const deliveryFee = subtotal > 2000 ? 0 : localAddress ? 40 : 120;
+  const serviceability = checkServiceability({ address, pincode, lat: coords?.lat, lng: coords?.lng });
+  const localAddress = serviceability.serviceable;
+  const deliveryEstimate = localAddress ? 'Today / same-day' : 'Not serviceable';
+  const deliveryFee = localAddress ? (subtotal > 2000 ? 0 : 40) : 0;
   const gst = Math.round(subtotal * 0.18);
   const payable = subtotal + gst + deliveryFee + installationFee;
+  const canPay = Boolean(cartItems.length && localAddress && address.trim() && phone.trim() && razorpayReady);
+
+  const buildRazorpayDisplayConfig = () => ({
+    display: {
+      blocks: {
+        preferred: {
+          name: paymentMethod === 'upi' ? 'Pay with UPI app' : 'Pay by card',
+          instruments: [{ method: paymentMethod }]
+        }
+      },
+      sequence: ['block.preferred'],
+      preferences: {
+        show_default_blocks: false
+      }
+    }
+  });
+
+  const handleCheckPincode = () => {
+    const pin = pincode.trim() || extractPincode(address);
+    if (pin && pin !== pincode) setPincode(pin);
+    const check = checkServiceability({ address, pincode: pin, lat: coords?.lat, lng: coords?.lng });
+    setError(check.serviceable ? '' : 'This address is outside Camigo service area. Use a Bhubaneswar, Cuttack, Khordha, or Jatni delivery pincode.');
+  };
 
   const handlePlaceOrder = async () => {
     setError('');
@@ -133,12 +156,19 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
         setLockingLocation(false);
       }
       if (!customerCoords) { setError('Please allow location permission to lock your delivery point before checkout.'); setLoading(false); return; }
+      const deliveryCheck = checkServiceability({ address, pincode, lat: customerCoords?.lat, lng: customerCoords?.lng });
+      if (!deliveryCheck.serviceable) {
+        setError('This delivery point is outside Camigo service area. Enter a valid Bhubaneswar, Cuttack, Khordha, or Jatni pincode/address before payment.');
+        setLoading(false);
+        return;
+      }
       const res = await fetch(`${API_URL}/payments/razorpay/order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           items: cartItems.map(i => ({ product_id: i.product_id || i.id, quantity: i.quantity })),
           address,
+          pincode: deliveryCheck.detectedPincode,
           phone,
           payment_method: paymentMethod,
           installation_requested: installationRequested,
@@ -166,11 +196,13 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
           },
           notes: {
             local_order_id: String(data.local_order_id || ''),
-            payment_method: paymentMethod
+            payment_method: paymentMethod,
+            upi_app_redirect_ready: paymentMethod === 'upi' ? '1' : '0'
           },
           theme: {
             color: '#123c88'
           },
+          config: buildRazorpayDisplayConfig(),
           modal: {
             ondismiss: () => reject(new Error('Payment cancelled'))
           },
@@ -229,7 +261,10 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
             <div className="saved-address-list">
               <span>Choose saved address</span>
               {savedAddresses.map(saved => (
-                <button key={saved} type="button" className={address === saved ? 'active' : ''} onClick={() => setAddress(saved)}>
+                <button key={saved} type="button" className={address === saved ? 'active' : ''} onClick={() => {
+                  setAddress(saved);
+                  setPincode(extractPincode(saved));
+                }}>
                   {saved}
                 </button>
               ))}
@@ -252,6 +287,28 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
               setLockingLocation(false);
             }} disabled={lockingLocation}>{coords?.locked ? 'Re-lock GPS' : 'Lock GPS now'}</button>
           </div>
+          <div className="form-group">
+            <label>Pincode / service area</label>
+            <div className="pincode-search-row">
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength="6"
+                placeholder="751024 / 753001"
+                value={pincode}
+                onChange={e => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              />
+              <button type="button" onClick={handleCheckPincode}><Search size={16} /> Check</button>
+            </div>
+          </div>
+          <div className={localAddress ? 'serviceability-status ok' : 'serviceability-status blocked'}>
+            <strong>{localAddress ? 'Delivery area verified' : 'Address outside service area'}</strong>
+            <span>
+              {localAddress
+                ? `Accepting orders for ${serviceability.detectedPincode || 'your locked GPS area'} in the Camigo local corridor.`
+                : 'Orders can be placed only for Bhubaneswar, Cuttack, Khordha, and Jatni supported pincodes/GPS points.'}
+            </span>
+          </div>
         </section>
 
         <section className="checkout-card">
@@ -261,6 +318,11 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
             <button type="button" className={paymentMethod === 'card' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('card')}><CreditCard size={18} /> Card</button>
           </div>
           <p className="checkout-note">Cash on delivery is disabled. Camigo will now open real Razorpay checkout for the selected payment mode.</p>
+          {paymentMethod === 'upi' && (
+            <p className="checkout-note upi-app-note">
+              On mobile, Razorpay will show available UPI apps for app-to-app payment when supported by the device.
+            </p>
+          )}
         </section>
       </div>
 
@@ -279,7 +341,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
         <div className="summary-row"><span>Delivery</span><strong>{deliveryFee === 0 ? 'FREE' : `Rs ${deliveryFee}`}</strong></div>
         <div className="summary-row"><span>Installation</span><strong>{cameraCount > 0 ? (installationRequested ? `Rs ${installationFee}` : 'Not added') : 'No cameras'}</strong></div>
         <div className="summary-row"><span>Estimate</span><strong>{deliveryEstimate}</strong></div>
-        <div className="summary-row"><span>Delivery zone</span><strong>{localAddress ? 'Local GPS zone' : 'Courier zone'}</strong></div>
+        <div className="summary-row"><span>Delivery zone</span><strong>{localAddress ? 'Verified local zone' : 'Blocked'}</strong></div>
         <div className="summary-row"><span>GPS accuracy</span><strong>{coords?.accuracy ? `${Math.round(coords.accuracy)}m` : 'Not locked'}</strong></div>
         <div className="summary-total"><span>Payable</span><strong>Rs {payable}</strong></div>
         <div className="installation-choice-card">
@@ -321,8 +383,8 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
               : 'Installation becomes available when camera products are in the cart.'}
           </p>
         </div>
-        <button className="checkout-pay-btn" onClick={handlePlaceOrder} disabled={loading || cartItems.length === 0}>
-          {loading ? 'Opening Razorpay...' : razorpayReady ? `Pay Rs ${payable}` : 'Loading payment gateway...'}
+        <button className="checkout-pay-btn" onClick={handlePlaceOrder} disabled={loading || !canPay}>
+          {loading ? 'Opening Razorpay...' : !localAddress ? 'Enter serviceable address' : razorpayReady ? `Pay Rs ${payable}` : 'Loading payment gateway...'}
         </button>
       </aside>
     </main>

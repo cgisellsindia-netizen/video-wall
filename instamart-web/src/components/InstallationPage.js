@@ -5,7 +5,7 @@ import { Wrench, Calendar, Clock, MapPin, Phone, CheckCircle } from 'lucide-reac
 function InstallationPage({ user, onLogin }) {
   const [form, setForm] = useState({
     name: user?.name || '',
-    phone: user?.phone || '',
+    phone: user?.phone_verified ? user?.phone || '' : '',
     address: user?.address || '',
     date: '',
     time: '',

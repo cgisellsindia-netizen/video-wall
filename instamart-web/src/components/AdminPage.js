@@ -451,7 +451,19 @@ function AdminPage({ user }) {
             <div style={{ overflowX: 'auto' }}>
             <table className="admin-table">
               <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Created</th></tr></thead>
-              <tbody>{users.map(u => (<tr key={u.id}><td>{u.id}</td><td>{u.name}</td><td>{u.email}</td><td>{u.phone}</td><td><span className={`tag ${u.role === 'admin' ? 'tag-warning' : u.role === 'dealer' ? 'tag-info' : u.role === 'distributor' ? 'tag-success' : ''}`}>{u.role}</span></td><td>{new Date(u.created_at).toLocaleDateString()}</td></tr>))}</tbody>
+              <tbody>{users.map(u => {
+                const showPhone = u.phone && (u.phone_verified || ['admin', 'delivery_partner', 'installer'].includes(u.role));
+                return (
+                  <tr key={u.id}>
+                    <td>{u.id}</td>
+                    <td>{u.name}</td>
+                    <td>{u.email}</td>
+                    <td>{showPhone ? u.phone : <span className="tag">Not verified</span>}</td>
+                    <td><span className={`tag ${u.role === 'admin' ? 'tag-warning' : u.role === 'dealer' ? 'tag-info' : u.role === 'distributor' ? 'tag-success' : ''}`}>{u.role}</span></td>
+                    <td>{new Date(u.created_at).toLocaleDateString()}</td>
+                  </tr>
+                );
+              })}</tbody>
             </table>
             </div>
           </div>

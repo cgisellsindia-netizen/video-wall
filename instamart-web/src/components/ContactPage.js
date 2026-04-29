@@ -6,7 +6,7 @@ function ContactPage({ user }) {
   const [form, setForm] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    phone: user?.phone || '',
+    phone: user?.phone_verified ? user?.phone || '' : '',
     subject: 'bulk-order',
     message: ''
   });

@@ -1,9 +1,19 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const fs = require('fs');
 const bcrypt = require('bcryptjs');
 
-const dbPath = path.join(__dirname, 'instamart.db');
+const legacyDbPath = path.join(__dirname, 'instamart.db');
+const defaultDataDir = process.env.SQLITE_DATA_DIR
+  || process.env.RENDER_DISK_PATH
+  || (fs.existsSync('/var/data') ? '/var/data' : __dirname);
+fs.mkdirSync(defaultDataDir, { recursive: true });
+const dbPath = process.env.SQLITE_DB_PATH || path.join(defaultDataDir, 'instamart.db');
+if (dbPath !== legacyDbPath && !fs.existsSync(dbPath) && fs.existsSync(legacyDbPath)) {
+  fs.copyFileSync(legacyDbPath, dbPath);
+}
 const db = new sqlite3.Database(dbPath);
+console.log(`Camigo SQLite database: ${dbPath}`);
 
 const addColumn = (table, definition) => {
   db.run(`ALTER TABLE ${table} ADD COLUMN ${definition}`, [], () => {});
@@ -187,6 +197,8 @@ db.serialize(async () => {
   )`);
 
   addColumn('products', 'discount_percent REAL DEFAULT 0');
+  addColumn('users', 'phone_verified INTEGER DEFAULT 0');
+  addColumn('users', 'phone_verified_at TEXT');
   addColumn('products', 'dealer_price REAL');
   addColumn('products', 'distributor_price REAL');
   addColumn('products', 'warranty_years INTEGER DEFAULT 5');
@@ -238,6 +250,19 @@ db.serialize(async () => {
     (6, 'delivery@test.com', ?, 'password123', 'Delivery Partner', '9876543215', 'Bhubaneswar Delivery Hub', 'delivery_partner'),
     (7, 'installer@test.com', ?, 'password123', 'Installer Partner', '9876543216', 'Bhubaneswar Service Hub', 'installer')`,
     [hashedPassword, adminPassword, hashedPassword, hashedPassword, hashedPassword, hashedPassword, hashedPassword]);
+
+  db.run(`UPDATE users
+          SET phone = '', phone_verified = 0, phone_verified_at = NULL
+          WHERE email IN (
+            'user@test.com',
+            'admin@instamart.com',
+            'victim@test.com',
+            'dealer@test.com',
+            'distributor@test.com',
+            'delivery@test.com',
+            'installer@test.com'
+          )
+          AND phone LIKE '987654321%'`);
 
   db.run(`INSERT OR IGNORE INTO hubs (id, name, address, lat, lng, map_url, active) VALUES
     (1, 'First Hub - CGI CCTV CAMERA INDIA H.O', 'CGI CCTV CAMERA INDIA H.O, Bhubaneswar, Odisha', 20.34986, 85.82418, 'https://share.google/UtXmTRALSt0cZk0gZ', 1)`);
