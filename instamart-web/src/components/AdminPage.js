@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Shield, Users, ShoppingBag, Package, Plus, Trash2, Edit, MapPin, Truck, Sparkles } from 'lucide-react';
+import { Bell, Shield, Users, ShoppingBag, Package, Plus, Trash2, Edit, MapPin, Truck, Sparkles, FolderOpen, Image as ImageIcon, ArrowUp } from 'lucide-react';
 import { API_URL } from '../api';
 
 function AdminPage({ user }) {
@@ -36,6 +36,7 @@ function AdminPage({ user }) {
   const [lastAiBanners, setLastAiBanners] = useState([]);
   const [mediaManifestUrl, setMediaManifestUrl] = useState('');
   const [mediaManifestBusy, setMediaManifestBusy] = useState(false);
+  const [mediaBrowser, setMediaBrowser] = useState({ open: false, mode: 'cover', dir: '/', busy: false, data: null });
 
   useEffect(() => { if (!user) { navigate('/'); return; } fetchData(); }, [user]);
 
@@ -273,6 +274,42 @@ function AdminPage({ user }) {
       const nextImages = [...(prev.images || [])].filter((_, itemIndex) => itemIndex !== index);
       return { ...prev, image: nextImages[0] || '', images: nextImages.length ? nextImages : [''] };
     });
+  };
+
+  const loadMediaLibrary = async (dir = '/', mode = mediaBrowser.mode || 'cover') => {
+    const token = localStorage.getItem('token');
+    setMediaBrowser(prev => ({ ...prev, open: true, mode, dir, busy: true }));
+    try {
+      const res = await fetch(`${API_URL}/admin/media/library?dir=${encodeURIComponent(dir)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not browse InfinityFree images.');
+      setMediaBrowser(prev => ({ ...prev, open: true, mode, dir: data.dir || dir, data, busy: false }));
+    } catch (error) {
+      setMediaBrowser(prev => ({ ...prev, open: true, mode, dir, busy: false, data: null }));
+      setMessage(error.message);
+    }
+  };
+
+  const openMediaBrowser = (mode = 'cover') => {
+    loadMediaLibrary(mediaBrowser.dir || '/', mode);
+  };
+
+  const chooseInfinityImage = (url) => {
+    const imageUrl = String(url || '').trim();
+    if (!imageUrl) return;
+    setForm(prev => {
+      const nextImages = [...(prev.images || [])].filter(Boolean);
+      if (mediaBrowser.mode === 'cover') {
+        if (nextImages.length) nextImages[0] = imageUrl;
+        else nextImages.push(imageUrl);
+      } else if (!nextImages.includes(imageUrl)) {
+        nextImages.push(imageUrl);
+      }
+      return { ...prev, image: nextImages[0] || imageUrl, images: nextImages };
+    });
+    setMessage(mediaBrowser.mode === 'cover' ? 'InfinityFree image selected as product cover.' : 'InfinityFree image added to product gallery.');
   };
 
   const handleSendNotification = async (e) => {
@@ -850,6 +887,65 @@ function AdminPage({ user }) {
                 <div className="form-group"><label>Cover Image Path / URL</label><input value={form.image} onChange={e => updateGalleryImage(0, e.target.value)} required /></div>
                 <div className="form-group"><label>Browse Cover Photo</label><input type="file" accept="image/*" onChange={e => handleCoverImageFile(e.target.files?.[0])} /></div>
                 <div className="form-group"><label>Browse Product Photos</label><input type="file" accept="image/*" multiple onChange={e => handleMultiImageFiles(e.target.files)} /></div>
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label>InfinityFree image library</label>
+                  <div className="infinity-picker-actions">
+                    <button type="button" className="btn btn-outline btn-sm" onClick={() => openMediaBrowser('cover')}>
+                      <ImageIcon size={15} /> Browse for cover
+                    </button>
+                    <button type="button" className="btn btn-outline btn-sm" onClick={() => openMediaBrowser('gallery')}>
+                      <Plus size={15} /> Add gallery image
+                    </button>
+                    <span>Shows images from your InfinityFree FTP so product photos stay permanent after Render redeploy.</span>
+                  </div>
+                </div>
+                {mediaBrowser.open && (
+                  <div className="infinity-media-browser">
+                    <div className="infinity-media-head">
+                      <div>
+                        <strong>{mediaBrowser.mode === 'cover' ? 'Select product cover' : 'Select gallery image'}</strong>
+                        <span>{mediaBrowser.data?.public_base || 'InfinityFree'}{mediaBrowser.data?.dir || mediaBrowser.dir}</span>
+                      </div>
+                      <div className="infinity-media-tools">
+                        {mediaBrowser.data?.parent && (
+                          <button type="button" className="btn btn-sm btn-outline" onClick={() => loadMediaLibrary(mediaBrowser.data.parent, mediaBrowser.mode)}>
+                            <ArrowUp size={14} /> Up
+                          </button>
+                        )}
+                        <button type="button" className="btn btn-sm btn-outline" onClick={() => loadMediaLibrary(mediaBrowser.dir, mediaBrowser.mode)} disabled={mediaBrowser.busy}>
+                          Refresh
+                        </button>
+                        <button type="button" className="btn btn-sm" onClick={() => setMediaBrowser(prev => ({ ...prev, open: false }))}>
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                    {mediaBrowser.busy && <div className="infinity-media-empty">Loading InfinityFree images...</div>}
+                    {!mediaBrowser.busy && mediaBrowser.data?.directories?.length > 0 && (
+                      <div className="infinity-folder-row">
+                        {mediaBrowser.data.directories.map(folder => (
+                          <button type="button" key={folder.dir} onClick={() => loadMediaLibrary(folder.dir, mediaBrowser.mode)}>
+                            <FolderOpen size={16} /> {folder.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {!mediaBrowser.busy && mediaBrowser.data?.images?.length > 0 && (
+                      <div className="infinity-image-grid">
+                        {mediaBrowser.data.images.map(image => (
+                          <button type="button" key={image.url} className="infinity-image-card" onClick={() => chooseInfinityImage(image.url)}>
+                            <img src={image.url} alt={image.name} loading="lazy" />
+                            <span>{image.name}</span>
+                            <small>{mediaBrowser.mode === 'cover' ? 'Use as cover' : 'Add to gallery'}</small>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {!mediaBrowser.busy && mediaBrowser.data && !mediaBrowser.data.images?.length && !mediaBrowser.data.directories?.length && (
+                      <div className="infinity-media-empty">No image files found in this folder. Upload JPG, PNG, WEBP, GIF, AVIF, or SVG files to InfinityFree first.</div>
+                    )}
+                  </div>
+                )}
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <label>Gallery Images</label>
                   <div className="admin-gallery-list">

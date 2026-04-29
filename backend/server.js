@@ -76,6 +76,16 @@ const MEDIA_MANIFEST_FTP_PATH = process.env.MEDIA_MANIFEST_FTP_PATH || '/htdocs/
 const MEDIA_MANIFEST_FTP_SECURE = String(process.env.MEDIA_MANIFEST_FTP_SECURE || '').toLowerCase() === 'true';
 const MEDIA_MANIFEST_FTP_PORT = Number(process.env.MEDIA_MANIFEST_FTP_PORT || 21);
 const hasCatalogFtpConfig = Boolean(MEDIA_MANIFEST_FTP_HOST && MEDIA_MANIFEST_FTP_USER && MEDIA_MANIFEST_FTP_PASSWORD);
+const mediaManifestPublicOrigin = (() => {
+  try {
+    return MEDIA_MANIFEST_URL ? new URL(MEDIA_MANIFEST_URL).origin : '';
+  } catch (error) {
+    return '';
+  }
+})();
+const MEDIA_LIBRARY_FTP_DIR = process.env.MEDIA_LIBRARY_FTP_DIR || '/htdocs';
+const MEDIA_LIBRARY_PUBLIC_BASE = (process.env.MEDIA_LIBRARY_PUBLIC_BASE || mediaManifestPublicOrigin || '').replace(/\/+$/, '');
+const mediaLibraryImageExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.svg']);
 const firebaseServiceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 const firebaseServiceAccountCandidates = [
   process.env.FIREBASE_SERVICE_ACCOUNT,
@@ -424,18 +434,54 @@ const restoreMediaManifestFromUrl = async (url, source = 'MEDIA_MANIFEST_URL') =
   return applyMediaManifest(manifest, source);
 };
 
-const uploadCatalogBackupToFtp = async (reason = 'catalog-change') => {
-  if (!hasCatalogFtpConfig) return { skipped: true };
+const createCatalogFtpClient = async () => {
+  if (!hasCatalogFtpConfig) {
+    throw new Error('InfinityFree FTP is not configured. Add MEDIA_MANIFEST_FTP_HOST, MEDIA_MANIFEST_FTP_USER, and MEDIA_MANIFEST_FTP_PASSWORD in Render Environment.');
+  }
   const client = new ftp.Client(15000);
   client.ftp.verbose = false;
+  await client.access({
+    host: MEDIA_MANIFEST_FTP_HOST,
+    port: Number.isFinite(MEDIA_MANIFEST_FTP_PORT) ? MEDIA_MANIFEST_FTP_PORT : 21,
+    user: MEDIA_MANIFEST_FTP_USER,
+    password: MEDIA_MANIFEST_FTP_PASSWORD,
+    secure: MEDIA_MANIFEST_FTP_SECURE
+  });
+  return client;
+};
+
+const normalizeMediaLibraryDir = (value = '/') => {
+  const parts = String(value || '/')
+    .replaceAll('\\', '/')
+    .split('/')
+    .filter(Boolean);
+  if (parts.some(part => part === '..' || part.includes('\0'))) return '/';
+  const safeParts = parts.filter(part => part !== '.');
+  return safeParts.length ? `/${safeParts.join('/')}` : '/';
+};
+
+const normalizeMediaLibraryBaseDir = () => {
+  const raw = String(MEDIA_LIBRARY_FTP_DIR || '/htdocs').replaceAll('\\', '/');
+  const prefixed = raw.startsWith('/') ? raw : `/${raw}`;
+  return path.posix.normalize(prefixed);
+};
+
+const mediaLibraryRemoteDir = (dir = '/') => path.posix.join(
+  normalizeMediaLibraryBaseDir(),
+  normalizeMediaLibraryDir(dir)
+);
+
+const mediaLibraryPublicUrl = (dir, filename) => {
+  const cleanDir = normalizeMediaLibraryDir(dir).replace(/^\/+|\/+$/g, '');
+  const parts = cleanDir ? cleanDir.split('/').filter(Boolean) : [];
+  const encodedPath = [...parts, filename].map(part => encodeURIComponent(part)).join('/');
+  return `${MEDIA_LIBRARY_PUBLIC_BASE}/${encodedPath}`;
+};
+
+const uploadCatalogBackupToFtp = async (reason = 'catalog-change') => {
+  if (!hasCatalogFtpConfig) return { skipped: true };
+  const client = await createCatalogFtpClient();
   try {
-    await client.access({
-      host: MEDIA_MANIFEST_FTP_HOST,
-      port: Number.isFinite(MEDIA_MANIFEST_FTP_PORT) ? MEDIA_MANIFEST_FTP_PORT : 21,
-      user: MEDIA_MANIFEST_FTP_USER,
-      password: MEDIA_MANIFEST_FTP_PASSWORD,
-      secure: MEDIA_MANIFEST_FTP_SECURE
-    });
     const manifest = await buildMediaManifest();
     const payload = JSON.stringify({
       ...manifest,
@@ -1974,6 +2020,53 @@ app.post('/api/admin/media/manifest/sync', authenticateToken, requireAdmin, asyn
     res.json({ ...result, message: 'Catalog JSON pushed to InfinityFree FTP.' });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/admin/media/library', authenticateToken, requireAdmin, async (req, res) => {
+  if (!MEDIA_LIBRARY_PUBLIC_BASE) {
+    return res.status(400).json({
+      error: 'InfinityFree public image URL is not configured. Add MEDIA_LIBRARY_PUBLIC_BASE in Render Environment, for example https://your-domain.ct.ws.'
+    });
+  }
+
+  let client;
+  try {
+    const dir = normalizeMediaLibraryDir(req.query.dir || '/');
+    const remoteDir = mediaLibraryRemoteDir(dir);
+    client = await createCatalogFtpClient();
+    await client.cd(remoteDir);
+    const entries = await client.list();
+    const visibleEntries = entries.filter(entry => !String(entry.name || '').startsWith('.'));
+    const directories = visibleEntries
+      .filter(entry => entry.isDirectory)
+      .map(entry => ({
+        name: entry.name,
+        dir: normalizeMediaLibraryDir(`${dir}/${entry.name}`)
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const images = visibleEntries
+      .filter(entry => entry.isFile && mediaLibraryImageExtensions.has(path.posix.extname(entry.name || '').toLowerCase()))
+      .map(entry => ({
+        name: entry.name,
+        url: mediaLibraryPublicUrl(dir, entry.name),
+        size: entry.size || 0,
+        modified_at: entry.modifiedAt ? entry.modifiedAt.toISOString() : entry.rawModifiedAt || null
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json({
+      dir,
+      parent: dir === '/' ? null : normalizeMediaLibraryDir(dir.split('/').slice(0, -1).join('/')),
+      remote_dir: remoteDir,
+      public_base: MEDIA_LIBRARY_PUBLIC_BASE,
+      directories,
+      images
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Could not browse InfinityFree media library.' });
+  } finally {
+    if (client) client.close();
   }
 });
 
