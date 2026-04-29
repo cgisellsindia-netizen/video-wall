@@ -66,6 +66,7 @@ const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || '';
 const hasRazorpayConfig = Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET);
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_BANNER_MODEL = process.env.OPENAI_BANNER_MODEL || 'gpt-4o-mini';
+const MEDIA_MANIFEST_URL = process.env.MEDIA_MANIFEST_URL || '';
 const firebaseServiceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 const firebaseServiceAccountCandidates = [
   process.env.FIREBASE_SERVICE_ACCOUNT,
@@ -163,6 +164,138 @@ const dbRunAsync = (query, params = []) => new Promise((resolve, reject) => {
     resolve({ lastID: this.lastID, changes: this.changes });
   });
 });
+
+const normalizeImageList = (value) => {
+  const list = Array.isArray(value) ? value : [value];
+  return list
+    .map(item => String(item || '').trim())
+    .filter(Boolean);
+};
+
+const findProductForManifest = async (entry) => {
+  const productId = Number(entry.id || entry.product_id);
+  if (Number.isInteger(productId) && productId > 0) {
+    const byId = await dbGetAsync('SELECT id FROM products WHERE id = ?', [productId]);
+    if (byId) return byId;
+  }
+  const name = String(entry.name || '').trim();
+  if (!name) return null;
+  return dbGetAsync('SELECT id FROM products WHERE lower(name) = lower(?)', [name]);
+};
+
+const findCategoryIdForManifest = async (entry) => {
+  if (String(entry.category_id) === '0' || String(entry.category_name || '').toLowerCase() === 'shop by category') return 0;
+  const categoryId = Number(entry.category_id);
+  if (Number.isInteger(categoryId) && categoryId > 0) {
+    const byId = await dbGetAsync('SELECT id FROM categories WHERE id = ?', [categoryId]);
+    if (byId) return byId.id;
+  }
+  const name = String(entry.category_name || entry.category || '').trim();
+  if (!name) return 0;
+  const byName = await dbGetAsync('SELECT id FROM categories WHERE lower(name) = lower(?)', [name]);
+  return byName?.id || 0;
+};
+
+const buildMediaManifest = async () => {
+  const products = await dbAllAsync('SELECT id, name, image FROM products ORDER BY id ASC');
+  const productImages = await dbAllAsync('SELECT product_id, image_url, sort_order FROM product_images ORDER BY product_id ASC, sort_order ASC, id ASC');
+  const groupedImages = productImages.reduce((map, row) => {
+    map[row.product_id] = map[row.product_id] || [];
+    map[row.product_id].push(row.image_url);
+    return map;
+  }, {});
+  const banners = await dbAllAsync(
+    `SELECT cb.*, COALESCE(c.name, 'Shop by Category') as category_name
+     FROM category_banners cb
+     LEFT JOIN categories c ON cb.category_id = c.id
+     ORDER BY cb.category_id ASC, cb.sort_order ASC, cb.id ASC`
+  );
+  return {
+    version: 1,
+    generated_at: new Date().toISOString(),
+    note: 'Camigo media manifest. Host this JSON on InfinityFree or any public URL and set MEDIA_MANIFEST_URL on Render to restore media after restarts.',
+    products: products.map(product => {
+      const images = groupedImages[product.id]?.length ? groupedImages[product.id] : normalizeImageList(product.image);
+      return {
+        id: product.id,
+        name: product.name,
+        image: images[0] || '',
+        images
+      };
+    }),
+    category_banners: banners.map(banner => ({
+      id: banner.id,
+      category_id: Number(banner.category_id || 0),
+      category_name: banner.category_name,
+      image_url: banner.image_url,
+      width: Number(banner.width || 1200),
+      height: Number(banner.height || 320),
+      sort_order: Number(banner.sort_order || 0),
+      active: Number(banner.active || 0) === 1
+    }))
+  };
+};
+
+const applyMediaManifest = async (manifest, source = 'manual') => {
+  if (!manifest || typeof manifest !== 'object') throw new Error('Media manifest must be a JSON object');
+  const products = Array.isArray(manifest.products) ? manifest.products : [];
+  const banners = Array.isArray(manifest.category_banners)
+    ? manifest.category_banners
+    : (Array.isArray(manifest.banners) ? manifest.banners : []);
+  let productCount = 0;
+  let bannerCount = 0;
+
+  for (const entry of products) {
+    const product = await findProductForManifest(entry);
+    if (!product) continue;
+    const images = normalizeImageList(entry.images?.length ? entry.images : [entry.image, entry.image_url]);
+    if (!images.length) continue;
+    await dbRunAsync('UPDATE products SET image = ? WHERE id = ?', [images[0], product.id]);
+    await dbRunAsync('DELETE FROM product_images WHERE product_id = ?', [product.id]);
+    for (const [index, imageUrl] of images.entries()) {
+      await dbRunAsync('INSERT INTO product_images (product_id, image_url, sort_order) VALUES (?, ?, ?)', [product.id, imageUrl, index]);
+    }
+    productCount += 1;
+  }
+
+  if (banners.length) {
+    await dbRunAsync('DELETE FROM category_banners');
+    for (const entry of banners) {
+      const imageUrl = String(entry.image_url || entry.image || '').trim();
+      if (!imageUrl) continue;
+      const categoryId = await findCategoryIdForManifest(entry);
+      await dbRunAsync(
+        `INSERT INTO category_banners (category_id, image_url, width, height, sort_order, active)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          categoryId,
+          imageUrl,
+          Math.max(320, Number(entry.width) || 1200),
+          Math.max(120, Number(entry.height) || 320),
+          Number(entry.sort_order || 0),
+          entry.active === false || String(entry.active) === '0' ? 0 : 1
+        ]
+      );
+      bannerCount += 1;
+    }
+  }
+
+  await dbRunAsync(
+    `INSERT OR REPLACE INTO app_settings (setting_key, value, updated_at)
+     VALUES (?, ?, CURRENT_TIMESTAMP)`,
+    ['last_media_manifest_restore', JSON.stringify({ source, productCount, bannerCount, at: new Date().toISOString() })]
+  );
+  return { productCount, bannerCount };
+};
+
+const restoreMediaManifestFromUrl = async (url, source = 'MEDIA_MANIFEST_URL') => {
+  const manifestUrl = String(url || '').trim();
+  if (!manifestUrl) throw new Error('Manifest URL is required');
+  const response = await fetch(manifestUrl, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`Media manifest download failed (${response.status})`);
+  const manifest = await response.json();
+  return applyMediaManifest(manifest, source);
+};
 
 const createOrderItemsAsync = (orderId, items, prices, warrantyYears) => new Promise((resolve, reject) => {
   const warrantyStartAt = new Date();
@@ -1634,6 +1767,27 @@ app.delete('/api/admin/category-banners/:id', authenticateToken, requireAdmin, (
   });
 });
 
+app.get('/api/admin/media/manifest', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const manifest = await buildMediaManifest();
+    res.setHeader('Content-Disposition', 'attachment; filename="camigo-media-manifest.json"');
+    res.json(manifest);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/media/manifest/import', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const result = req.body?.manifest_url
+      ? await restoreMediaManifestFromUrl(req.body.manifest_url, 'admin-url-import')
+      : await applyMediaManifest(req.body?.manifest || req.body, 'admin-json-import');
+    res.json({ ...result, message: `Media restored: ${result.productCount} products and ${result.bannerCount} banners.` });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 app.post('/api/admin/orders/:id/cancel', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const order = await dbGetAsync('SELECT * FROM orders WHERE id = ?', [req.params.id]);
@@ -1954,4 +2108,14 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Instamart Clone API running on http://localhost:${PORT}`);
   console.log('Security hardening enabled for auth, orders, admin routes, and product search.');
+  if (MEDIA_MANIFEST_URL) {
+    setTimeout(async () => {
+      try {
+        const result = await restoreMediaManifestFromUrl(MEDIA_MANIFEST_URL, 'startup-url-import');
+        console.log(`Media manifest restored from MEDIA_MANIFEST_URL: ${result.productCount} products, ${result.bannerCount} banners`);
+      } catch (error) {
+        console.warn(`Media manifest restore skipped: ${error.message}`);
+      }
+    }, 3000);
+  }
 });

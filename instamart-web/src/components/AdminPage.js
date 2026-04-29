@@ -34,6 +34,8 @@ function AdminPage({ user }) {
   const [aiBannerForm, setAiBannerForm] = useState({ category_id: '0', prompt: '', width: '1200', height: '320', theme: 'blue', sort_order: '0', active: true });
   const [aiBannerLoading, setAiBannerLoading] = useState(false);
   const [lastAiBanners, setLastAiBanners] = useState([]);
+  const [mediaManifestUrl, setMediaManifestUrl] = useState('');
+  const [mediaManifestBusy, setMediaManifestBusy] = useState(false);
 
   useEffect(() => { if (!user) { navigate('/'); return; } fetchData(); }, [user]);
 
@@ -381,6 +383,76 @@ function AdminPage({ user }) {
     }
   };
 
+  const downloadMediaManifest = async () => {
+    const token = localStorage.getItem('token');
+    setMediaManifestBusy(true);
+    setMessage('Preparing media backup JSON...');
+    try {
+      const res = await fetch(`${API_URL}/admin/media/manifest`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not export media backup.');
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'camigo-media-manifest.json';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setMessage('Media backup downloaded. Upload this JSON to InfinityFree and set its public URL as MEDIA_MANIFEST_URL on Render.');
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setMediaManifestBusy(false);
+    }
+  };
+
+  const importMediaManifest = async (payload) => {
+    const token = localStorage.getItem('token');
+    setMediaManifestBusy(true);
+    setMessage('Restoring media links...');
+    try {
+      const res = await fetch(`${API_URL}/admin/media/manifest/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Media restore failed.');
+      setMessage(data.message || 'Media restored.');
+      fetchData();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setMediaManifestBusy(false);
+    }
+  };
+
+  const handleMediaManifestFile = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        importMediaManifest({ manifest: JSON.parse(reader.result) });
+      } catch (error) {
+        setMessage('That JSON file could not be read. Please upload a valid camigo-media-manifest.json file.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleRestoreMediaManifestUrl = () => {
+    const url = mediaManifestUrl.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      setMessage('Paste a full public JSON URL starting with http:// or https://.');
+      return;
+    }
+    importMediaManifest({ manifest_url: url });
+  };
+
   const handleCreateUser = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
@@ -600,6 +672,29 @@ function AdminPage({ user }) {
 
       {activeTab === 'banners' && (
         <div>
+          <div className="card" style={{ marginBottom: '18px', border: '1px solid rgba(11, 100, 255, .18)', background: '#f8fbff' }}>
+            <h3 style={{ marginTop: 0 }}>Media backup for Render free</h3>
+            <p className="checkout-note" style={{ marginTop: 0 }}>
+              Render free can reset SQLite data. After you finish product photos and banners, download this JSON, upload it to InfinityFree, then set the public JSON link as <strong>MEDIA_MANIFEST_URL</strong> in Render Environment.
+            </p>
+            <div className="admin-product-form">
+              <button type="button" className="btn btn-primary" onClick={downloadMediaManifest} disabled={mediaManifestBusy}>
+                Download current product photos + banners JSON
+              </button>
+              <div className="form-group">
+                <label>Restore from JSON file</label>
+                <input type="file" accept=".json,application/json" onChange={e => handleMediaManifestFile(e.target.files?.[0])} disabled={mediaManifestBusy} />
+              </div>
+              <div className="form-group">
+                <label>Restore from public JSON URL</label>
+                <input value={mediaManifestUrl} onChange={e => setMediaManifestUrl(e.target.value)} placeholder="https://your-host/camigo-media-manifest.json" />
+              </div>
+              <button type="button" className="btn btn-outline" onClick={handleRestoreMediaManifestUrl} disabled={mediaManifestBusy}>
+                Restore from URL now
+              </button>
+            </div>
+          </div>
+
           <div className="card" style={{ marginBottom: '18px', border: '1px solid rgba(11, 100, 255, .18)', background: 'linear-gradient(135deg, #eef6ff, #fff9df)' }}>
             <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}><Sparkles size={18} /> AI banner generator</h3>
             <p className="checkout-note" style={{ marginTop: 0 }}>
