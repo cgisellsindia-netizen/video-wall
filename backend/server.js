@@ -86,6 +86,21 @@ const mediaManifestPublicOrigin = (() => {
 const MEDIA_LIBRARY_FTP_DIR = process.env.MEDIA_LIBRARY_FTP_DIR || '/htdocs';
 const MEDIA_LIBRARY_PUBLIC_BASE = (process.env.MEDIA_LIBRARY_PUBLIC_BASE || mediaManifestPublicOrigin || '').replace(/\/+$/, '');
 const mediaLibraryImageExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.svg']);
+const mediaManifestPublicPathFromFtp = () => {
+  const baseDir = path.posix.normalize(`/${String(MEDIA_LIBRARY_FTP_DIR || '/htdocs').replaceAll('\\', '/').replace(/^\/+/, '')}`);
+  const ftpPath = path.posix.normalize(`/${String(MEDIA_MANIFEST_FTP_PATH || '/htdocs/camigo-catalog-backup.json').replaceAll('\\', '/').replace(/^\/+/, '')}`);
+  const relativePath = ftpPath.startsWith(`${baseDir}/`) ? ftpPath.slice(baseDir.length) : `/${path.posix.basename(ftpPath)}`;
+  return relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
+};
+const MEDIA_MANIFEST_EXPECTED_URL = MEDIA_LIBRARY_PUBLIC_BASE
+  ? `${MEDIA_LIBRARY_PUBLIC_BASE}${mediaManifestPublicPathFromFtp()}`
+  : '';
+const normalizePublicUrl = (value = '') => String(value || '').trim().replace(/\/+$/, '');
+const catalogRestoreUrlWarning = () => {
+  if (!MEDIA_MANIFEST_URL || !MEDIA_MANIFEST_EXPECTED_URL) return '';
+  if (normalizePublicUrl(MEDIA_MANIFEST_URL) === normalizePublicUrl(MEDIA_MANIFEST_EXPECTED_URL)) return '';
+  return `MEDIA_MANIFEST_URL points to a different JSON file than the FTP backup. Set MEDIA_MANIFEST_URL to ${MEDIA_MANIFEST_EXPECTED_URL}.`;
+};
 const firebaseServiceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 const firebaseServiceAccountCandidates = [
   process.env.FIREBASE_SERVICE_ACCOUNT,
@@ -521,7 +536,8 @@ const syncCatalogBackupForResponse = async (reason = 'catalog-change') => {
   }
   try {
     const result = await uploadCatalogBackupToFtp(reason);
-    return { ...result, ok: true };
+    const warning = catalogRestoreUrlWarning();
+    return { ...result, ok: true, warning: warning || undefined };
   } catch (error) {
     console.warn(`Catalog backup FTP sync failed: ${error.message}`);
     return {
@@ -2438,13 +2454,22 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Instamart Clone API running on http://localhost:${PORT}`);
   console.log('Security hardening enabled for auth, orders, admin routes, and product search.');
-  if (MEDIA_MANIFEST_URL) {
+  const restoreCandidates = [
+    MEDIA_MANIFEST_EXPECTED_URL,
+    MEDIA_MANIFEST_URL
+  ].filter(Boolean).filter((url, index, list) => list.findIndex(item => normalizePublicUrl(item) === normalizePublicUrl(url)) === index);
+  const restoreConfigWarning = catalogRestoreUrlWarning();
+  if (restoreConfigWarning) console.warn(restoreConfigWarning);
+  if (restoreCandidates.length) {
     setTimeout(async () => {
-      try {
-        const result = await restoreMediaManifestFromUrl(MEDIA_MANIFEST_URL, 'startup-url-import');
-        console.log(`Catalog manifest restored from MEDIA_MANIFEST_URL: ${result.productCount} products, ${result.bannerCount} banners`);
-      } catch (error) {
-        console.warn(`Media manifest restore skipped: ${error.message}`);
+      for (const restoreUrl of restoreCandidates) {
+        try {
+          const result = await restoreMediaManifestFromUrl(restoreUrl, 'startup-url-import');
+          console.log(`Catalog manifest restored from ${restoreUrl}: ${result.productCount} products, ${result.bannerCount} banners`);
+          return;
+        } catch (error) {
+          console.warn(`Media manifest restore skipped for ${restoreUrl}: ${error.message}`);
+        }
       }
     }, 3000);
   }
