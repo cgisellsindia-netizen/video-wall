@@ -40,6 +40,8 @@ function AdminPage({ user }) {
 
   useEffect(() => { if (!user) { navigate('/'); return; } fetchData(); }, [user]);
 
+  const catalogBackupNotice = (data) => data?.catalog_warning ? ` ${data.catalog_warning}` : '';
+
   const fetchData = async () => {
     const token = localStorage.getItem('token');
     try {
@@ -126,7 +128,8 @@ function AdminPage({ user }) {
     if (!window.confirm('Delete this product?')) return;
     const token = localStorage.getItem('token');
     const res = await fetch(`${API_URL}/admin/products/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-    setMessage(res.ok ? 'Product deleted.' : 'Delete failed. Make sure you are logged in as admin.');
+    const data = await res.json().catch(() => ({}));
+    setMessage(res.ok ? `Product deleted.${catalogBackupNotice(data)}` : (data.error || 'Delete failed. Make sure you are logged in as admin.'));
     fetchData();
   };
 
@@ -167,7 +170,7 @@ function AdminPage({ user }) {
       setMessage('Admin session expired or invalid. Logout, login again as admin@instamart.com, then save.');
       return;
     }
-    setMessage(res.ok ? (editProduct ? 'Product updated.' : 'Product created.') : (data.error || 'Save failed. Check required fields.'));
+    setMessage(res.ok ? `${editProduct ? 'Product updated.' : 'Product created.'}${catalogBackupNotice(data)}` : (data.error || 'Save failed. Check required fields.'));
     if (res.ok) {
       setShowForm(false); setEditProduct(null); setForm(emptyProduct); fetchData();
     }
@@ -357,7 +360,7 @@ function AdminPage({ user }) {
       body: JSON.stringify(body)
     });
     const data = await res.json().catch(() => ({}));
-    setMessage(res.ok ? (editBanner ? 'Category banner updated.' : 'Category banner added.') : (data.error || 'Banner save failed.'));
+    setMessage(res.ok ? `${editBanner ? 'Category banner updated.' : 'Category banner added.'}${catalogBackupNotice(data)}` : (data.error || 'Banner save failed.'));
     if (res.ok) {
       setBannerForm(emptyBanner);
       setEditBanner(null);
@@ -386,7 +389,7 @@ function AdminPage({ user }) {
       headers: { Authorization: `Bearer ${token}` }
     });
     const data = await res.json().catch(() => ({}));
-    setMessage(res.ok ? 'Category banner deleted.' : (data.error || 'Banner delete failed.'));
+    setMessage(res.ok ? `Category banner deleted.${catalogBackupNotice(data)}` : (data.error || 'Banner delete failed.'));
     if (res.ok) fetchData();
   };
 

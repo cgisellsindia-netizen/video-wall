@@ -512,6 +512,25 @@ const queueCatalogBackupSync = (reason = 'catalog-change') => {
   }, 2500);
 };
 
+const syncCatalogBackupForResponse = async (reason = 'catalog-change') => {
+  if (!hasCatalogFtpConfig) {
+    return {
+      skipped: true,
+      warning: 'Saved on Render only. InfinityFree catalog backup is not configured, so product details can reset after redeploy.'
+    };
+  }
+  try {
+    const result = await uploadCatalogBackupToFtp(reason);
+    return { ...result, ok: true };
+  } catch (error) {
+    console.warn(`Catalog backup FTP sync failed: ${error.message}`);
+    return {
+      failed: true,
+      warning: `Saved on Render, but InfinityFree catalog backup failed: ${error.message}`
+    };
+  }
+};
+
 const createOrderItemsAsync = (orderId, items, prices, warrantyYears) => new Promise((resolve, reject) => {
   const warrantyStartAt = new Date();
   const stmt = db.prepare(
@@ -1945,10 +1964,15 @@ app.post('/api/admin/category-banners', authenticateToken, requireAdmin, (req, r
       Number(sort_order) || 0,
       active ? 1 : 0
     ],
-    function(err) {
+    async function(err) {
       if (err) return res.status(500).json({ error: err.message });
-      queueCatalogBackupSync('banner-created');
-      res.json({ id: this.lastID, message: 'Category banner added' });
+      const catalogBackup = await syncCatalogBackupForResponse('banner-created');
+      res.json({
+        id: this.lastID,
+        message: 'Category banner added',
+        catalog_backup: catalogBackup,
+        catalog_warning: catalogBackup.warning
+      });
     }
   );
 });
@@ -1971,19 +1995,27 @@ app.put('/api/admin/category-banners/:id', authenticateToken, requireAdmin, (req
       active ? 1 : 0,
       req.params.id
     ],
-    function(err) {
+    async function(err) {
       if (err) return res.status(500).json({ error: err.message });
-      queueCatalogBackupSync('banner-updated');
-      res.json({ message: 'Category banner updated' });
+      const catalogBackup = await syncCatalogBackupForResponse('banner-updated');
+      res.json({
+        message: 'Category banner updated',
+        catalog_backup: catalogBackup,
+        catalog_warning: catalogBackup.warning
+      });
     }
   );
 });
 
 app.delete('/api/admin/category-banners/:id', authenticateToken, requireAdmin, (req, res) => {
-  db.run('DELETE FROM category_banners WHERE id = ?', [req.params.id], function(err) {
+  db.run('DELETE FROM category_banners WHERE id = ?', [req.params.id], async function(err) {
     if (err) return res.status(500).json({ error: err.message });
-    queueCatalogBackupSync('banner-deleted');
-    res.json({ message: 'Category banner deleted' });
+    const catalogBackup = await syncCatalogBackupForResponse('banner-deleted');
+    res.json({
+      message: 'Category banner deleted',
+      catalog_backup: catalogBackup,
+      catalog_warning: catalogBackup.warning
+    });
   });
 });
 
@@ -2322,10 +2354,15 @@ app.post('/api/admin/products', authenticateToken, requireAdmin, (req, res) => {
     [name, description, price, mrp, image, category_id, stock, unit, discount_percent || 0, dealer_price || null, distributor_price || null, warrantyYears],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
-      saveProductImages(this.lastID, image, images, (imageErr) => {
+      saveProductImages(this.lastID, image, images, async (imageErr) => {
         if (imageErr) return res.status(500).json({ error: imageErr.message });
-        queueCatalogBackupSync('product-created');
-        res.json({ id: this.lastID, message: 'Product created' });
+        const catalogBackup = await syncCatalogBackupForResponse('product-created');
+        res.json({
+          id: this.lastID,
+          message: 'Product created',
+          catalog_backup: catalogBackup,
+          catalog_warning: catalogBackup.warning
+        });
       });
     });
 });
@@ -2337,10 +2374,14 @@ app.put('/api/admin/products/:id', authenticateToken, requireAdmin, (req, res) =
     [name, description, price, mrp, image, category_id, stock, unit, discount_percent || 0, dealer_price || null, distributor_price || null, warrantyYears, req.params.id],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
-      saveProductImages(req.params.id, image, images, (imageErr) => {
+      saveProductImages(req.params.id, image, images, async (imageErr) => {
         if (imageErr) return res.status(500).json({ error: imageErr.message });
-        queueCatalogBackupSync('product-updated');
-        res.json({ message: 'Product updated' });
+        const catalogBackup = await syncCatalogBackupForResponse('product-updated');
+        res.json({
+          message: 'Product updated',
+          catalog_backup: catalogBackup,
+          catalog_warning: catalogBackup.warning
+        });
       });
     });
 });
@@ -2348,10 +2389,14 @@ app.put('/api/admin/products/:id', authenticateToken, requireAdmin, (req, res) =
 app.delete('/api/admin/products/:id', authenticateToken, requireAdmin, (req, res) => {
   db.run('DELETE FROM product_images WHERE product_id = ?', [req.params.id], function(imageErr) {
     if (imageErr) return res.status(500).json({ error: imageErr.message });
-    db.run(`DELETE FROM products WHERE id=?`, [req.params.id], function(err) {
+    db.run(`DELETE FROM products WHERE id=?`, [req.params.id], async function(err) {
     if (err) return res.status(500).json({ error: err.message });
-    queueCatalogBackupSync('product-deleted');
-    res.json({ message: 'Product deleted' });
+    const catalogBackup = await syncCatalogBackupForResponse('product-deleted');
+    res.json({
+      message: 'Product deleted',
+      catalog_backup: catalogBackup,
+      catalog_warning: catalogBackup.warning
+    });
   });
   });
 });
