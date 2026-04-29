@@ -397,12 +397,12 @@ function AdminPage({ user }) {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'camigo-media-manifest.json';
+      link.download = 'camigo-catalog-backup.json';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      setMessage('Media backup downloaded. Upload this JSON to InfinityFree and set its public URL as MEDIA_MANIFEST_URL on Render.');
+      setMessage('Catalog backup downloaded. Upload this JSON to InfinityFree and set its public URL as MEDIA_MANIFEST_URL on Render.');
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -413,7 +413,7 @@ function AdminPage({ user }) {
   const importMediaManifest = async (payload) => {
     const token = localStorage.getItem('token');
     setMediaManifestBusy(true);
-    setMessage('Restoring media links...');
+    setMessage('Restoring catalog data...');
     try {
       const res = await fetch(`${API_URL}/admin/media/manifest/import`, {
         method: 'POST',
@@ -438,7 +438,7 @@ function AdminPage({ user }) {
       try {
         importMediaManifest({ manifest: JSON.parse(reader.result) });
       } catch (error) {
-        setMessage('That JSON file could not be read. Please upload a valid camigo-media-manifest.json file.');
+        setMessage('That JSON file could not be read. Please upload a valid Camigo catalog backup JSON file.');
       }
     };
     reader.readAsText(file);
@@ -673,13 +673,13 @@ function AdminPage({ user }) {
       {activeTab === 'banners' && (
         <div>
           <div className="card" style={{ marginBottom: '18px', border: '1px solid rgba(11, 100, 255, .18)', background: '#f8fbff' }}>
-            <h3 style={{ marginTop: 0 }}>Media backup for Render free</h3>
+            <h3 style={{ marginTop: 0 }}>Catalog backup for Render free</h3>
             <p className="checkout-note" style={{ marginTop: 0 }}>
-              Render free can reset SQLite data. After you finish product photos and banners, download this JSON, upload it to InfinityFree, then set the public JSON link as <strong>MEDIA_MANIFEST_URL</strong> in Render Environment.
+              Render free can reset SQLite data. After you finish product prices, details, photos and banners, download this JSON, upload it to InfinityFree, then set the public JSON link as <strong>MEDIA_MANIFEST_URL</strong> in Render Environment.
             </p>
             <div className="admin-product-form">
               <button type="button" className="btn btn-primary" onClick={downloadMediaManifest} disabled={mediaManifestBusy}>
-                Download current product photos + banners JSON
+                Download full product catalog + photos + banners JSON
               </button>
               <div className="form-group">
                 <label>Restore from JSON file</label>
@@ -687,7 +687,7 @@ function AdminPage({ user }) {
               </div>
               <div className="form-group">
                 <label>Restore from public JSON URL</label>
-                <input value={mediaManifestUrl} onChange={e => setMediaManifestUrl(e.target.value)} placeholder="https://your-host/camigo-media-manifest.json" />
+                <input value={mediaManifestUrl} onChange={e => setMediaManifestUrl(e.target.value)} placeholder="https://your-host/camigo-catalog-backup.json" />
               </div>
               <button type="button" className="btn btn-outline" onClick={handleRestoreMediaManifestUrl} disabled={mediaManifestBusy}>
                 Restore from URL now

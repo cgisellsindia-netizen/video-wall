@@ -172,15 +172,28 @@ const normalizeImageList = (value) => {
     .filter(Boolean);
 };
 
+const hasManifestValue = (entry, key) => Object.prototype.hasOwnProperty.call(entry, key);
+const valueOrFallback = (entry, key, fallback) => (hasManifestValue(entry, key) ? entry[key] : fallback);
+const numberOrFallback = (value, fallback) => {
+  if (value === null || value === undefined || value === '') return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+const integerOrFallback = (value, fallback) => {
+  if (value === null || value === undefined || value === '') return fallback;
+  const parsed = parseInt(value, 10);
+  return Number.isInteger(parsed) ? parsed : fallback;
+};
+
 const findProductForManifest = async (entry) => {
   const productId = Number(entry.id || entry.product_id);
   if (Number.isInteger(productId) && productId > 0) {
-    const byId = await dbGetAsync('SELECT id FROM products WHERE id = ?', [productId]);
+    const byId = await dbGetAsync('SELECT * FROM products WHERE id = ?', [productId]);
     if (byId) return byId;
   }
   const name = String(entry.name || '').trim();
   if (!name) return null;
-  return dbGetAsync('SELECT id FROM products WHERE lower(name) = lower(?)', [name]);
+  return dbGetAsync('SELECT * FROM products WHERE lower(name) = lower(?)', [name]);
 };
 
 const findCategoryIdForManifest = async (entry) => {
@@ -197,7 +210,12 @@ const findCategoryIdForManifest = async (entry) => {
 };
 
 const buildMediaManifest = async () => {
-  const products = await dbAllAsync('SELECT id, name, image FROM products ORDER BY id ASC');
+  const products = await dbAllAsync(
+    `SELECT p.*, c.name as category_name
+     FROM products p
+     LEFT JOIN categories c ON c.id = p.category_id
+     ORDER BY p.id ASC`
+  );
   const productImages = await dbAllAsync('SELECT product_id, image_url, sort_order FROM product_images ORDER BY product_id ASC, sort_order ASC, id ASC');
   const groupedImages = productImages.reduce((map, row) => {
     map[row.product_id] = map[row.product_id] || [];
@@ -212,13 +230,25 @@ const buildMediaManifest = async () => {
   );
   return {
     version: 1,
+    type: 'camigo-catalog-backup',
     generated_at: new Date().toISOString(),
-    note: 'Camigo media manifest. Host this JSON on InfinityFree or any public URL and set MEDIA_MANIFEST_URL on Render to restore media after restarts.',
+    note: 'Camigo catalog backup. Host this JSON on InfinityFree or any public URL and set MEDIA_MANIFEST_URL on Render to restore products, prices, images, and banners after restarts.',
     products: products.map(product => {
       const images = groupedImages[product.id]?.length ? groupedImages[product.id] : normalizeImageList(product.image);
       return {
         id: product.id,
         name: product.name,
+        description: product.description,
+        price: Number(product.price || 0),
+        mrp: Number(product.mrp || 0),
+        discount_percent: Number(product.discount_percent || 0),
+        dealer_price: product.dealer_price === null || product.dealer_price === undefined ? null : Number(product.dealer_price),
+        distributor_price: product.distributor_price === null || product.distributor_price === undefined ? null : Number(product.distributor_price),
+        warranty_years: Number(product.warranty_years || 5),
+        category_id: Number(product.category_id || 0),
+        category_name: product.category_name || '',
+        stock: Number(product.stock || 0),
+        unit: product.unit || '1 Unit',
         image: images[0] || '',
         images
       };
@@ -237,23 +267,111 @@ const buildMediaManifest = async () => {
 };
 
 const applyMediaManifest = async (manifest, source = 'manual') => {
-  if (!manifest || typeof manifest !== 'object') throw new Error('Media manifest must be a JSON object');
+  if (!manifest || typeof manifest !== 'object') throw new Error('Catalog backup must be a JSON object');
   const products = Array.isArray(manifest.products) ? manifest.products : [];
   const banners = Array.isArray(manifest.category_banners)
     ? manifest.category_banners
     : (Array.isArray(manifest.banners) ? manifest.banners : []);
   let productCount = 0;
+  let insertedProductCount = 0;
   let bannerCount = 0;
 
   for (const entry of products) {
-    const product = await findProductForManifest(entry);
-    if (!product) continue;
+    let product = await findProductForManifest(entry);
     const images = normalizeImageList(entry.images?.length ? entry.images : [entry.image, entry.image_url]);
-    if (!images.length) continue;
-    await dbRunAsync('UPDATE products SET image = ? WHERE id = ?', [images[0], product.id]);
-    await dbRunAsync('DELETE FROM product_images WHERE product_id = ?', [product.id]);
-    for (const [index, imageUrl] of images.entries()) {
-      await dbRunAsync('INSERT INTO product_images (product_id, image_url, sort_order) VALUES (?, ?, ?)', [product.id, imageUrl, index]);
+    const categoryId = await findCategoryIdForManifest(entry);
+    const fallbackName = String(entry.name || product?.name || '').trim();
+    if (!product && !fallbackName) continue;
+
+    const nextProduct = {
+      name: fallbackName,
+      description: String(valueOrFallback(entry, 'description', product?.description || '') || ''),
+      price: numberOrFallback(valueOrFallback(entry, 'price', product?.price), product?.price || 0),
+      mrp: numberOrFallback(valueOrFallback(entry, 'mrp', product?.mrp), product?.mrp || 0),
+      image: images[0] || product?.image || String(entry.image || ''),
+      category_id: categoryId || Number(product?.category_id || entry.category_id || 1),
+      stock: integerOrFallback(valueOrFallback(entry, 'stock', product?.stock), product?.stock || 0),
+      unit: String(valueOrFallback(entry, 'unit', product?.unit || '1 Unit') || '1 Unit'),
+      discount_percent: numberOrFallback(valueOrFallback(entry, 'discount_percent', product?.discount_percent), product?.discount_percent || 0),
+      dealer_price: numberOrFallback(valueOrFallback(entry, 'dealer_price', product?.dealer_price), product?.dealer_price ?? null),
+      distributor_price: numberOrFallback(valueOrFallback(entry, 'distributor_price', product?.distributor_price), product?.distributor_price ?? null),
+      warranty_years: Math.max(1, integerOrFallback(valueOrFallback(entry, 'warranty_years', product?.warranty_years), product?.warranty_years || 5))
+    };
+
+    if (product) {
+      await dbRunAsync(
+        `UPDATE products
+         SET name = ?, description = ?, price = ?, mrp = ?, image = ?, category_id = ?, stock = ?, unit = ?,
+             discount_percent = ?, dealer_price = ?, distributor_price = ?, warranty_years = ?
+         WHERE id = ?`,
+        [
+          nextProduct.name,
+          nextProduct.description,
+          nextProduct.price,
+          nextProduct.mrp,
+          nextProduct.image,
+          nextProduct.category_id,
+          nextProduct.stock,
+          nextProduct.unit,
+          nextProduct.discount_percent,
+          nextProduct.dealer_price,
+          nextProduct.distributor_price,
+          nextProduct.warranty_years,
+          product.id
+        ]
+      );
+    } else {
+      const productId = Number(entry.id || entry.product_id);
+      if (Number.isInteger(productId) && productId > 0) {
+        await dbRunAsync(
+          `INSERT INTO products (id, name, description, price, mrp, image, category_id, stock, unit, discount_percent, dealer_price, distributor_price, warranty_years)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            productId,
+            nextProduct.name,
+            nextProduct.description,
+            nextProduct.price,
+            nextProduct.mrp,
+            nextProduct.image,
+            nextProduct.category_id,
+            nextProduct.stock,
+            nextProduct.unit,
+            nextProduct.discount_percent,
+            nextProduct.dealer_price,
+            nextProduct.distributor_price,
+            nextProduct.warranty_years
+          ]
+        );
+        product = { id: productId };
+      } else {
+        const result = await dbRunAsync(
+          `INSERT INTO products (name, description, price, mrp, image, category_id, stock, unit, discount_percent, dealer_price, distributor_price, warranty_years)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            nextProduct.name,
+            nextProduct.description,
+            nextProduct.price,
+            nextProduct.mrp,
+            nextProduct.image,
+            nextProduct.category_id,
+            nextProduct.stock,
+            nextProduct.unit,
+            nextProduct.discount_percent,
+            nextProduct.dealer_price,
+            nextProduct.distributor_price,
+            nextProduct.warranty_years
+          ]
+        );
+        product = { id: result.lastID };
+      }
+      insertedProductCount += 1;
+    }
+
+    if (images.length) {
+      await dbRunAsync('DELETE FROM product_images WHERE product_id = ?', [product.id]);
+      for (const [index, imageUrl] of images.entries()) {
+        await dbRunAsync('INSERT INTO product_images (product_id, image_url, sort_order) VALUES (?, ?, ?)', [product.id, imageUrl, index]);
+      }
     }
     productCount += 1;
   }
@@ -283,9 +401,9 @@ const applyMediaManifest = async (manifest, source = 'manual') => {
   await dbRunAsync(
     `INSERT OR REPLACE INTO app_settings (setting_key, value, updated_at)
      VALUES (?, ?, CURRENT_TIMESTAMP)`,
-    ['last_media_manifest_restore', JSON.stringify({ source, productCount, bannerCount, at: new Date().toISOString() })]
+    ['last_media_manifest_restore', JSON.stringify({ source, productCount, insertedProductCount, bannerCount, at: new Date().toISOString() })]
   );
-  return { productCount, bannerCount };
+  return { productCount, insertedProductCount, bannerCount };
 };
 
 const restoreMediaManifestFromUrl = async (url, source = 'MEDIA_MANIFEST_URL') => {
@@ -1770,7 +1888,7 @@ app.delete('/api/admin/category-banners/:id', authenticateToken, requireAdmin, (
 app.get('/api/admin/media/manifest', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const manifest = await buildMediaManifest();
-    res.setHeader('Content-Disposition', 'attachment; filename="camigo-media-manifest.json"');
+    res.setHeader('Content-Disposition', 'attachment; filename="camigo-catalog-backup.json"');
     res.json(manifest);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1782,7 +1900,7 @@ app.post('/api/admin/media/manifest/import', authenticateToken, requireAdmin, as
     const result = req.body?.manifest_url
       ? await restoreMediaManifestFromUrl(req.body.manifest_url, 'admin-url-import')
       : await applyMediaManifest(req.body?.manifest || req.body, 'admin-json-import');
-    res.json({ ...result, message: `Media restored: ${result.productCount} products and ${result.bannerCount} banners.` });
+    res.json({ ...result, message: `Catalog restored: ${result.productCount} products (${result.insertedProductCount || 0} new) and ${result.bannerCount} banners.` });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -2112,7 +2230,7 @@ app.listen(PORT, () => {
     setTimeout(async () => {
       try {
         const result = await restoreMediaManifestFromUrl(MEDIA_MANIFEST_URL, 'startup-url-import');
-        console.log(`Media manifest restored from MEDIA_MANIFEST_URL: ${result.productCount} products, ${result.bannerCount} banners`);
+        console.log(`Catalog manifest restored from MEDIA_MANIFEST_URL: ${result.productCount} products, ${result.bannerCount} banners`);
       } catch (error) {
         console.warn(`Media manifest restore skipped: ${error.message}`);
       }
