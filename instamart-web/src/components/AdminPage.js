@@ -453,6 +453,25 @@ function AdminPage({ user }) {
     importMediaManifest({ manifest_url: url });
   };
 
+  const syncCatalogToFtp = async () => {
+    const token = localStorage.getItem('token');
+    setMediaManifestBusy(true);
+    setMessage('Pushing catalog JSON to InfinityFree...');
+    try {
+      const res = await fetch(`${API_URL}/admin/media/manifest/sync`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'FTP sync failed.');
+      setMessage(data.message || 'Catalog JSON pushed to InfinityFree.');
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setMediaManifestBusy(false);
+    }
+  };
+
   const handleCreateUser = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
@@ -691,6 +710,9 @@ function AdminPage({ user }) {
               </div>
               <button type="button" className="btn btn-outline" onClick={handleRestoreMediaManifestUrl} disabled={mediaManifestBusy}>
                 Restore from URL now
+              </button>
+              <button type="button" className="btn btn-outline" onClick={syncCatalogToFtp} disabled={mediaManifestBusy}>
+                Push latest JSON to InfinityFree now
               </button>
             </div>
           </div>

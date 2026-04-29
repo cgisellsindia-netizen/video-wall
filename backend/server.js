@@ -5,7 +5,9 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
+const { Readable } = require('stream');
 const admin = require('firebase-admin');
+const ftp = require('basic-ftp');
 const db = require('./database');
 
 const app = express();
@@ -67,6 +69,13 @@ const hasRazorpayConfig = Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET);
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_BANNER_MODEL = process.env.OPENAI_BANNER_MODEL || 'gpt-4o-mini';
 const MEDIA_MANIFEST_URL = process.env.MEDIA_MANIFEST_URL || '';
+const MEDIA_MANIFEST_FTP_HOST = process.env.MEDIA_MANIFEST_FTP_HOST || '';
+const MEDIA_MANIFEST_FTP_USER = process.env.MEDIA_MANIFEST_FTP_USER || '';
+const MEDIA_MANIFEST_FTP_PASSWORD = process.env.MEDIA_MANIFEST_FTP_PASSWORD || '';
+const MEDIA_MANIFEST_FTP_PATH = process.env.MEDIA_MANIFEST_FTP_PATH || '/htdocs/camigo-catalog-backup.json';
+const MEDIA_MANIFEST_FTP_SECURE = String(process.env.MEDIA_MANIFEST_FTP_SECURE || '').toLowerCase() === 'true';
+const MEDIA_MANIFEST_FTP_PORT = Number(process.env.MEDIA_MANIFEST_FTP_PORT || 21);
+const hasCatalogFtpConfig = Boolean(MEDIA_MANIFEST_FTP_HOST && MEDIA_MANIFEST_FTP_USER && MEDIA_MANIFEST_FTP_PASSWORD);
 const firebaseServiceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 const firebaseServiceAccountCandidates = [
   process.env.FIREBASE_SERVICE_ACCOUNT,
@@ -413,6 +422,48 @@ const restoreMediaManifestFromUrl = async (url, source = 'MEDIA_MANIFEST_URL') =
   if (!response.ok) throw new Error(`Media manifest download failed (${response.status})`);
   const manifest = await response.json();
   return applyMediaManifest(manifest, source);
+};
+
+const uploadCatalogBackupToFtp = async (reason = 'catalog-change') => {
+  if (!hasCatalogFtpConfig) return { skipped: true };
+  const client = new ftp.Client(15000);
+  client.ftp.verbose = false;
+  try {
+    await client.access({
+      host: MEDIA_MANIFEST_FTP_HOST,
+      port: Number.isFinite(MEDIA_MANIFEST_FTP_PORT) ? MEDIA_MANIFEST_FTP_PORT : 21,
+      user: MEDIA_MANIFEST_FTP_USER,
+      password: MEDIA_MANIFEST_FTP_PASSWORD,
+      secure: MEDIA_MANIFEST_FTP_SECURE
+    });
+    const manifest = await buildMediaManifest();
+    const payload = JSON.stringify({
+      ...manifest,
+      synced_at: new Date().toISOString(),
+      sync_reason: reason
+    }, null, 2);
+    const remotePath = String(MEDIA_MANIFEST_FTP_PATH || '/htdocs/camigo-catalog-backup.json').replaceAll('\\', '/');
+    const remoteDir = path.posix.dirname(remotePath);
+    const remoteFile = path.posix.basename(remotePath);
+    if (remoteDir && remoteDir !== '.') await client.ensureDir(remoteDir);
+    await client.uploadFrom(Readable.from([payload]), remoteFile);
+    console.log(`Catalog backup uploaded to FTP: ${remotePath}`);
+    return { skipped: false, remotePath };
+  } finally {
+    client.close();
+  }
+};
+
+let catalogBackupSyncTimer = null;
+const queueCatalogBackupSync = (reason = 'catalog-change') => {
+  if (!hasCatalogFtpConfig) return;
+  if (catalogBackupSyncTimer) clearTimeout(catalogBackupSyncTimer);
+  catalogBackupSyncTimer = setTimeout(() => {
+    catalogBackupSyncTimer = null;
+    uploadCatalogBackupToFtp(reason).catch(error => {
+      console.warn(`Catalog backup FTP sync failed: ${error.message}`);
+    });
+  }, 2500);
 };
 
 const createOrderItemsAsync = (orderId, items, prices, warrantyYears) => new Promise((resolve, reject) => {
@@ -1757,6 +1808,7 @@ Make headline under 42 characters and subheadline under 85 characters.`
           generated.push({ category_id: placement.id, category_name: placement.name, image_url: imageUrl, copy: ai });
         }
       }
+      if (save) queueCatalogBackupSync('ai-banners-generated');
       return res.json({
         generated,
         message: `AI generated ${generated.length} banner${generated.length === 1 ? '' : 's'}`
@@ -1823,6 +1875,7 @@ Make headline under 42 characters and subheadline under 85 characters.`
         active ? 1 : 0
       ]
     );
+    queueCatalogBackupSync('ai-banner-generated');
     res.json({ id: result.lastID, image_url: imageUrl, copy: ai, message: 'AI banner generated and saved' });
   } catch (error) {
     const status = /OpenAI API key/.test(error.message) ? 503 : 500;
@@ -1848,6 +1901,7 @@ app.post('/api/admin/category-banners', authenticateToken, requireAdmin, (req, r
     ],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
+      queueCatalogBackupSync('banner-created');
       res.json({ id: this.lastID, message: 'Category banner added' });
     }
   );
@@ -1873,6 +1927,7 @@ app.put('/api/admin/category-banners/:id', authenticateToken, requireAdmin, (req
     ],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
+      queueCatalogBackupSync('banner-updated');
       res.json({ message: 'Category banner updated' });
     }
   );
@@ -1881,6 +1936,7 @@ app.put('/api/admin/category-banners/:id', authenticateToken, requireAdmin, (req
 app.delete('/api/admin/category-banners/:id', authenticateToken, requireAdmin, (req, res) => {
   db.run('DELETE FROM category_banners WHERE id = ?', [req.params.id], function(err) {
     if (err) return res.status(500).json({ error: err.message });
+    queueCatalogBackupSync('banner-deleted');
     res.json({ message: 'Category banner deleted' });
   });
 });
@@ -1900,9 +1956,24 @@ app.post('/api/admin/media/manifest/import', authenticateToken, requireAdmin, as
     const result = req.body?.manifest_url
       ? await restoreMediaManifestFromUrl(req.body.manifest_url, 'admin-url-import')
       : await applyMediaManifest(req.body?.manifest || req.body, 'admin-json-import');
+    queueCatalogBackupSync('catalog-imported');
     res.json({ ...result, message: `Catalog restored: ${result.productCount} products (${result.insertedProductCount || 0} new) and ${result.bannerCount} banners.` });
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/media/manifest/sync', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    if (!hasCatalogFtpConfig) {
+      return res.status(400).json({
+        error: 'FTP auto-backup is not configured. Add MEDIA_MANIFEST_FTP_HOST, MEDIA_MANIFEST_FTP_USER, MEDIA_MANIFEST_FTP_PASSWORD, and MEDIA_MANIFEST_FTP_PATH in Render Environment.'
+      });
+    }
+    const result = await uploadCatalogBackupToFtp('admin-manual-sync');
+    res.json({ ...result, message: 'Catalog JSON pushed to InfinityFree FTP.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -2160,6 +2231,7 @@ app.post('/api/admin/products', authenticateToken, requireAdmin, (req, res) => {
       if (err) return res.status(500).json({ error: err.message });
       saveProductImages(this.lastID, image, images, (imageErr) => {
         if (imageErr) return res.status(500).json({ error: imageErr.message });
+        queueCatalogBackupSync('product-created');
         res.json({ id: this.lastID, message: 'Product created' });
       });
     });
@@ -2174,6 +2246,7 @@ app.put('/api/admin/products/:id', authenticateToken, requireAdmin, (req, res) =
       if (err) return res.status(500).json({ error: err.message });
       saveProductImages(req.params.id, image, images, (imageErr) => {
         if (imageErr) return res.status(500).json({ error: imageErr.message });
+        queueCatalogBackupSync('product-updated');
         res.json({ message: 'Product updated' });
       });
     });
@@ -2184,6 +2257,7 @@ app.delete('/api/admin/products/:id', authenticateToken, requireAdmin, (req, res
     if (imageErr) return res.status(500).json({ error: imageErr.message });
     db.run(`DELETE FROM products WHERE id=?`, [req.params.id], function(err) {
     if (err) return res.status(500).json({ error: err.message });
+    queueCatalogBackupSync('product-deleted');
     res.json({ message: 'Product deleted' });
   });
   });
