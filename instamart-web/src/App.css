@@ -3619,6 +3619,13 @@ body.bottom-nav-hidden .floating-tracker {
   border-radius: 14px;
   background: linear-gradient(135deg, #f5f9ff, #eef5ff);
 }
+.infinity-banner-grid {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+.infinity-banner-grid .infinity-image-card img {
+  aspect-ratio: 1200 / 320;
+  object-fit: cover;
+}
 .infinity-image-card span {
   overflow: hidden;
   color: #162238;

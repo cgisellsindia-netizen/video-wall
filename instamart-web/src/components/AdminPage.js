@@ -299,6 +299,11 @@ function AdminPage({ user }) {
   const chooseInfinityImage = (url) => {
     const imageUrl = String(url || '').trim();
     if (!imageUrl) return;
+    if (mediaBrowser.mode === 'banner') {
+      setBannerForm(prev => ({ ...prev, image_url: imageUrl }));
+      setMessage('InfinityFree image selected as category banner.');
+      return;
+    }
     setForm(prev => {
       const nextImages = [...(prev.images || [])].filter(Boolean);
       if (mediaBrowser.mode === 'cover') {
@@ -822,6 +827,62 @@ function AdminPage({ user }) {
               </div>
               <div className="form-group"><label>Banner Image URL / Data</label><input value={bannerForm.image_url} onChange={e => setBannerForm(prev => ({ ...prev, image_url: e.target.value }))} required /></div>
               <div className="form-group"><label>Upload Banner</label><input type="file" accept="image/*" onChange={e => handleBannerImageFile(e.target.files?.[0])} /></div>
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label>InfinityFree banner library</label>
+                <div className="infinity-picker-actions">
+                  <button type="button" className="btn btn-outline btn-sm" onClick={() => openMediaBrowser('banner')}>
+                    <ImageIcon size={15} /> Browse banner from FTP
+                  </button>
+                  <span>Select an uploaded InfinityFree banner image and its public URL will fill automatically.</span>
+                </div>
+              </div>
+              {mediaBrowser.open && mediaBrowser.mode === 'banner' && (
+                <div className="infinity-media-browser">
+                  <div className="infinity-media-head">
+                    <div>
+                      <strong>Select category banner</strong>
+                      <span>{mediaBrowser.data?.public_base || 'InfinityFree'}{mediaBrowser.data?.dir || mediaBrowser.dir}</span>
+                    </div>
+                    <div className="infinity-media-tools">
+                      {mediaBrowser.data?.parent && (
+                        <button type="button" className="btn btn-sm btn-outline" onClick={() => loadMediaLibrary(mediaBrowser.data.parent, mediaBrowser.mode)}>
+                          <ArrowUp size={14} /> Up
+                        </button>
+                      )}
+                      <button type="button" className="btn btn-sm btn-outline" onClick={() => loadMediaLibrary(mediaBrowser.dir, mediaBrowser.mode)} disabled={mediaBrowser.busy}>
+                        Refresh
+                      </button>
+                      <button type="button" className="btn btn-sm" onClick={() => setMediaBrowser(prev => ({ ...prev, open: false }))}>
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                  {mediaBrowser.busy && <div className="infinity-media-empty">Loading InfinityFree images...</div>}
+                  {!mediaBrowser.busy && mediaBrowser.data?.directories?.length > 0 && (
+                    <div className="infinity-folder-row">
+                      {mediaBrowser.data.directories.map(folder => (
+                        <button type="button" key={folder.dir} onClick={() => loadMediaLibrary(folder.dir, mediaBrowser.mode)}>
+                          <FolderOpen size={16} /> {folder.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {!mediaBrowser.busy && mediaBrowser.data?.images?.length > 0 && (
+                    <div className="infinity-image-grid infinity-banner-grid">
+                      {mediaBrowser.data.images.map(image => (
+                        <button type="button" key={image.url} className="infinity-image-card" onClick={() => chooseInfinityImage(image.url)}>
+                          <img src={image.url} alt={image.name} loading="lazy" />
+                          <span>{image.name}</span>
+                          <small>Use as banner</small>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {!mediaBrowser.busy && mediaBrowser.data && !mediaBrowser.data.images?.length && !mediaBrowser.data.directories?.length && (
+                    <div className="infinity-media-empty">No image files found in this folder. Upload banner JPG, PNG, WEBP, GIF, AVIF, or SVG files to InfinityFree first.</div>
+                  )}
+                </div>
+              )}
               <div className="form-group"><label>Banner Width (px)</label><input type="number" value={bannerForm.width} onChange={e => setBannerForm(prev => ({ ...prev, width: e.target.value }))} required /></div>
               <div className="form-group"><label>Banner Height (px)</label><input type="number" value={bannerForm.height} onChange={e => setBannerForm(prev => ({ ...prev, height: e.target.value }))} required /></div>
               <div className="form-group"><label>Order</label><input type="number" value={bannerForm.sort_order} onChange={e => setBannerForm(prev => ({ ...prev, sort_order: e.target.value }))} /></div>
@@ -899,7 +960,7 @@ function AdminPage({ user }) {
                     <span>Shows images from your InfinityFree FTP so product photos stay permanent after Render redeploy.</span>
                   </div>
                 </div>
-                {mediaBrowser.open && (
+                {mediaBrowser.open && ['cover', 'gallery'].includes(mediaBrowser.mode) && (
                   <div className="infinity-media-browser">
                     <div className="infinity-media-head">
                       <div>
