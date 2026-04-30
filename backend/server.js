@@ -471,23 +471,9 @@ const restoreMediaManifestFromFtp = async (source = 'startup-ftp-import') => {
   }
   const client = await createCatalogFtpClient();
   try {
-    const remotePath = String(MEDIA_MANIFEST_FTP_PATH || '/htdocs/camigo-catalog-backup.json').replaceAll('\\', '/');
-    const chunks = [];
-    const collector = new Writable({
-      write(chunk, encoding, callback) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
-        callback();
-      }
-    });
-    await client.downloadTo(collector, remotePath);
-    const payload = Buffer.concat(chunks).toString('utf8').trim();
-    if (!payload) throw new Error(`Catalog backup FTP file is empty: ${remotePath}`);
-    let manifest;
-    try {
-      manifest = JSON.parse(payload);
-    } catch (error) {
-      throw new Error(`Catalog backup FTP file is not valid JSON: ${error.message}`);
-    }
+    const remotePath = normalizeCatalogBackupRemotePath();
+    const payload = await collectCatalogBackupPayloadFromFtp(client, remotePath);
+    const manifest = parseCatalogBackupPayload(payload, remotePath);
     return applyMediaManifest(manifest, source);
   } finally {
     client.close();
@@ -522,6 +508,35 @@ const mediaLibraryPublicUrl = (dir, filename) => {
   return `${MEDIA_LIBRARY_PUBLIC_BASE}/${encodedPath}`;
 };
 
+const normalizeCatalogBackupRemotePath = () => {
+  const raw = String(MEDIA_MANIFEST_FTP_PATH || '/htdocs/camigo-catalog-backup.json').replaceAll('\\', '/');
+  const prefixed = raw.startsWith('/') ? raw : `/${raw}`;
+  return path.posix.normalize(prefixed);
+};
+
+const collectCatalogBackupPayloadFromFtp = async (client, remotePath = normalizeCatalogBackupRemotePath()) => {
+  const chunks = [];
+  const collector = new Writable({
+    write(chunk, encoding, callback) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
+      callback();
+    }
+  });
+  await client.downloadTo(collector, remotePath);
+  return Buffer.concat(chunks).toString('utf8').trim();
+};
+
+const parseCatalogBackupPayload = (payload, remotePath = normalizeCatalogBackupRemotePath()) => {
+  if (!payload) throw new Error(`Catalog backup FTP file is empty: ${remotePath}`);
+  try {
+    return JSON.parse(payload);
+  } catch (error) {
+    throw new Error(`Catalog backup FTP file is not valid JSON: ${error.message}`);
+  }
+};
+
+const catalogPayloadHash = (payload) => crypto.createHash('sha256').update(String(payload || ''), 'utf8').digest('hex');
+
 const uploadCatalogBackupToFtp = async (reason = 'catalog-change') => {
   if (!hasCatalogFtpConfig) return { skipped: true };
   const client = await createCatalogFtpClient();
@@ -532,13 +547,42 @@ const uploadCatalogBackupToFtp = async (reason = 'catalog-change') => {
       synced_at: new Date().toISOString(),
       sync_reason: reason
     }, null, 2);
-    const remotePath = String(MEDIA_MANIFEST_FTP_PATH || '/htdocs/camigo-catalog-backup.json').replaceAll('\\', '/');
+    const remotePath = normalizeCatalogBackupRemotePath();
     const remoteDir = path.posix.dirname(remotePath);
-    const remoteFile = path.posix.basename(remotePath);
-    if (remoteDir && remoteDir !== '.') await client.ensureDir(remoteDir);
-    await client.uploadFrom(Readable.from([payload]), remoteFile);
+    if (remoteDir && remoteDir !== '/' && remoteDir !== '.') {
+      await client.ensureDir(remoteDir);
+    }
+    await client.uploadFrom(Readable.from([payload]), remotePath);
+    const uploadedPayload = await collectCatalogBackupPayloadFromFtp(client, remotePath);
+    const expectedHash = catalogPayloadHash(payload);
+    const uploadedHash = catalogPayloadHash(uploadedPayload);
+    if (expectedHash !== uploadedHash) {
+      throw new Error('Catalog backup verification failed after FTP upload. The uploaded JSON does not match the saved catalog.');
+    }
+    await dbRunAsync(
+      `INSERT OR REPLACE INTO app_settings (setting_key, value, updated_at)
+       VALUES (?, ?, CURRENT_TIMESTAMP)`,
+      [
+        'last_catalog_backup_sync',
+        JSON.stringify({
+          reason,
+          remotePath,
+          productCount: manifest.products.length,
+          bannerCount: manifest.category_banners.length,
+          checksum: uploadedHash,
+          at: new Date().toISOString()
+        })
+      ]
+    );
     console.log(`Catalog backup uploaded to FTP: ${remotePath}`);
-    return { skipped: false, remotePath };
+    return {
+      skipped: false,
+      remotePath,
+      productCount: manifest.products.length,
+      bannerCount: manifest.category_banners.length,
+      verified: true,
+      checksum: uploadedHash
+    };
   } finally {
     client.close();
   }
@@ -2564,35 +2608,48 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(buildPath, 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Instamart Clone API running on http://localhost:${PORT}`);
-  console.log('Security hardening enabled for auth, orders, admin routes, and product search.');
+const restoreCatalogOnStartup = async () => {
   const restoreCandidates = [
     MEDIA_MANIFEST_EXPECTED_URL,
     MEDIA_MANIFEST_URL
   ].filter(Boolean).filter((url, index, list) => list.findIndex(item => normalizePublicUrl(item) === normalizePublicUrl(url)) === index);
   const restoreConfigWarning = catalogRestoreUrlWarning();
   if (restoreConfigWarning) console.warn(restoreConfigWarning);
-  if (hasCatalogFtpConfig || restoreCandidates.length) {
-    setTimeout(async () => {
-      if (hasCatalogFtpConfig) {
-        try {
-          const result = await restoreMediaManifestFromFtp('startup-ftp-import');
-          console.log(`Catalog manifest restored from FTP: ${result.productCount} products, ${result.bannerCount} banners`);
-          return;
-        } catch (error) {
-          console.warn(`Media manifest FTP restore skipped: ${error.message}`);
-        }
-      }
-      for (const restoreUrl of restoreCandidates) {
-        try {
-          const result = await restoreMediaManifestFromUrl(restoreUrl, 'startup-url-import');
-          console.log(`Catalog manifest restored from ${restoreUrl}: ${result.productCount} products, ${result.bannerCount} banners`);
-          return;
-        } catch (error) {
-          console.warn(`Media manifest restore skipped for ${restoreUrl}: ${error.message}`);
-        }
-      }
-    }, 3000);
+
+  if (hasCatalogFtpConfig) {
+    try {
+      const result = await restoreMediaManifestFromFtp('startup-ftp-import');
+      console.log(`Catalog manifest restored from FTP before startup: ${result.productCount} products, ${result.bannerCount} banners`);
+      return;
+    } catch (error) {
+      console.warn(`Media manifest FTP restore skipped before startup: ${error.message}`);
+    }
   }
-});
+
+  for (const restoreUrl of restoreCandidates) {
+    try {
+      const result = await restoreMediaManifestFromUrl(restoreUrl, 'startup-url-import');
+      console.log(`Catalog manifest restored from ${restoreUrl} before startup: ${result.productCount} products, ${result.bannerCount} banners`);
+      return;
+    } catch (error) {
+      console.warn(`Media manifest restore skipped for ${restoreUrl} before startup: ${error.message}`);
+    }
+  }
+};
+
+const startServer = async () => {
+  try {
+    if (hasCatalogFtpConfig || MEDIA_MANIFEST_URL || MEDIA_MANIFEST_EXPECTED_URL) {
+      await restoreCatalogOnStartup();
+    }
+  } catch (error) {
+    console.warn(`Catalog startup restore failed: ${error.message}`);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`Instamart Clone API running on http://localhost:${PORT}`);
+    console.log('Security hardening enabled for auth, orders, admin routes, and product search.');
+  });
+};
+
+startServer();
