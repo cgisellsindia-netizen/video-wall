@@ -343,6 +343,7 @@ function AppContent() {
 
   useEffect(() => {
     if (!user || !Capacitor.isNativePlatform()) return undefined;
+    if (APP_MODE === 'installer' || user.role === 'installer') return undefined;
     let registrationListener;
     let actionListener;
     let receiveListener;
