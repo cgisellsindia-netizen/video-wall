@@ -1918,10 +1918,12 @@ Make headline under 42 characters and subheadline under 85 characters.`
           generated.push({ category_id: placement.id, category_name: placement.name, image_url: imageUrl, copy: ai });
         }
       }
-      if (save) queueCatalogBackupSync('ai-banners-generated');
+      const catalogBackup = save ? await syncCatalogBackupForResponse('ai-banners-generated') : null;
       return res.json({
         generated,
-        message: `AI generated ${generated.length} banner${generated.length === 1 ? '' : 's'}`
+        message: `AI generated ${generated.length} banner${generated.length === 1 ? '' : 's'}`,
+        catalog_backup: catalogBackup,
+        catalog_warning: catalogBackup?.warning
       });
     }
     const category = categoryId === 0
@@ -1985,8 +1987,15 @@ Make headline under 42 characters and subheadline under 85 characters.`
         active ? 1 : 0
       ]
     );
-    queueCatalogBackupSync('ai-banner-generated');
-    res.json({ id: result.lastID, image_url: imageUrl, copy: ai, message: 'AI banner generated and saved' });
+    const catalogBackup = await syncCatalogBackupForResponse('ai-banner-generated');
+    res.json({
+      id: result.lastID,
+      image_url: imageUrl,
+      copy: ai,
+      message: 'AI banner generated and saved',
+      catalog_backup: catalogBackup,
+      catalog_warning: catalogBackup.warning
+    });
   } catch (error) {
     const status = /OpenAI API key/.test(error.message) ? 503 : 500;
     res.status(status).json({ error: error.message });
@@ -2079,8 +2088,13 @@ app.post('/api/admin/media/manifest/import', authenticateToken, requireAdmin, as
     const result = req.body?.manifest_url
       ? await restoreMediaManifestFromUrl(req.body.manifest_url, 'admin-url-import')
       : await applyMediaManifest(req.body?.manifest || req.body, 'admin-json-import');
-    queueCatalogBackupSync('catalog-imported');
-    res.json({ ...result, message: `Catalog restored: ${result.productCount} products (${result.insertedProductCount || 0} new) and ${result.bannerCount} banners.` });
+    const catalogBackup = await syncCatalogBackupForResponse('catalog-imported');
+    res.json({
+      ...result,
+      message: `Catalog restored: ${result.productCount} products (${result.insertedProductCount || 0} new) and ${result.bannerCount} banners.`,
+      catalog_backup: catalogBackup,
+      catalog_warning: catalogBackup.warning
+    });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

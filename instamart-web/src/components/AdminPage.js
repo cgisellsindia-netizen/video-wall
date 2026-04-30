@@ -419,7 +419,7 @@ function AdminPage({ user }) {
       if (generated[0]?.image_url) {
         setBannerForm(prev => ({ ...prev, image_url: generated[0].image_url, width: aiBannerForm.width, height: aiBannerForm.height, category_id: String(generated[0].category_id ?? aiBannerForm.category_id) }));
       }
-      setMessage(data.message || `AI generated ${generated.length || 1} banner(s).`);
+      setMessage(`${data.message || `AI generated ${generated.length || 1} banner(s).`}${catalogBackupNotice(data)}`);
       fetchData();
     } catch (error) {
       setMessage(error.message);
@@ -467,7 +467,7 @@ function AdminPage({ user }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Media restore failed.');
-      setMessage(data.message || 'Media restored.');
+      setMessage(`${data.message || 'Media restored.'}${catalogBackupNotice(data)}`);
       fetchData();
     } catch (error) {
       setMessage(error.message);
