@@ -17,6 +17,8 @@ function AdminPage({ user }) {
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState('');
   const [partnerPasswords, setPartnerPasswords] = useState({});
+  const [stockDrafts, setStockDrafts] = useState({});
+  const [stockBusy, setStockBusy] = useState({});
   const [notificationForm, setNotificationForm] = useState({ title: '', message: '', target: 'customer', personalize: true, product_id: '', image_url: '' });
   const navigate = useNavigate();
 
@@ -40,7 +42,38 @@ function AdminPage({ user }) {
 
   useEffect(() => { if (!user) { navigate('/'); return; } fetchData(); }, [user]);
 
+  useEffect(() => {
+    setStockDrafts(prev => {
+      const next = { ...prev };
+      products.forEach(product => {
+        if (!Object.prototype.hasOwnProperty.call(next, product.id)) next[product.id] = String(product.stock ?? 0);
+      });
+      Object.keys(next).forEach(key => {
+        if (!products.some(product => String(product.id) === String(key))) delete next[key];
+      });
+      return next;
+    });
+  }, [products]);
+
   const catalogBackupNotice = (data) => data?.catalog_warning ? ` ${data.catalog_warning}` : '';
+
+  const buildProductPayload = (productLike) => ({
+    name: productLike.name,
+    description: productLike.description,
+    price: parseFloat(productLike.price),
+    mrp: parseFloat(productLike.mrp),
+    image: productLike.image,
+    images: (Array.isArray(productLike.images) && productLike.images.length ? productLike.images : [productLike.image])
+      .map(item => String(item || '').trim())
+      .filter(Boolean),
+    category_id: parseInt(productLike.category_id, 10),
+    stock: parseInt(productLike.stock, 10),
+    unit: productLike.unit,
+    discount_percent: parseFloat(productLike.discount_percent || 0),
+    dealer_price: productLike.dealer_price === '' || productLike.dealer_price === null || productLike.dealer_price === undefined ? null : parseFloat(productLike.dealer_price),
+    distributor_price: productLike.distributor_price === '' || productLike.distributor_price === null || productLike.distributor_price === undefined ? null : parseFloat(productLike.distributor_price),
+    warranty_years: Math.max(1, parseInt(productLike.warranty_years || '5', 10))
+  });
 
   const fetchData = async () => {
     const token = localStorage.getItem('token');
@@ -140,20 +173,7 @@ function AdminPage({ user }) {
       setMessage('Please login as admin before saving products.');
       return;
     }
-    const body = {
-      ...form,
-      price: parseFloat(form.price),
-      mrp: parseFloat(form.mrp),
-      discount_percent: parseFloat(form.discount_percent || 0),
-      dealer_price: form.dealer_price === '' ? null : parseFloat(form.dealer_price),
-      distributor_price: form.distributor_price === '' ? null : parseFloat(form.distributor_price),
-      warranty_years: Math.max(1, parseInt(form.warranty_years || '5', 10)),
-      category_id: parseInt(form.category_id),
-      stock: parseInt(form.stock),
-      images: (Array.isArray(form.images) ? form.images : [])
-        .map(item => String(item || '').trim())
-        .filter(Boolean)
-    };
+    const body = buildProductPayload(form);
     body.image = body.images[0] || body.image;
     if (!body.name || !body.description || !Number.isFinite(body.price) || !Number.isFinite(body.mrp) || !Number.isInteger(body.category_id) || !Number.isInteger(body.stock) || !Number.isInteger(body.warranty_years)) {
       setMessage('Please fill product name, description, price, MRP, warranty, category, and stock correctly.');
@@ -174,6 +194,44 @@ function AdminPage({ user }) {
     if (res.ok) {
       setShowForm(false); setEditProduct(null); setForm(emptyProduct); fetchData();
     }
+  };
+
+  const handleInlineStockSave = async (product) => {
+    const token = localStorage.getItem('token');
+    const nextStock = parseInt(stockDrafts[product.id], 10);
+    if (!Number.isInteger(nextStock) || nextStock < 0) {
+      setMessage('Stock must be a whole number 0 or more.');
+      return;
+    }
+    setStockBusy(prev => ({ ...prev, [product.id]: true }));
+    try {
+      const body = buildProductPayload({ ...product, stock: nextStock });
+      const res = await fetch(`${API_URL}/admin/products/${product.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => ({}));
+      setMessage(res.ok ? `Stock updated for ${product.name}.${catalogBackupNotice(data)}` : (data.error || 'Stock update failed.'));
+      if (res.ok) {
+        setProducts(current => current.map(item => (
+          item.id === product.id ? { ...item, stock: nextStock } : item
+        )));
+        setStockDrafts(prev => ({ ...prev, [product.id]: String(nextStock) }));
+      }
+    } catch (error) {
+      setMessage(error.message || 'Stock update failed.');
+    } finally {
+      setStockBusy(prev => ({ ...prev, [product.id]: false }));
+    }
+  };
+
+  const adjustInlineStock = (productId, delta) => {
+    setStockDrafts(prev => {
+      const currentValue = parseInt(prev[productId], 10);
+      const nextValue = Math.max(0, (Number.isInteger(currentValue) ? currentValue : 0) + delta);
+      return { ...prev, [productId]: String(nextValue) };
+    });
   };
 
   const startEdit = (p) => {
@@ -1051,7 +1109,31 @@ function AdminPage({ user }) {
                     <td>{p.distributor_price ? `Rs ${p.distributor_price}` : '-'}</td>
                     <td>{p.warranty_years || 5} years</td>
                     <td>Rs {p.mrp}</td>
-                    <td>{p.stock}</td>
+                    <td>
+                      <div className="inline-stock-editor">
+                        <div className={`inline-stock-pill ${Number(p.stock || 0) > 0 ? 'ok' : 'low'}`}>
+                          {Number(p.stock || 0) > 0 ? `${p.stock} in stock` : 'Out of stock'}
+                        </div>
+                        <div className="inline-stock-controls">
+                          <button type="button" className="btn btn-sm btn-outline" onClick={() => adjustInlineStock(p.id, -1)} disabled={stockBusy[p.id]}>-</button>
+                          <input
+                            type="number"
+                            min="0"
+                            value={stockDrafts[p.id] ?? String(p.stock ?? 0)}
+                            onChange={e => setStockDrafts(prev => ({ ...prev, [p.id]: e.target.value }))}
+                          />
+                          <button type="button" className="btn btn-sm btn-outline" onClick={() => adjustInlineStock(p.id, 1)} disabled={stockBusy[p.id]}>+</button>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary inline-stock-save"
+                          onClick={() => handleInlineStockSave(p)}
+                          disabled={stockBusy[p.id]}
+                        >
+                          {stockBusy[p.id] ? 'Saving...' : 'Save stock'}
+                        </button>
+                      </div>
+                    </td>
                     <td>{p.category_name || categories.find(c => c.id === p.category_id)?.name}</td>
                     <td>
                       <button className="btn btn-sm btn-outline" style={{ marginRight: '8px' }} onClick={() => startEdit(p)}><Edit size={14} /></button>

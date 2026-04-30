@@ -899,6 +899,55 @@
   letter-spacing: .05em;
 }
 
+.inline-stock-editor {
+  min-width: 178px;
+  display: grid;
+  gap: 8px;
+}
+
+.inline-stock-pill {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.inline-stock-pill.ok {
+  background: rgba(27, 166, 114, 0.12);
+  color: #0d8c5d;
+}
+
+.inline-stock-pill.low {
+  background: rgba(239, 68, 68, 0.12);
+  color: #d93025;
+}
+
+.inline-stock-controls {
+  display: grid;
+  grid-template-columns: auto minmax(72px, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.inline-stock-controls input {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid #dbe3ef;
+  font-weight: 800;
+  color: #182235;
+}
+
+.inline-stock-save {
+  width: 100%;
+  justify-content: center;
+}
+
 .partner-password-cell {
   min-width: 230px;
   display: grid;
