@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Shield, Users, ShoppingBag, Package, Plus, Trash2, Edit, MapPin, Truck, Sparkles, FolderOpen, Image as ImageIcon, ArrowUp } from 'lucide-react';
 import { API_URL } from '../api';
@@ -33,6 +33,8 @@ function AdminPage({ user }) {
   const [bannerForm, setBannerForm] = useState(emptyBanner);
   const [editBanner, setEditBanner] = useState(null);
   const [bannerUploadBusy, setBannerUploadBusy] = useState(false);
+  const [bannerFilter, setBannerFilter] = useState('all');
+  const [bannerSearch, setBannerSearch] = useState('');
   const [aiBannerForm, setAiBannerForm] = useState({ category_id: '0', prompt: '', width: '1200', height: '320', theme: 'blue', sort_order: '0', active: true });
   const [aiBannerLoading, setAiBannerLoading] = useState(false);
   const [lastAiBanners, setLastAiBanners] = useState([]);
@@ -56,6 +58,53 @@ function AdminPage({ user }) {
   }, [products]);
 
   const catalogBackupNotice = (data) => data?.catalog_warning ? ` ${data.catalog_warning}` : '';
+
+  const filteredBannerList = useMemo(() => {
+    const query = bannerSearch.trim().toLowerCase();
+    return categoryBanners
+      .filter((banner) => bannerFilter === 'all' ? true : String(banner.category_id) === String(bannerFilter))
+      .filter((banner) => {
+        if (!query) return true;
+        const haystack = [
+          banner.category_name,
+          banner.image_url,
+          banner.width,
+          banner.height,
+          banner.sort_order
+        ].join(' ').toLowerCase();
+        return haystack.includes(query);
+      })
+      .sort((a, b) => {
+        const categoryCompare = String(a.category_name || '').localeCompare(String(b.category_name || ''));
+        if (categoryCompare !== 0) return categoryCompare;
+        return Number(a.sort_order || 0) - Number(b.sort_order || 0);
+      });
+  }, [categoryBanners, bannerFilter, bannerSearch]);
+
+  const bannerGroups = useMemo(() => {
+    const groups = new Map();
+    filteredBannerList.forEach((banner) => {
+      const key = String(banner.category_id);
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          category_id: banner.category_id,
+          category_name: banner.category_name || 'Unknown',
+          items: []
+        });
+      }
+      groups.get(key).items.push(banner);
+    });
+    return Array.from(groups.values());
+  }, [filteredBannerList]);
+
+  const openBannerEditorFor = (categoryId = '0') => {
+    setEditBanner(null);
+    setBannerForm(prev => ({ ...emptyBanner, category_id: String(categoryId) }));
+    setTimeout(() => {
+      document.getElementById('banner-form-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
 
   const buildProductPayload = (productLike) => ({
     name: productLike.name,
@@ -437,6 +486,9 @@ function AdminPage({ user }) {
       active: Boolean(banner.active)
     });
     setActiveTab('banners');
+    setTimeout(() => {
+      document.getElementById('banner-form-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
   };
 
   const handleDeleteBanner = async (id) => {
@@ -873,7 +925,7 @@ function AdminPage({ user }) {
             )}
           </div>
 
-          <div className="card" style={{ marginBottom: '18px' }}>
+          <div className="card" id="banner-form-card" style={{ marginBottom: '18px' }}>
             <h3 style={{ marginTop: 0 }}>{editBanner ? 'Edit category banner' : 'Add category banner'}</h3>
             <p className="checkout-note" style={{ marginTop: 0 }}>
               Recommended mobile-wide banner size: <strong>1200 x 320 px</strong>. Keep banners low in height and wide in width for best mobile fit.
@@ -957,24 +1009,92 @@ function AdminPage({ user }) {
             </form>
           </div>
 
-          <div className="card" style={{ overflow: 'hidden' }}>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="admin-table">
-                <thead><tr><th>Preview</th><th>Category</th><th>Size</th><th>Order</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody>{categoryBanners.map(banner => (
-                  <tr key={banner.id}>
-                    <td><img src={banner.image_url} alt={banner.category_name} style={{ width: '180px', height: '56px', objectFit: 'cover', borderRadius: '12px', border: '1px solid #e5ebf3' }} /></td>
-                    <td>{banner.category_name}</td>
-                    <td>{banner.width} x {banner.height}</td>
-                    <td>{banner.sort_order}</td>
-                    <td>{banner.active ? <span className="tag tag-success">Active</span> : <span className="tag">Inactive</span>}</td>
-                    <td>
-                      <button className="btn btn-sm btn-outline" onClick={() => startEditBanner(banner)}><Edit size={14} /></button>
-                      <button className="btn btn-sm" style={{ background: '#ef4444', color: 'white', marginLeft: 8 }} onClick={() => handleDeleteBanner(banner.id)}><Trash2 size={14} /></button>
-                    </td>
-                  </tr>
-                ))}</tbody>
-              </table>
+          <div className="card banner-admin-panel">
+            <div className="banner-admin-toolbar">
+              <div>
+                <span className="phone-verify-eyebrow">Banner library</span>
+                <h3 style={{ margin: '4px 0 6px' }}>Manage banners by position</h3>
+                <p className="checkout-note" style={{ margin: 0 }}>
+                  Filter by section, then edit only the banners you need instead of scanning one long list.
+                </p>
+              </div>
+              <button className="btn btn-primary btn-sm" type="button" onClick={() => openBannerEditorFor(bannerFilter === 'all' ? '0' : bannerFilter)}>
+                <Plus size={16} /> Add banner to this section
+              </button>
+            </div>
+
+            <div className="banner-admin-filter-row">
+              <div className="form-group">
+                <label>Show position</label>
+                <select value={bannerFilter} onChange={e => setBannerFilter(e.target.value)}>
+                  <option value="all">All banner positions</option>
+                  <option value="0">Above Shop by Category</option>
+                  {categories.map(category => <option key={category.id} value={String(category.id)}>{category.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Search banners</label>
+                <input
+                  value={bannerSearch}
+                  onChange={e => setBannerSearch(e.target.value)}
+                  placeholder="Search by category, size, URL or order"
+                />
+              </div>
+              <div className="banner-admin-summary">
+                <span>{filteredBannerList.length} banner{filteredBannerList.length === 1 ? '' : 's'}</span>
+                <span>{bannerGroups.length} section{bannerGroups.length === 1 ? '' : 's'}</span>
+              </div>
+            </div>
+
+            <div className="banner-admin-group-stack">
+              {bannerGroups.length === 0 ? (
+                <div className="banner-admin-empty">
+                  No banners found for this filter. Change the section filter or add a new banner here.
+                </div>
+              ) : bannerGroups.map(group => (
+                <section key={group.key} className="banner-admin-group">
+                  <div className="banner-admin-group-head">
+                    <div>
+                      <span className="phone-verify-eyebrow">Section</span>
+                      <h4>{group.category_name}</h4>
+                    </div>
+                    <div className="banner-admin-group-actions">
+                      <span className="tag tag-info">{group.items.length} banner{group.items.length === 1 ? '' : 's'}</span>
+                      <button className="btn btn-sm btn-outline" type="button" onClick={() => openBannerEditorFor(group.category_id)}>
+                        <Plus size={14} /> Add here
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="banner-admin-grid">
+                    {group.items.map(banner => (
+                      <article key={banner.id} className="banner-admin-card">
+                        <div className="banner-admin-preview-wrap">
+                          <img src={banner.image_url} alt={banner.category_name} className="banner-admin-preview" />
+                        </div>
+                        <div className="banner-admin-card-body">
+                          <div className="banner-admin-card-topline">
+                            <strong>Order {banner.sort_order}</strong>
+                            {banner.active ? <span className="tag tag-success">Active</span> : <span className="tag">Inactive</span>}
+                          </div>
+                          <div className="banner-admin-card-meta">
+                            <span>{banner.width} x {banner.height}</span>
+                            <span>ID #{banner.id}</span>
+                          </div>
+                          <div className="banner-admin-card-actions">
+                            <button className="btn btn-sm btn-outline" onClick={() => startEditBanner(banner)}>
+                              <Edit size={14} /> Edit
+                            </button>
+                            <button className="btn btn-sm banner-delete-btn" onClick={() => handleDeleteBanner(banner.id)}>
+                              <Trash2 size={14} /> Delete
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ))}
             </div>
           </div>
         </div>
