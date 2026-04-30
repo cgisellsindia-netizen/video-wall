@@ -13,6 +13,7 @@ import LoginModal from './components/LoginModal';
 import OrdersPage from './components/OrdersPage';
 import AdminPage from './components/AdminPage';
 import ContactPage from './components/ContactPage';
+import PrivacyPolicyPage from './components/PrivacyPolicyPage';
 import DealerDashboard from './components/DealerDashboard';
 import InstallationPage from './components/InstallationPage';
 import ShopPage from './components/ShopPage';
@@ -715,6 +716,7 @@ function AppContent() {
         <Route path="/dealer" element={<DealerDashboard user={user} />} />
         <Route path="/distributor" element={<DealerDashboard user={user} />} />
         <Route path="/contact" element={<ContactPage user={user} />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/admin" element={<AdminPage user={user} />} />
         <Route path="/shop" element={<DeliveryOnlyRoute user={user}><ShopPage products={products} categories={categories} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} /></DeliveryOnlyRoute>} />
         <Route path="/checkout" element={<DeliveryOnlyRoute user={user}><CheckoutPage user={user} liveCartItems={cartItems} onLogin={() => setLoginOpen(true)} onOrderPlaced={handleOrderPlaced} /></DeliveryOnlyRoute>} />
