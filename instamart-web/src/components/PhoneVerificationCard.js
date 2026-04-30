@@ -13,6 +13,8 @@ function PhoneVerificationCard({ user, onUserUpdate }) {
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
+  const [sentPhone, setSentPhone] = useState('');
+  const [resendCountdown, setResendCountdown] = useState(0);
   const confirmationRef = useRef(null);
   const recaptchaRef = useRef(null);
   const recaptchaId = useMemo(
@@ -20,15 +22,45 @@ function PhoneVerificationCard({ user, onUserUpdate }) {
     []
   );
 
-  useEffect(() => {
-    setPhone(user?.phone || '');
+  const savedVerifiedPhone = cleanPhone(user?.phone || '');
+  const draftPhone = cleanPhone(phone);
+  const isVerifiedForCurrentInput = Boolean(
+    user?.phone_verified && savedVerifiedPhone && draftPhone === savedVerifiedPhone
+  );
+
+  const resetRecaptcha = () => {
+    try {
+      recaptchaRef.current?.clear?.();
+    } catch (e) {}
+    recaptchaRef.current = null;
+  };
+
+  const cancelOtpFlow = async ({ clearMessages = false } = {}) => {
     setOtp('');
     setOtpSent(false);
-    setStatus('');
-    setError('');
+    setSentPhone('');
+    setResendCountdown(0);
     confirmationRef.current = null;
     resetRecaptcha();
+    await signOut(firebaseAuth).catch(() => {});
+    if (clearMessages) {
+      setStatus('');
+      setError('');
+    }
+  };
+
+  useEffect(() => {
+    setPhone(user?.phone || '');
+    cancelOtpFlow({ clearMessages: true });
   }, [user?.id, user?.phone]);
+
+  useEffect(() => {
+    if (!otpSent || resendCountdown <= 0) return undefined;
+    const timer = window.setTimeout(() => {
+      setResendCountdown(current => (current > 0 ? current - 1 : 0));
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [otpSent, resendCountdown]);
 
   const ensureRecaptcha = async () => {
     if (!firebasePhoneAuthReady || !firebaseAuth) {
@@ -45,13 +77,6 @@ function PhoneVerificationCard({ user, onUserUpdate }) {
     return verifier;
   };
 
-  const resetRecaptcha = () => {
-    try {
-      recaptchaRef.current?.clear?.();
-    } catch (e) {}
-    recaptchaRef.current = null;
-  };
-
   const sendOtp = async () => {
     const safePhone = cleanPhone(phone);
     if (!/^\d{10}$/.test(safePhone)) {
@@ -65,7 +90,9 @@ function PhoneVerificationCard({ user, onUserUpdate }) {
     try {
       const verifier = await ensureRecaptcha();
       confirmationRef.current = await signInWithPhoneNumber(firebaseAuth, `+91${safePhone}`, verifier);
+      setSentPhone(safePhone);
       setOtpSent(true);
+      setResendCountdown(30);
       setStatus(`OTP sent to +91 ${safePhone}. Enter the code to finish verification.`);
     } catch (otpError) {
       resetRecaptcha();
@@ -109,22 +136,26 @@ function PhoneVerificationCard({ user, onUserUpdate }) {
         localStorage.setItem('user', JSON.stringify(data.user));
         onUserUpdate?.(data.user);
       }
-      setOtp('');
-      setOtpSent(false);
+      await cancelOtpFlow();
       setStatus('Mobile number verified successfully. You can now use mobile login and checkout.');
-      await signOut(firebaseAuth).catch(() => {});
-      confirmationRef.current = null;
-      resetRecaptcha();
     } catch (verifyError) {
       setError(verifyError.message || 'OTP verification failed.');
     }
     setVerifying(false);
   };
 
-  const resendLabel = otpSent ? 'Resend OTP' : 'Send OTP';
+  const resendLabel = sending
+    ? 'Sending...'
+    : otpSent && resendCountdown > 0
+      ? `Resend in ${resendCountdown}s`
+      : isVerifiedForCurrentInput
+        ? 'Verify new number'
+        : otpSent
+          ? 'Resend OTP'
+          : 'Send OTP';
 
   return (
-    <section className={`phone-verify-card ${user?.phone_verified ? 'verified' : 'pending'}`}>
+    <section className={`phone-verify-card ${isVerifiedForCurrentInput ? 'verified' : 'pending'}`}>
       <div className="phone-verify-head">
         <div>
           <span className="phone-verify-eyebrow">Account security</span>
@@ -134,11 +165,23 @@ function PhoneVerificationCard({ user, onUserUpdate }) {
             and checkout protection against fake numbers.
           </p>
         </div>
-        <div className={`phone-verify-badge ${user?.phone_verified ? 'ok' : ''}`}>
-          {user?.phone_verified ? <CheckCircle2 size={16} /> : <Smartphone size={16} />}
-          <span>{user?.phone_verified ? 'Verified' : 'Not verified'}</span>
+        <div className={`phone-verify-badge ${isVerifiedForCurrentInput ? 'ok' : ''}`}>
+          {isVerifiedForCurrentInput ? <CheckCircle2 size={16} /> : <Smartphone size={16} />}
+          <span>{isVerifiedForCurrentInput ? 'Verified' : 'Not verified'}</span>
         </div>
       </div>
+
+      {isVerifiedForCurrentInput && (
+        <div className="phone-verify-success">
+          <div className="phone-verify-success-icon">
+            <CheckCircle2 size={20} />
+          </div>
+          <div className="phone-verify-success-copy">
+            <strong>Verified mobile: +91 {savedVerifiedPhone}</strong>
+            <span>This saved number is now used for mobile login, checkout contact, and delivery updates.</span>
+          </div>
+        </div>
+      )}
 
       <div className="phone-verify-grid">
         <div className="form-group">
@@ -149,33 +192,45 @@ function PhoneVerificationCard({ user, onUserUpdate }) {
             maxLength="10"
             placeholder="10-digit mobile"
             value={phone}
+            disabled={otpSent}
             onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
           />
         </div>
-        <button type="button" className="phone-verify-send" onClick={sendOtp} disabled={sending}>
+        <button
+          type="button"
+          className="phone-verify-send"
+          onClick={sendOtp}
+          disabled={sending || (otpSent && resendCountdown > 0)}
+        >
           <ShieldCheck size={17} />
-          <span>{sending ? 'Sending...' : resendLabel}</span>
+          <span>{resendLabel}</span>
         </button>
       </div>
 
       {otpSent && (
-        <div className="phone-verify-grid otp">
-          <div className="form-group">
-            <label>OTP code</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength="6"
-              placeholder="Enter OTP"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            />
+        <>
+          <div className="phone-verify-meta">
+            <span>OTP sent to +91 {sentPhone}. You can request a new code after 30 seconds.</span>
+            <button type="button" onClick={() => cancelOtpFlow({ clearMessages: false })}>Change number</button>
           </div>
-          <button type="button" className="phone-verify-confirm" onClick={verifyOtp} disabled={verifying}>
-            <CheckCircle2 size={17} />
-            <span>{verifying ? 'Verifying...' : 'Verify mobile'}</span>
-          </button>
-        </div>
+          <div className="phone-verify-grid otp">
+            <div className="form-group">
+              <label>OTP code</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength="6"
+                placeholder="Enter OTP"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              />
+            </div>
+            <button type="button" className="phone-verify-confirm" onClick={verifyOtp} disabled={verifying}>
+              <CheckCircle2 size={17} />
+              <span>{verifying ? 'Verifying...' : 'Verify mobile'}</span>
+            </button>
+          </div>
+        </>
       )}
 
       {status && <div className="phone-verify-status ok">{status}</div>}
