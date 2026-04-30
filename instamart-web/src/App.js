@@ -160,6 +160,24 @@ function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const updateUserState = (nextUser) => {
+    if (!nextUser) return;
+    localStorage.setItem('user', JSON.stringify(nextUser));
+    setUser(nextUser);
+  };
+
+  const refreshCurrentUser = async (referenceUser) => {
+    const token = localStorage.getItem('token');
+    if (!token || !referenceUser?.id) return;
+    try {
+      const res = await fetch(`${API_URL}/users/${referenceUser.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data?.id) updateUserState(data);
+    } catch (e) {}
+  };
+
   const setCartBusy = (productId, busy) => {
     const value = Number(productId);
     if (!Number.isFinite(value)) return;
@@ -175,6 +193,7 @@ function AppContent() {
         const parsedUser = JSON.parse(savedUser);
         if (parsedUser && typeof parsedUser === 'object') {
           setUser(parsedUser);
+          refreshCurrentUser(parsedUser);
           if (parsedUser.role === 'delivery_partner' && location.pathname !== '/delivery-partner') {
             navigate('/delivery-partner', { replace: true });
           }
@@ -563,8 +582,7 @@ function AppContent() {
 
   const handleLogin = (data) => {
     localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify(data.user));
-    setUser(data.user);
+    updateUserState(data.user);
     setLoginOpen(false);
     if (APP_MODE === 'delivery' || data.user?.role === 'delivery_partner') {
       navigate('/delivery-partner', { replace: true });
@@ -691,7 +709,7 @@ function AppContent() {
         } />
         <Route path="/product/:id" element={<DeliveryOnlyRoute user={user}><ProductDetail products={products} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} user={user} onLogin={() => setLoginOpen(true)} priceForRole={priceForRole} /></DeliveryOnlyRoute>} />
         <Route path="/category/:id" element={<DeliveryOnlyRoute user={user}><CategoryPage categories={categories} products={products} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} /></DeliveryOnlyRoute>} />
-        <Route path="/orders" element={<DeliveryOnlyRoute user={user}><OrdersPage user={user} onLogin={() => setLoginOpen(true)} /></DeliveryOnlyRoute>} />
+        <Route path="/orders" element={<DeliveryOnlyRoute user={user}><OrdersPage user={user} onLogin={() => setLoginOpen(true)} onUserUpdate={updateUserState} /></DeliveryOnlyRoute>} />
         <Route path="/install" element={<DeliveryOnlyRoute user={user}><InstallationPage user={user} onLogin={() => setLoginOpen(true)} /></DeliveryOnlyRoute>} />
         <Route path="/dealer" element={<DealerDashboard user={user} />} />
         <Route path="/distributor" element={<DealerDashboard user={user} />} />

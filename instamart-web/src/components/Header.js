@@ -37,7 +37,7 @@ function Header({ user, cartCount, onCartClick, onLoginClick, onLogout, searchQu
         <div className="header-actions">
           {user ? (
             <>
-              <button className="header-btn profile-btn"><User size={18} /><span>{displayName.split(' ')[0]}</span></button>
+              <a href="/#/orders" className="header-btn profile-btn"><User size={18} /><span>{displayName.split(' ')[0]}</span></a>
               {user.role === 'admin' && <a className="header-btn admin-shortcut" href="/#/admin"><Shield size={18} /><span>Admin</span></a>}
               <button className="header-btn" onClick={onLogout}><LogOut size={18} /><span>Logout</span></button>
             </>

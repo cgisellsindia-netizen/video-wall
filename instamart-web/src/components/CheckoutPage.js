@@ -31,6 +31,10 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
   const navigate = useNavigate();
 
   useEffect(() => {
+    setPhone(user?.phone_verified ? user?.phone || '' : '');
+  }, [user?.phone, user?.phone_verified]);
+
+  useEffect(() => {
     if (!user) onLogin();
   }, [user, onLogin]);
 
@@ -115,7 +119,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
   const deliveryFee = localAddress ? (subtotal > 2000 ? 0 : 40) : 0;
   const gst = Math.round(subtotal * 0.18);
   const payable = subtotal + gst + deliveryFee + installationFee;
-  const canPay = Boolean(cartItems.length && localAddress && address.trim() && phone.trim() && razorpayReady);
+  const canPay = Boolean(cartItems.length && localAddress && address.trim() && phone.trim() && user?.phone_verified && razorpayReady);
 
   const buildRazorpayDisplayConfig = () => ({
     display: {
@@ -141,6 +145,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
 
   const handlePlaceOrder = async () => {
     setError('');
+    if (!user?.phone_verified) { setError('Verify your mobile number from Account before checkout.'); return; }
     if (!address || !phone) { setError('Delivery address and phone are required.'); return; }
     if (!cartItems.length) { setError('Cart is empty.'); return; }
     if (!razorpayReady || !window.Razorpay) { setError('Payment gateway is still loading. Please wait a moment and try again.'); return; }
@@ -271,7 +276,14 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
             </div>
           )}
           <div className="form-group"><label>Full Address</label><textarea value={address} onChange={e => setAddress(e.target.value)} rows="3" /></div>
-          <div className="form-group"><label>Phone Number</label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} /></div>
+          <div className="form-group"><label>Phone Number</label><input type="tel" value={phone} readOnly placeholder="Verify your mobile from Account first" /></div>
+          {!user?.phone_verified && (
+            <div className="serviceability-status blocked">
+              <strong>Mobile verification required</strong>
+              <span>Go to Account and verify your mobile number before payment.</span>
+              <button type="button" onClick={() => navigate('/orders')}>Open Account</button>
+            </div>
+          )}
           <div className={`location-lock-card ${coords?.locked ? 'locked' : ''}`}>
             <strong>{coords?.locked ? 'Delivery GPS point locked' : lockingLocation ? 'Locking delivery GPS point...' : 'Delivery GPS point not locked'}</strong>
             <span>

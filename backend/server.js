@@ -1071,10 +1071,17 @@ const requireAdmin = (req, res, next) => {
 };
 
 const cleanPhone = (phone = '') => String(phone || '').replace(/\D/g, '').slice(-10);
+const isValidIndianMobile = (phone = '') => /^\d{10}$/.test(cleanPhone(phone));
+const isStaffRole = (role = '') => ['admin', 'delivery_partner', 'installer'].includes(String(role || ''));
+const signAuthToken = (user) => jwt.sign(
+  { userId: user.id, email: user.email, role: user.role },
+  JWT_SECRET,
+  { expiresIn: '24h' }
+);
 
 const formatUserForClient = (user) => {
   const phoneVerified = Number(user.phone_verified || 0) === 1;
-  const staffCanUsePhone = ['admin', 'delivery_partner', 'installer'].includes(user.role);
+  const staffCanUsePhone = isStaffRole(user.role);
   return {
     id: user.id,
     email: user.email,
@@ -1098,77 +1105,77 @@ const loginUser = (req, res) => {
   const { password } = req.body;
   if (!loginId || !password) return res.status(400).json({ error: 'Login ID/mobile and password are required' });
 
-  db.get('SELECT * FROM users WHERE email = ? OR phone = ?', [loginId, loginId], async (err, user) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+  const safeLoginPhone = cleanPhone(loginId);
 
-    try {
-      const ok = await bcrypt.compare(password, user.password);
-      if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+  db.get('SELECT * FROM users WHERE lower(email) = lower(?)', [loginId], async (emailErr, emailUser) => {
+    if (emailErr) return res.status(500).json({ error: emailErr.message });
 
-      const token = jwt.sign(
-        { userId: user.id, email: user.email, role: user.role },
-        JWT_SECRET,
-        { expiresIn: '24h' }
-      );
+    const finishLogin = async (user) => {
+      if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+      try {
+        const ok = await bcrypt.compare(password, user.password);
+        if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+        return res.json({ token: signAuthToken(user), user: formatUserForClient(user) });
+      } catch (error) {
+        return res.status(500).json({ error: error.message });
+      }
+    };
 
-      res.json({ token, user: formatUserForClient(user) });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
+    if (emailUser) {
+      return finishLogin(emailUser);
     }
+
+    if (!isValidIndianMobile(safeLoginPhone)) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    db.get('SELECT * FROM users WHERE phone = ?', [safeLoginPhone], async (phoneErr, phoneUser) => {
+      if (phoneErr) return res.status(500).json({ error: phoneErr.message });
+      if (!phoneUser) return res.status(401).json({ error: 'Invalid credentials' });
+      if (!isStaffRole(phoneUser.role) && Number(phoneUser.phone_verified || 0) !== 1) {
+        return res.status(403).json({ error: 'This mobile number is not verified yet. Login with email first, then verify your mobile from Account.' });
+      }
+      return finishLogin(phoneUser);
+    });
   });
 };
 
 app.post('/api/auth/login', loginUser);
 
-app.post('/api/auth/register', async (req, res) => {
+const registerUser = async (req, res) => {
   const { email, password, name, phone, address } = req.body;
   if (!email || !password || !name) {
     return res.status(400).json({ error: 'Email, password, and name are required' });
   }
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const safeEmail = String(email || '').trim().toLowerCase();
   const safePhone = cleanPhone(phone);
-  
-  db.run(
-    'INSERT INTO users (email, password, name, phone, address) VALUES (?, ?, ?, ?, ?)',
-    [email, hashedPassword, name, safePhone, address],
-    function(err) {
-      if (err) {
-        if (err.message.includes('UNIQUE constraint failed')) {
-          return res.status(400).json({ error: 'Email already exists' });
-        }
-        return res.status(500).json({ error: err.message });
-      }
-      res.json({ id: this.lastID, message: 'User registered successfully' });
-    }
-  );
-});
+  if (!safePhone || !isValidIndianMobile(safePhone)) {
+    return res.status(400).json({ error: 'Enter a valid 10-digit mobile number' });
+  }
+
+  try {
+    const emailUser = await dbGetAsync('SELECT id FROM users WHERE lower(email) = lower(?)', [safeEmail]);
+    if (emailUser) return res.status(400).json({ error: 'Email already exists' });
+    const phoneUser = await dbGetAsync('SELECT id FROM users WHERE phone = ?', [safePhone]);
+    if (phoneUser) return res.status(400).json({ error: 'This mobile number is already linked to another account' });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const result = await dbRunAsync(
+      'INSERT INTO users (email, password, plaintext_password, name, phone, phone_verified, phone_verified_at, address) VALUES (?, ?, ?, ?, ?, 0, NULL, ?)',
+      [safeEmail, hashedPassword, password, name, safePhone, address]
+    );
+    res.json({ id: result.lastID, message: 'Account created. Login with email, then verify your mobile number from Account.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+app.post('/api/auth/register', registerUser);
 
 // Backward-compatible aliases for cached app/web builds that may call auth without /api.
 app.post('/auth/login', loginUser);
 
-app.post('/auth/register', async (req, res) => {
-  const { email, password, name, phone, address } = req.body;
-  if (!email || !password || !name) {
-    return res.status(400).json({ error: 'Email, password, and name are required' });
-  }
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const safePhone = cleanPhone(phone);
-
-  db.run(
-    'INSERT INTO users (email, password, name, phone, address) VALUES (?, ?, ?, ?, ?)',
-    [email, hashedPassword, name, safePhone, address],
-    function(err) {
-      if (err) {
-        if (err.message.includes('UNIQUE constraint failed')) {
-          return res.status(400).json({ error: 'Email already exists' });
-        }
-        return res.status(500).json({ error: err.message });
-      }
-      res.json({ id: this.lastID, message: 'User registered successfully' });
-    }
-  );
-});
+app.post('/auth/register', registerUser);
 
 // Middleware
 const authenticateToken = (req, res, next) => {
@@ -1183,6 +1190,56 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
+
+const verifyPhoneNumber = async (req, res) => {
+  if (!firebaseReady) {
+    return res.status(503).json({ error: 'Firebase phone verification is not configured on the server yet' });
+  }
+
+  const idToken = String(req.body.idToken || req.body.firebase_id_token || '').trim();
+  const requestedPhone = cleanPhone(req.body.phone || '');
+  if (!idToken) {
+    return res.status(400).json({ error: 'Verification token is required' });
+  }
+
+  try {
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    if (decoded?.firebase?.sign_in_provider !== 'phone') {
+      return res.status(400).json({ error: 'This verification token was not created from phone OTP' });
+    }
+
+    const verifiedPhone = cleanPhone(decoded.phone_number || '');
+    if (!verifiedPhone || !isValidIndianMobile(verifiedPhone)) {
+      return res.status(400).json({ error: 'Verified mobile number is missing from Firebase response' });
+    }
+    if (requestedPhone && requestedPhone !== verifiedPhone) {
+      return res.status(400).json({ error: 'The verified OTP number does not match the entered mobile number' });
+    }
+
+    const duplicatePhone = await dbGetAsync(
+      'SELECT id FROM users WHERE phone = ? AND id <> ?',
+      [verifiedPhone, req.user.userId]
+    );
+    if (duplicatePhone) {
+      return res.status(400).json({ error: 'This mobile number is already linked to another account' });
+    }
+
+    await dbRunAsync(
+      `UPDATE users
+       SET phone = ?, phone_verified = 1, phone_verified_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [verifiedPhone, req.user.userId]
+    );
+    const refreshedUser = await dbGetAsync('SELECT * FROM users WHERE id = ?', [req.user.userId]);
+    if (!refreshedUser) return res.status(404).json({ error: 'User not found after verification' });
+    res.json({ message: 'Mobile number verified successfully', user: formatUserForClient(refreshedUser) });
+  } catch (error) {
+    res.status(400).json({ error: error.message || 'Phone verification failed' });
+  }
+};
+
+app.post('/api/auth/phone/verify', authenticateToken, verifyPhoneNumber);
+app.post('/auth/phone/verify', authenticateToken, verifyPhoneNumber);
 
 // Categories
 app.get('/api/categories', (req, res) => {
@@ -1392,20 +1449,33 @@ app.post('/api/payments/razorpay/order', authenticateToken, async (req, res) => 
     return res.status(503).json({ error: 'Razorpay is not configured on the server yet' });
   }
   try {
-    const draft = await buildOrderDraft(req.user, req.body);
+    const currentUser = await dbGetAsync('SELECT * FROM users WHERE id = ?', [req.user.userId]);
+    if (!currentUser) {
+      return res.status(404).json({ error: 'User account not found' });
+    }
+    if (!isStaffRole(currentUser.role) && Number(currentUser.phone_verified || 0) !== 1) {
+      return res.status(400).json({ error: 'Verify your mobile number from Account before checkout.' });
+    }
+    const verifiedPhone = cleanPhone(currentUser.phone || '');
+    const requestedPhone = cleanPhone(req.body.phone || '');
+    if (!isStaffRole(currentUser.role) && verifiedPhone && requestedPhone && verifiedPhone !== requestedPhone) {
+      return res.status(400).json({ error: 'Checkout phone does not match your verified mobile number. Update it from Account first.' });
+    }
+    req.body.phone = verifiedPhone || requestedPhone;
+    const draft = await buildOrderDraft(currentUser, req.body);
     const razorpayOrder = await callRazorpay('/v1/orders', {
       amount: Math.round(draft.finalAmount * 100),
       currency: 'INR',
-      receipt: `camigo_${req.user.userId}_${Date.now()}`,
+      receipt: `camigo_${currentUser.id}_${Date.now()}`,
       notes: {
-        customer_id: String(req.user.userId),
+        customer_id: String(currentUser.id),
         payment_method: draft.paymentMethod,
         installation_requested: draft.installationRequested ? '1' : '0',
         service_area: 'verified'
       }
     });
     const orderId = await createLocalOrderRecord({
-      userId: req.user.userId,
+      userId: currentUser.id,
       draft,
       status: 'payment_pending',
       paymentStatus: 'created',
@@ -1426,9 +1496,9 @@ app.post('/api/payments/razorpay/order', authenticateToken, async (req, res) => 
         final_amount: draft.finalAmount
       },
       customer: {
-        name: req.user.name || 'Camigo Customer',
-        email: req.user.email || '',
-        contact: req.body.phone || ''
+        name: currentUser.name || 'Camigo Customer',
+        email: currentUser.email || '',
+        contact: verifiedPhone || req.body.phone || ''
       }
     });
   } catch (error) {

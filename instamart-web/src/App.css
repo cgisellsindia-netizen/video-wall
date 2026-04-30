@@ -1088,6 +1088,17 @@
   font-size: 13px;
   font-weight: 700;
 }
+.serviceability-status button {
+  justify-self: flex-start;
+  margin-top: 6px;
+  border: 0;
+  border-radius: 12px;
+  background: #123c88;
+  color: #fff;
+  font-weight: 800;
+  padding: 10px 14px;
+  cursor: pointer;
+}
 .serviceability-status.ok {
   border-color: rgba(22, 163, 74, .28);
   background: #f0fdf4;
@@ -2324,6 +2335,112 @@
   letter-spacing: .12em;
 }
 
+.phone-verify-card {
+  background: linear-gradient(135deg, #fffdf5 0%, #f6f9ff 100%);
+  border: 1px solid #e3ebf7;
+  border-radius: 28px;
+  box-shadow: 0 18px 50px rgba(14,36,82,.08);
+  padding: 22px;
+  margin: 0 0 22px;
+}
+.phone-verify-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.phone-verify-head h3 {
+  margin: 4px 0 8px;
+  font-size: 26px;
+}
+.phone-verify-head p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.55;
+  max-width: 700px;
+}
+.phone-verify-eyebrow {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: #0f4ab8;
+}
+.phone-verify-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: #fff7d6;
+  color: #8a6200;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.phone-verify-badge.ok {
+  background: #dcfce7;
+  color: #0f9f59;
+}
+.phone-verify-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 14px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+.phone-verify-grid.otp {
+  margin-top: 8px;
+}
+.phone-verify-send,
+.phone-verify-confirm {
+  min-height: 52px;
+  border: 0;
+  border-radius: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
+}
+.phone-verify-send {
+  background: linear-gradient(135deg, #123c88 0%, #0f57d3 100%);
+  color: #fff;
+  box-shadow: 0 14px 28px rgba(18,60,136,.18);
+}
+.phone-verify-confirm {
+  background: linear-gradient(135deg, #f6c400 0%, #ffdf5c 100%);
+  color: #0d2557;
+  box-shadow: 0 14px 28px rgba(246,196,0,.2);
+}
+.phone-verify-send:disabled,
+.phone-verify-confirm:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.phone-verify-status {
+  margin-top: 10px;
+  border-radius: 18px;
+  padding: 12px 14px;
+  font-weight: 700;
+}
+.phone-verify-status.ok {
+  background: #e8fff2;
+  color: #0d9b57;
+}
+.phone-verify-status.error {
+  background: #fff1f0;
+  color: #d94841;
+}
+.phone-verify-recaptcha {
+  min-height: 1px;
+}
+
 /* ===== LOGIN MODAL ===== */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.5);
@@ -2660,6 +2777,8 @@
   .real-map { height: 280px; }
   .delivery-hero { align-items: flex-start; flex-direction: column; padding: 22px; }
   .partner-status-grid, .delivery-order-grid, .partner-tools-grid, .heatmap-card { grid-template-columns: 1fr; }
+  .phone-verify-head { flex-direction: column; }
+  .phone-verify-grid { grid-template-columns: 1fr; }
   .route-mini, .otp-row { grid-template-columns: 1fr; }
   .delivery-contact-actions { grid-template-columns: 1fr; }
   .partner-live-actions { justify-content: flex-start; }

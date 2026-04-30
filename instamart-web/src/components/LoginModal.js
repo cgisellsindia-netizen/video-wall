@@ -49,8 +49,9 @@ function LoginModal({ open, onClose, onLogin }) {
         const data = await postAuth('/auth/login', { email: loginId, loginId, phone: loginId, password });
         onLogin(data);
       } else {
-        await postAuth('/auth/register', { email, password, name, phone, address });
-        setMode('login'); setError('Registered! Please login.');
+        const data = await postAuth('/auth/register', { email, password, name, phone, address });
+        setMode('login');
+        setError(data.message || 'Registered! Login with email first, then verify your mobile from Account.');
       }
     } catch (err) { setError(err.message); }
     setLoading(false);
@@ -62,11 +63,11 @@ function LoginModal({ open, onClose, onLogin }) {
         <button className="modal-close" onClick={onClose}><X size={24} /></button>
         <div className="login-body">
           <h2>{mode === 'login' ? 'Login' : 'Create Account'}</h2>
-          <p>{mode === 'login' ? 'Welcome back to Camigo' : 'Join Camigo for fast CCTV delivery'}</p>
+          <p>{mode === 'login' ? 'Welcome back to Camigo. Use email or a verified mobile number.' : 'Join Camigo for fast CCTV delivery'}</p>
           {error && <div className="form-error">{error}</div>}
           <form onSubmit={handleSubmit}>
             {mode === 'register' && (<><div className="form-group"><label>Full Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} required /></div><div className="form-group"><label>Phone</label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} required /></div><div className="form-group"><label>Address</label><textarea value={address} onChange={e => setAddress(e.target.value)} rows="2" required /></div></>)}
-            <div className="form-group"><label>Login ID</label><input type="text" value={email} onChange={e => setEmail(e.target.value)} required /></div>
+            <div className="form-group"><label>{mode === 'login' ? 'Email or verified mobile' : 'Email'}</label><input type="text" value={email} onChange={e => setEmail(e.target.value)} required /></div>
             <div className="form-group"><label>Password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} required /></div>
             <button type="submit" className="submit-btn" disabled={loading}>{loading ? 'Please wait...' : mode === 'login' ? 'Login' : 'Register'}</button>
           </form>

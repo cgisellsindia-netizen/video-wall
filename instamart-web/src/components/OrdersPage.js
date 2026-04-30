@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, MapPin, Package, Truck } from 'lucide-react';
 import { API_URL } from '../api';
+import PhoneVerificationCard from './PhoneVerificationCard';
 
 const formatWarrantyDate = (value) => {
   if (!value) return 'Not set';
@@ -46,7 +47,7 @@ const getCancelRemainingMs = (createdAt, status, nowMs) => {
   return Math.max(0, 60 * 1000 - (nowMs - startedAt));
 };
 
-function OrdersPage({ user, onLogin }) {
+function OrdersPage({ user, onLogin, onUserUpdate }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [clock, setClock] = useState(Date.now());
@@ -125,6 +126,9 @@ function OrdersPage({ user, onLogin }) {
   return (
     <div className="container orders-page">
       <h2 className="section-title" style={{ marginBottom: '24px' }}>My Orders</h2>
+      {user && !['admin', 'delivery_partner', 'installer'].includes(String(user?.role || '')) && (
+        <PhoneVerificationCard user={user} onUserUpdate={onUserUpdate} />
+      )}
 
       {orders.length === 0 ? (
         <div className="card empty-orders">
