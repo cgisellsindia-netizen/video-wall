@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
-const { Readable } = require('stream');
+const { Readable, Writable } = require('stream');
 const admin = require('firebase-admin');
 const ftp = require('basic-ftp');
 const db = require('./database');
@@ -463,6 +463,35 @@ const createCatalogFtpClient = async () => {
     secure: MEDIA_MANIFEST_FTP_SECURE
   });
   return client;
+};
+
+const restoreMediaManifestFromFtp = async (source = 'startup-ftp-import') => {
+  if (!hasCatalogFtpConfig) {
+    throw new Error('InfinityFree FTP is not configured for catalog restore.');
+  }
+  const client = await createCatalogFtpClient();
+  try {
+    const remotePath = String(MEDIA_MANIFEST_FTP_PATH || '/htdocs/camigo-catalog-backup.json').replaceAll('\\', '/');
+    const chunks = [];
+    const collector = new Writable({
+      write(chunk, encoding, callback) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
+        callback();
+      }
+    });
+    await client.downloadTo(collector, remotePath);
+    const payload = Buffer.concat(chunks).toString('utf8').trim();
+    if (!payload) throw new Error(`Catalog backup FTP file is empty: ${remotePath}`);
+    let manifest;
+    try {
+      manifest = JSON.parse(payload);
+    } catch (error) {
+      throw new Error(`Catalog backup FTP file is not valid JSON: ${error.message}`);
+    }
+    return applyMediaManifest(manifest, source);
+  } finally {
+    client.close();
+  }
 };
 
 const normalizeMediaLibraryDir = (value = '/') => {
@@ -2460,8 +2489,17 @@ app.listen(PORT, () => {
   ].filter(Boolean).filter((url, index, list) => list.findIndex(item => normalizePublicUrl(item) === normalizePublicUrl(url)) === index);
   const restoreConfigWarning = catalogRestoreUrlWarning();
   if (restoreConfigWarning) console.warn(restoreConfigWarning);
-  if (restoreCandidates.length) {
+  if (hasCatalogFtpConfig || restoreCandidates.length) {
     setTimeout(async () => {
+      if (hasCatalogFtpConfig) {
+        try {
+          const result = await restoreMediaManifestFromFtp('startup-ftp-import');
+          console.log(`Catalog manifest restored from FTP: ${result.productCount} products, ${result.bannerCount} banners`);
+          return;
+        } catch (error) {
+          console.warn(`Media manifest FTP restore skipped: ${error.message}`);
+        }
+      }
       for (const restoreUrl of restoreCandidates) {
         try {
           const result = await restoreMediaManifestFromUrl(restoreUrl, 'startup-url-import');
