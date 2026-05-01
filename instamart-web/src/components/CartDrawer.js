@@ -25,8 +25,6 @@ function CartDrawer({ open, onClose, items = [], total = 0, onUpdate, onAdd, onR
   };
 
   const itemCount = items.reduce((s, i) => s + Number(i.quantity || 0), 0);
-  const deliveryFee = total > 200 ? 0 : 40;
-  const finalTotal = total + deliveryFee;
 
   return (
     <>
@@ -64,19 +62,19 @@ function CartDrawer({ open, onClose, items = [], total = 0, onUpdate, onAdd, onR
         {items.length > 0 && (
           <div className="cart-footer">
             <div className="cart-subtotal">
-              <span>Subtotal</span>
+              <span>Items total</span>
               <span>Rs {total}</span>
             </div>
             <div className="cart-subtotal">
-              <span>Delivery Fee</span>
-              <span>{deliveryFee === 0 ? 'FREE' : `Rs ${deliveryFee}`}</span>
+              <span>Delivery charge</span>
+              <span>Calculated at checkout</span>
             </div>
             <div className="cart-total-row">
-              <span className="label">Total</span>
-              <span className="value">Rs {finalTotal}</span>
+              <span className="label">Payable starts from</span>
+              <span className="value">Rs {total}</span>
             </div>
             <button className="checkout-btn" onClick={handleCheckout} disabled={checkingOut}>
-              {checkingOut ? 'Placing Order...' : 'Checkout'}
+              {checkingOut ? 'Opening Checkout...' : 'Checkout'}
             </button>
           </div>
         )}
