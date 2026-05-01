@@ -2,10 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Star, Truck, X } from 'lucide-react';
 import { API_URL } from '../api';
+import { formatOrderStatusLabel, isPaymentPendingOrder } from '../orderTracking';
 const DELIVERY_MS = 90000;
 
 export function getDeliveryState(order) {
   if (!order?.id) return { step: 0, delivered: false, percent: 0 };
+  if (isPaymentPendingOrder(order)) return { step: 0, delivered: false, percent: 0 };
   if (order.status === 'delivered') return { step: 4, delivered: true, percent: 100 };
 
   const statusPercent = {
@@ -107,6 +109,7 @@ function FloatingTracker({ activeOrder, onDismiss, onRate }) {
   }, [partner?.lat, partner?.lng, tracking?.order?.status, order.customer_lat, order.customer_lng, activeOrder?.customer_lat, activeOrder?.customer_lng]);
 
   if (!activeOrder?.id) return null;
+  if (order?.id && isPaymentPendingOrder(order)) return null;
 
   const state = getDeliveryState(order);
   const delivered = order.status === 'delivered' || state.delivered;
@@ -120,7 +123,7 @@ function FloatingTracker({ activeOrder, onDismiss, onRate }) {
       <div className="floating-status-icon"><Truck size={20} /></div>
       <div className="floating-status-body" onClick={() => navigate(`/tracking/${activeOrder.id}`)}>
         <span>Order #{activeOrder.id}</span>
-        <strong>{delivered ? 'Delivered' : String(order.status || 'out_for_delivery').replaceAll('_', ' ')}</strong>
+        <strong>{delivered ? 'Delivered' : formatOrderStatusLabel(order.status || 'out_for_delivery', order.payment_status)}</strong>
         <small>{delivered ? `Delivered by ${partnerName}. Rate your product and delivery` : partner ? `${partnerName} is live on route` : partnerSummary?.partner_name ? `${partnerName} assigned. Waiting for live GPS` : 'Waiting for partner live location'}</small>
         {!delivered && <div className="floating-progress"><i style={{ width: `${percent}%` }} /></div>}
 

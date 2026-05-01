@@ -14,6 +14,7 @@ import OrdersPage from './components/OrdersPage';
 import AdminPage from './components/AdminPage';
 import ContactPage from './components/ContactPage';
 import PrivacyPolicyPage from './components/PrivacyPolicyPage';
+import TermsOfServicePage from './components/TermsOfServicePage';
 import DealerDashboard from './components/DealerDashboard';
 import InstallationPage from './components/InstallationPage';
 import ShopPage from './components/ShopPage';
@@ -29,6 +30,7 @@ import Footer from './components/Footer';
 import BottomNav from './components/BottomNav';
 import { API_URL } from './api';
 import { captureCustomerLocation, getSavedCustomerLocation } from './locationLock';
+import { isTrackableOrder } from './orderTracking';
 import './App.css';
 
 const getRuntimeAppMode = () => {
@@ -208,8 +210,7 @@ function AppContent() {
       }
     }
     try {
-      const savedOrder = JSON.parse(localStorage.getItem('camigo_active_order') || 'null');
-      if (savedOrder?.id) setActiveOrder(savedOrder);
+      JSON.parse(localStorage.getItem('camigo_active_order') || 'null');
     } catch (e) {
       localStorage.removeItem('camigo_active_order');
     }
@@ -403,9 +404,14 @@ function AppContent() {
   }, [user]);
 
   const handleOrderPlaced = (order) => {
-    const active = { id: order.order_id, address: order.address, createdAt: Date.now() };
-    localStorage.setItem('camigo_active_order', JSON.stringify(active));
-    setActiveOrder(active);
+    if (isTrackableOrder({ id: order.order_id, status: order.status, payment_status: order.payment_status })) {
+      const active = { id: order.order_id, address: order.address, createdAt: Date.now(), status: order.status, payment_status: order.payment_status };
+      localStorage.setItem('camigo_active_order', JSON.stringify(active));
+      setActiveOrder(active);
+    } else {
+      localStorage.removeItem('camigo_active_order');
+      setActiveOrder(null);
+    }
     setCartItems([]);
     localStorage.removeItem('cart_backup');
   };
@@ -431,21 +437,37 @@ function AppContent() {
       if (saved?.id) {
         const trackingRes = await fetch(`${API_URL}/tracking/${saved.id}`, { headers: { Authorization: `Bearer ${token}` } });
         const tracking = await trackingRes.json().catch(() => null);
-        if (trackingRes.ok && tracking?.order?.status !== 'delivered') {
-          setActiveOrder({ ...saved, status: tracking.order.status, address: tracking.order.address });
+        if (trackingRes.ok && isTrackableOrder(tracking?.order)) {
+          setActiveOrder({
+            ...saved,
+            status: tracking.order.status,
+            payment_status: tracking.order.payment_status,
+            address: tracking.order.address
+          });
           return;
         }
+        localStorage.removeItem('camigo_active_order');
+        setActiveOrder(null);
       }
 
       const res = await fetch(`${API_URL}/orders`, { headers: { Authorization: `Bearer ${token}` } });
       const orders = await res.json();
       const liveOrder = Array.isArray(orders)
-        ? orders.find(order => !['delivered', 'cancelled', 'rejected'].includes(order.status))
+        ? orders.find(order => isTrackableOrder(order))
         : null;
       if (liveOrder) {
-        const active = { id: liveOrder.id, address: liveOrder.address, status: liveOrder.status, createdAt: new Date(liveOrder.created_at).getTime() || Date.now() };
+        const active = {
+          id: liveOrder.id,
+          address: liveOrder.address,
+          status: liveOrder.status,
+          payment_status: liveOrder.payment_status,
+          createdAt: new Date(liveOrder.created_at).getTime() || Date.now()
+        };
         localStorage.setItem('camigo_active_order', JSON.stringify(active));
         setActiveOrder(active);
+      } else {
+        localStorage.removeItem('camigo_active_order');
+        setActiveOrder(null);
       }
     } catch (e) {}
   };
@@ -717,6 +739,7 @@ function AppContent() {
         <Route path="/distributor" element={<DealerDashboard user={user} />} />
         <Route path="/contact" element={<ContactPage user={user} />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms-of-service" element={<TermsOfServicePage />} />
         <Route path="/admin" element={<AdminPage user={user} />} />
         <Route path="/shop" element={<DeliveryOnlyRoute user={user}><ShopPage products={products} categories={categories} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} /></DeliveryOnlyRoute>} />
         <Route path="/checkout" element={<DeliveryOnlyRoute user={user}><CheckoutPage user={user} liveCartItems={cartItems} onLogin={() => setLoginOpen(true)} onOrderPlaced={handleOrderPlaced} /></DeliveryOnlyRoute>} />

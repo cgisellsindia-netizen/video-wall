@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, MapPin, Package, Truck } from 'lucide-react';
 import { API_URL } from '../api';
 import PhoneVerificationCard from './PhoneVerificationCard';
+import { formatOrderStatusLabel, isPaymentPendingOrder } from '../orderTracking';
 
 const formatWarrantyDate = (value) => {
   if (!value) return 'Not set';
@@ -77,6 +78,7 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
   const getStatusColor = (status) => {
     switch(status) {
       case 'delivered': return '#1ba672';
+      case 'payment_pending': return '#e74c3c';
       case 'pending': return '#fc8019';
       case 'cancelled': return '#e74c3c';
       default: return '#93959f';
@@ -86,6 +88,7 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
   const getProgress = (status) => {
     switch (status) {
       case 'delivered': return 100;
+      case 'payment_pending': return 0;
       case 'out_for_delivery': return 72;
       case 'picked_up': return 62;
       case 'arrived_at_store': return 38;
@@ -142,6 +145,9 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
           {orders.map(order => (
             <div key={order.id} className="card order-card">
               {(() => {
+                const displayStatus = formatOrderStatusLabel(order);
+                const paymentPending = isPaymentPendingOrder(order);
+                const canOpenTracking = !paymentPending && !['cancelled', 'rejected'].includes(String(order.status || '').toLowerCase());
                 const cancelRemainingMs = getCancelRemainingMs(order.created_at, order.status, clock);
                 const canCancel = cancelRemainingMs > 0 && ['pending', 'payment_pending'].includes(String(order.status || '').toLowerCase());
                 const secondsLeft = Math.ceil(cancelRemainingMs / 1000);
@@ -152,16 +158,20 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
                   <span className="order-id">Order #{order.id}</span>
                   <span className="order-date">{new Date(order.created_at).toLocaleDateString()}</span>
                 </div>
-                <span className="order-status" style={{ background: getStatusColor(order.status) + '20', color: getStatusColor(order.status) }}>
-                  {String(order.status || 'pending').toUpperCase()}
+                <span className="order-status" style={{ background: getStatusColor(String(order.status || '').toLowerCase()) + '20', color: getStatusColor(String(order.status || '').toLowerCase()) }}>
+                  {displayStatus.toUpperCase()}
                 </span>
               </div>
               <div className="order-card-bottom">
                 <span>{String(order.payment_method || 'payment').toUpperCase()}</span>
                 <strong>Rs {order.final_amount}</strong>
-                <button className="btn btn-sm btn-primary" onClick={() => navigate(`/tracking/${order.id}`)}>
-                  <MapPin size={15} /> Track
-                </button>
+                {canOpenTracking ? (
+                  <button className="btn btn-sm btn-primary" onClick={() => navigate(`/tracking/${order.id}`)}>
+                    <MapPin size={15} /> Track
+                  </button>
+                ) : (
+                  <span className="order-track-pill">{paymentPending ? 'Payment incomplete' : 'Tracking unavailable'}</span>
+                )}
               </div>
               {canCancel && (
                 <div className="order-cancel-strip">
@@ -173,8 +183,8 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
               )}
               <div className="order-progress">
                 <div className="order-progress-head">
-                  <span><Truck size={15} /> Live delivery status</span>
-                  <span>{String(order.status || 'pending').replaceAll('_', ' ')}</span>
+                  <span><Truck size={15} /> {paymentPending ? 'Payment status' : 'Live delivery status'}</span>
+                  <span>{displayStatus}</span>
                 </div>
                 <div className="order-progress-track">
                   <span style={{ width: `${getProgress(order.status)}%` }} />
@@ -186,6 +196,11 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
                   <span>Delivered</span>
                 </div>
               </div>
+              {paymentPending && (
+                <div className="order-cancel-strip">
+                  <span>Online payment was not completed, so delivery tracking has not started for this order.</span>
+                </div>
+              )}
               {Array.isArray(order.items) && order.items.length > 0 && (
                 <div className="order-warranty-list">
                   <div className="order-warranty-title">Product warranty</div>

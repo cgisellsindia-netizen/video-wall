@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { CheckCircle2, MapPin, PackageCheck, Phone, PlusCircle, Star, Truck } from 'lucide-react';
 import { getDeliveryState } from './FloatingTracker';
 import RoadRouteMap from './RoadRouteMap';
 import { API_URL } from '../api';
+import { formatOrderStatusLabel, isPaymentPendingOrder } from '../orderTracking';
 
 function TrackingPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [order, setOrder] = useState(null);
   const [partnerLocation, setPartnerLocation] = useState(null);
   const [partnerSummary, setPartnerSummary] = useState(null);
@@ -61,6 +63,7 @@ function TrackingPage() {
   ];
 
   const delivered = order?.status === 'delivered' || delivery.delivered;
+  const paymentIncomplete = !delivered && isPaymentPendingOrder(order);
   const etaMinutes = delivered ? 0 : routeInfo?.durationMin || (partnerLocation ? 23 : Math.max(1, Math.ceil((100 - delivery.percent) / 18)));
   const customerLocation = order?.customer_lat && order?.customer_lng
     ? { lat: Number(order.customer_lat), lng: Number(order.customer_lng) }
@@ -81,6 +84,73 @@ function TrackingPage() {
     const phone = partnerLocation?.partner_phone || partnerSummary?.partner_phone || order?.delivery_partner_phone;
     if (phone) window.location.href = `tel:${phone}`;
   };
+
+  if (paymentIncomplete) {
+    return (
+      <main className="tracking-page live-tracking-page">
+        <section className="tracking-card live-tracking-card">
+          <div className="tracking-title-row">
+            <div>
+              <span className="eyebrow">Order status</span>
+              <h1>Payment not completed</h1>
+              <p>Order #{id} is not dispatched because online payment did not finish successfully.</p>
+            </div>
+            <div className="tracking-big-eta">
+              <strong>0</strong>
+              <span>min</span>
+            </div>
+          </div>
+
+          <div className="tracking-bottom-sheet">
+            <div className="sheet-main-row">
+              <div>
+                <h2>{formatOrderStatusLabel(order)}</h2>
+                <p>This order cannot enter live delivery tracking until payment is completed.</p>
+              </div>
+              <div className="tracking-sheet-eta">
+                <strong>Hold</strong>
+                <span>state</span>
+              </div>
+            </div>
+
+            <div className="live-location-panel">
+              <Truck size={18} />
+              <div>
+                <strong>No delivery partner assigned yet</strong>
+                <span>COD is disabled, so unpaid orders stay on hold. Cancel this order from Orders and place checkout again after payment.</span>
+              </div>
+            </div>
+
+            <div className="tracking-steps">
+              {steps.map((item, index) => {
+                const Icon = item.icon;
+                const active = index === 0;
+                return (
+                  <div key={item.title} className={active ? 'tracking-step active' : 'tracking-step'}>
+                    <Icon size={20} />
+                    <span>{item.title}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="tracking-delay-coupon">
+              <Truck size={18} />
+              <div>
+                <span>PAYMENT REQUIRED</span>
+                <strong>Go back to Orders, cancel this unpaid order, and place checkout again.</strong>
+              </div>
+            </div>
+
+            <div className="checkout-actions" style={{ marginTop: '18px' }}>
+              <button className="checkout-pay-btn secondary" onClick={() => navigate('/orders')}>Back to Orders</button>
+              <button className="checkout-pay-btn" onClick={() => navigate('/')}>Browse Products</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="tracking-page live-tracking-page">
@@ -123,7 +193,7 @@ function TrackingPage() {
         <div className="tracking-bottom-sheet">
           <div className="sheet-main-row">
             <div>
-              <h2>{delivered ? 'Delivered' : String(order?.status || 'out_for_delivery').replaceAll('_', ' ')}</h2>
+              <h2>{delivered ? 'Delivered' : formatOrderStatusLabel(order?.status || 'out_for_delivery', order?.payment_status)}</h2>
               <p>{delivered ? `${partnerName} completed this delivery` : partnerLocation ? `${partnerName} is on the way to deliver your order` : partnerSummary ? `${partnerName} is assigned. Waiting for live GPS` : 'Waiting for delivery partner live location'}</p>
             </div>
             <div className="tracking-sheet-eta">

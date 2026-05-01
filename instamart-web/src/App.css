@@ -1453,6 +1453,10 @@
   width: 100%; margin-top: 16px; border: 0; border-radius: 16px; padding: 15px;
   background: #f6c400; color: #092452; font-size: 16px; font-weight: 900; cursor: pointer;
 }
+.checkout-pay-btn.secondary {
+  background: #edf2fb;
+  color: #16356b;
+}
 .checkout-pay-btn:disabled {
   opacity: .58;
   cursor: not-allowed;
@@ -2048,6 +2052,19 @@
 .order-card-bottom strong {
   font-size: 18px;
   color: #fc8019;
+}
+.order-track-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #fff4f1;
+  color: #b94d39;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
 }
 .order-cancel-strip {
   margin-top: 14px;
