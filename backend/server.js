@@ -95,6 +95,12 @@ const mediaManifestPublicPathFromFtp = () => {
 const MEDIA_MANIFEST_EXPECTED_URL = MEDIA_LIBRARY_PUBLIC_BASE
   ? `${MEDIA_LIBRARY_PUBLIC_BASE}${mediaManifestPublicPathFromFtp()}`
   : '';
+const OPERATIONAL_STATE_FTP_PATH = process.env.OPERATIONAL_STATE_FTP_PATH || '/htdocs/camigo-operational-backup.enc';
+const hasOperationalStateFtpConfig = hasCatalogFtpConfig;
+const OPERATIONAL_STATE_ENCRYPTION_KEY = crypto
+  .createHash('sha256')
+  .update(`${JWT_SECRET}:camigo-operational-state`, 'utf8')
+  .digest();
 const normalizePublicUrl = (value = '') => String(value || '').trim().replace(/\/+$/, '');
 const catalogRestoreUrlWarning = () => {
   if (!MEDIA_MANIFEST_URL || !MEDIA_MANIFEST_EXPECTED_URL) return '';
@@ -134,6 +140,64 @@ const priceForUserRole = (product, role) => {
   return Number(product.price || 0);
 };
 
+const DEFAULT_CAMIGO_HUB = {
+  name: 'Camigo Hub',
+  lat: 20.34986,
+  lng: 85.82418
+};
+
+// Edit these average transport rates whenever your Uber/Rapido/Delhivery commercial pricing changes.
+const LOCAL_PARTNER_RATE_CARD = [
+  { provider: 'Rapido Parcel', baseFee: 52, perKmFee: 10.5, handlingFee: 8 },
+  { provider: 'Uber Parcel', baseFee: 62, perKmFee: 12.5, handlingFee: 10 }
+];
+
+const DELHIVERY_RATE_CARD = {
+  odisha: {
+    label: 'Delhivery Odisha lane',
+    baseQuotes: [82, 88, 94],
+    additionalKgQuotes: [18, 20, 22],
+    handlingQuotes: [12, 14, 16],
+    safetyMarkupRate: 0.16,
+    estimateLabel: '1-2 days'
+  },
+  east: {
+    label: 'Delhivery East lane',
+    baseQuotes: [108, 116, 124],
+    additionalKgQuotes: [24, 26, 28],
+    handlingQuotes: [15, 17, 19],
+    safetyMarkupRate: 0.18,
+    estimateLabel: '2-4 days'
+  },
+  national: {
+    label: 'Delhivery National lane',
+    baseQuotes: [138, 148, 158],
+    additionalKgQuotes: [30, 33, 36],
+    handlingQuotes: [18, 20, 22],
+    safetyMarkupRate: 0.2,
+    estimateLabel: '3-6 days'
+  }
+};
+
+const averageList = (values = []) => {
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + Number(value || 0), 0) / values.length;
+};
+
+const roundCurrency = (value = 0) => Math.round(Number(value || 0));
+const roundToStep = (value = 0, step = 5) => Math.ceil(Number(value || 0) / step) * step;
+const roundOneDecimal = (value = 0) => Math.round(Number(value || 0) * 10) / 10;
+
+const haversineKm = (lat1, lng1, lat2, lng2) => {
+  const toRad = (deg) => (Number(deg) * Math.PI) / 180;
+  const dLat = toRad(Number(lat2) - Number(lat1));
+  const dLng = toRad(Number(lng2) - Number(lng1));
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return 6371 * c;
+};
+
 const isLocalServiceZone = (lat, lng) => {
   const valueLat = Number(lat);
   const valueLng = Number(lng);
@@ -147,13 +211,15 @@ const isLocalAddressText = (address = '') => {
 };
 
 const extractPincode = (value = '') => {
-  const match = String(value).match(/\b(75[123]\d{3})\b/);
+  const match = String(value).match(/\b([1-9]\d{5})\b/);
   return match ? match[1] : '';
 };
 
+const isValidIndianPincode = (pincode = '') => /^[1-9]\d{5}$/.test(String(pincode || '').trim());
+
 const isServiceablePincode = (pincode = '') => {
   const pin = String(pincode || '').trim();
-  if (!/^\d{6}$/.test(pin)) return false;
+  if (!isValidIndianPincode(pin)) return false;
   return pin.startsWith('751') || pin.startsWith('753') || /^752[01]\d{2}$/.test(pin);
 };
 
@@ -161,14 +227,139 @@ const checkServiceability = ({ address = '', pincode = '', lat, lng } = {}) => {
   const detectedPincode = String(pincode || '').trim() || extractPincode(address);
   const gpsLocal = isLocalServiceZone(lat, lng);
   const pincodeLocal = isServiceablePincode(detectedPincode);
+  const validPincode = isValidIndianPincode(detectedPincode);
   const addressLocal = isLocalAddressText(address);
   const hasPincode = Boolean(detectedPincode);
+  const localServiceable = hasPincode ? pincodeLocal : (gpsLocal || addressLocal);
+  const courierServiceable = hasPincode && validPincode && !localServiceable;
   return {
-    serviceable: hasPincode ? pincodeLocal : (gpsLocal || addressLocal),
+    serviceable: localServiceable || courierServiceable,
+    localServiceable,
+    courierServiceable,
+    mode: localServiceable ? 'local' : courierServiceable ? 'courier' : 'blocked',
     detectedPincode,
+    validPincode,
     gpsLocal,
     pincodeLocal,
     addressLocal
+  };
+};
+
+const estimateItemWeightKg = (items = [], productLookup = new Map()) => {
+  const categoryWeight = {
+    1: 0.8,  // Night Color AHD Cameras
+    2: 0.85, // IP Cameras
+    3: 1.4,  // PTZ Cameras
+    4: 2.4,  // DVR
+    5: 2.6,  // NVR
+    6: 1.4,  // PoE switch
+    7: 0.45  // SMPS / accessories
+  };
+
+  const total = items.reduce((sum, item) => {
+    const product = productLookup.get(item.product_id) || {};
+    const categoryId = Number(product.category_id || 0);
+    const quantity = Math.max(1, Number(item.quantity || 1));
+    const unitWeight = categoryWeight[categoryId] || 0.6;
+    return sum + (unitWeight * quantity);
+  }, 0);
+
+  return Math.max(0.5, total);
+};
+
+const detectDelhiveryLane = (pincode = '') => {
+  const pin = String(pincode || '').trim();
+  if (pin.startsWith('75')) return 'odisha';
+  if (/^(70|71|72|73|74|76|77|78|79)/.test(pin)) return 'east';
+  return 'national';
+};
+
+const getDispatchHub = async () => {
+  const row = await dbGetAsync(
+    'SELECT name, lat, lng FROM hubs WHERE active = 1 AND lat IS NOT NULL AND lng IS NOT NULL ORDER BY id ASC LIMIT 1'
+  );
+  if (row && Number.isFinite(Number(row.lat)) && Number.isFinite(Number(row.lng))) {
+    return {
+      name: row.name || DEFAULT_CAMIGO_HUB.name,
+      lat: Number(row.lat),
+      lng: Number(row.lng)
+    };
+  }
+  return DEFAULT_CAMIGO_HUB;
+};
+
+const buildDeliveryQuote = async ({ address = '', pincode = '', lat, lng, items = [], productLookup = new Map() } = {}) => {
+  const serviceability = checkServiceability({ address, pincode, lat, lng });
+  if (!serviceability.serviceable) {
+    return {
+      ...serviceability,
+      charge: 0,
+      baseQuote: 0,
+      safetyMarkup: 0,
+      provider: 'Unavailable',
+      providerCode: 'blocked',
+      estimateLabel: 'Not serviceable',
+      zoneLabel: 'Invalid delivery area',
+      message: 'Enter a valid 6-digit delivery pincode. Same-day is for Bhubaneswar/Cuttack/Khordha/Jatni, and outside-zone orders go by Delhivery courier.',
+      distanceKm: null,
+      estimatedWeightKg: null,
+      chargeableWeightKg: null
+    };
+  }
+
+  if (serviceability.localServiceable) {
+    const hub = await getDispatchHub();
+    const hasPreciseCoords = Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+    const mappedDistanceKm = hasPreciseCoords
+      ? Math.max(1.5, haversineKm(hub.lat, hub.lng, Number(lat), Number(lng)) * 1.28)
+      : 8;
+    const partnerQuotes = LOCAL_PARTNER_RATE_CARD.map((rateCard) => ({
+      provider: rateCard.provider,
+      quote: rateCard.baseFee + (mappedDistanceKm * rateCard.perKmFee) + rateCard.handlingFee
+    }));
+    const baseQuote = averageList(partnerQuotes.map(item => item.quote));
+    const safetyMarkup = Math.max(12, baseQuote * 0.16);
+    const charge = roundToStep(baseQuote + safetyMarkup, 5);
+    const estimateLabel = mappedDistanceKm <= 8 ? '45-90 mins' : mappedDistanceKm <= 18 ? '90-150 mins' : 'Same day';
+    return {
+      ...serviceability,
+      charge,
+      baseQuote: roundCurrency(baseQuote),
+      safetyMarkup: roundCurrency(safetyMarkup),
+      provider: 'Uber Parcel + Rapido average',
+      providerCode: 'local-average',
+      estimateLabel,
+      zoneLabel: 'Same-day local zone',
+      message: `Same-day delivery charge is averaged from Uber Parcel and Rapido, then increased slightly for Camigo delivery safety.`,
+      distanceKm: roundOneDecimal(mappedDistanceKm),
+      estimatedWeightKg: null,
+      chargeableWeightKg: null,
+      hubName: hub.name
+    };
+  }
+
+  const laneKey = detectDelhiveryLane(serviceability.detectedPincode);
+  const lane = DELHIVERY_RATE_CARD[laneKey];
+  const estimatedWeightKg = estimateItemWeightKg(items, productLookup);
+  const chargeableWeightKg = Math.max(1, Math.ceil(estimatedWeightKg));
+  const baseQuote = averageList(lane.baseQuotes)
+    + (Math.max(0, chargeableWeightKg - 1) * averageList(lane.additionalKgQuotes))
+    + averageList(lane.handlingQuotes);
+  const safetyMarkup = Math.max(14, baseQuote * lane.safetyMarkupRate);
+  const charge = roundToStep(baseQuote + safetyMarkup, 5);
+  return {
+    ...serviceability,
+    charge,
+    baseQuote: roundCurrency(baseQuote),
+    safetyMarkup: roundCurrency(safetyMarkup),
+    provider: 'Delhivery',
+    providerCode: 'delhivery',
+    estimateLabel: lane.estimateLabel,
+    zoneLabel: lane.label,
+    message: 'Outside the same-day corridor, Camigo will use averaged Delhivery courier pricing with a safety margin added to the checkout delivery charge.',
+    distanceKm: null,
+    estimatedWeightKg: roundOneDecimal(estimatedWeightKg),
+    chargeableWeightKg
   };
 };
 
@@ -620,6 +811,312 @@ const syncCatalogBackupForResponse = async (reason = 'catalog-change') => {
   }
 };
 
+const normalizeOperationalStateRemotePath = () => {
+  const raw = String(OPERATIONAL_STATE_FTP_PATH || '/htdocs/camigo-operational-backup.enc').replaceAll('\\', '/');
+  const prefixed = raw.startsWith('/') ? raw : `/${raw}`;
+  return path.posix.normalize(prefixed);
+};
+
+const buildOperationalStateManifest = async () => {
+  const [users, hubs, deliveryPartnerDetails] = await Promise.all([
+    dbAllAsync(
+      `SELECT id, email, password, plaintext_password, name, phone, address, role,
+              phone_verified, phone_verified_at, created_at
+       FROM users
+       ORDER BY id ASC`
+    ),
+    dbAllAsync(
+      `SELECT id, name, address, lat, lng, map_url, active, created_at
+       FROM hubs
+       ORDER BY id ASC`
+    ),
+    dbAllAsync(
+      `SELECT user_id, vehicle_type, vehicle_number, license_number, hub_id, active
+       FROM delivery_partner_details
+       ORDER BY user_id ASC`
+    )
+  ]);
+
+  return {
+    version: 1,
+    type: 'camigo-operational-backup',
+    generated_at: new Date().toISOString(),
+    users,
+    hubs,
+    delivery_partner_details: deliveryPartnerDetails
+  };
+};
+
+const encryptOperationalStatePayload = (manifest) => {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', OPERATIONAL_STATE_ENCRYPTION_KEY, iv);
+  const payload = JSON.stringify(manifest, null, 2);
+  const encrypted = Buffer.concat([cipher.update(payload, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return JSON.stringify({
+    version: 1,
+    type: 'camigo-operational-backup-envelope',
+    algorithm: 'aes-256-gcm',
+    iv: iv.toString('base64'),
+    tag: tag.toString('base64'),
+    data: encrypted.toString('base64')
+  }, null, 2);
+};
+
+const decryptOperationalStatePayload = (payload, remotePath = normalizeOperationalStateRemotePath()) => {
+  if (!payload) throw new Error(`Operational backup FTP file is empty: ${remotePath}`);
+  let envelope;
+  try {
+    envelope = JSON.parse(payload);
+  } catch (error) {
+    throw new Error(`Operational backup FTP file is not valid JSON: ${error.message}`);
+  }
+
+  if (envelope?.type !== 'camigo-operational-backup-envelope') {
+    throw new Error(`Operational backup FTP file has unsupported type: ${envelope?.type || 'unknown'}`);
+  }
+  if (envelope?.algorithm !== 'aes-256-gcm') {
+    throw new Error(`Operational backup FTP file has unsupported algorithm: ${envelope?.algorithm || 'unknown'}`);
+  }
+
+  try {
+    const decipher = crypto.createDecipheriv(
+      'aes-256-gcm',
+      OPERATIONAL_STATE_ENCRYPTION_KEY,
+      Buffer.from(String(envelope.iv || ''), 'base64')
+    );
+    decipher.setAuthTag(Buffer.from(String(envelope.tag || ''), 'base64'));
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(String(envelope.data || ''), 'base64')),
+      decipher.final()
+    ]).toString('utf8');
+    return JSON.parse(decrypted);
+  } catch (error) {
+    throw new Error(`Operational backup decrypt failed: ${error.message}`);
+  }
+};
+
+const operationalPayloadHash = (payload) => crypto.createHash('sha256').update(String(payload || ''), 'utf8').digest('hex');
+
+const applyOperationalStateManifest = async (manifest, source = 'operational-state-import') => {
+  if (!manifest || typeof manifest !== 'object') {
+    throw new Error('Operational state manifest must be a JSON object');
+  }
+  if (manifest.type !== 'camigo-operational-backup') {
+    throw new Error(`Unsupported operational state manifest type: ${manifest.type || 'unknown'}`);
+  }
+
+  const users = Array.isArray(manifest.users) ? manifest.users : [];
+  const hubs = Array.isArray(manifest.hubs) ? manifest.hubs : [];
+  const deliveryPartnerDetails = Array.isArray(manifest.delivery_partner_details)
+    ? manifest.delivery_partner_details
+    : [];
+
+  await dbRunAsync('BEGIN IMMEDIATE TRANSACTION');
+  try {
+    for (const user of users) {
+      await dbRunAsync(
+        `INSERT INTO users (
+           id, email, password, plaintext_password, name, phone, address, role,
+           phone_verified, phone_verified_at, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           email = excluded.email,
+           password = excluded.password,
+           plaintext_password = excluded.plaintext_password,
+           name = excluded.name,
+           phone = excluded.phone,
+           address = excluded.address,
+           role = excluded.role,
+           phone_verified = excluded.phone_verified,
+           phone_verified_at = excluded.phone_verified_at,
+           created_at = COALESCE(excluded.created_at, users.created_at)`,
+        [
+          user.id,
+          user.email || null,
+          user.password || null,
+          user.plaintext_password || null,
+          user.name || '',
+          user.phone || null,
+          user.address || '',
+          user.role || 'user',
+          Number(user.phone_verified) ? 1 : 0,
+          user.phone_verified_at || null,
+          user.created_at || null
+        ]
+      );
+    }
+
+    for (const hub of hubs) {
+      await dbRunAsync(
+        `INSERT INTO hubs (id, name, address, lat, lng, map_url, active, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           name = excluded.name,
+           address = excluded.address,
+           lat = excluded.lat,
+           lng = excluded.lng,
+           map_url = excluded.map_url,
+           active = excluded.active,
+           created_at = COALESCE(excluded.created_at, hubs.created_at)`,
+        [
+          hub.id,
+          hub.name || '',
+          hub.address || '',
+          Number(hub.lat) || 0,
+          Number(hub.lng) || 0,
+          hub.map_url || '',
+          Number(hub.active) ? 1 : 0,
+          hub.created_at || null
+        ]
+      );
+    }
+
+    for (const details of deliveryPartnerDetails) {
+      await dbRunAsync(
+        `INSERT INTO delivery_partner_details (
+           user_id, vehicle_type, vehicle_number, license_number, hub_id, active
+         ) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(user_id) DO UPDATE SET
+           vehicle_type = excluded.vehicle_type,
+           vehicle_number = excluded.vehicle_number,
+           license_number = excluded.license_number,
+           hub_id = excluded.hub_id,
+           active = excluded.active`,
+        [
+          details.user_id,
+          details.vehicle_type || 'bike',
+          details.vehicle_number || '',
+          details.license_number || '',
+          details.hub_id || null,
+          Number(details.active) ? 1 : 0
+        ]
+      );
+    }
+
+    await dbRunAsync(
+      `INSERT OR REPLACE INTO app_settings (setting_key, value, updated_at)
+       VALUES (?, ?, CURRENT_TIMESTAMP)`,
+      [
+        'last_operational_state_restore',
+        JSON.stringify({
+          source,
+          userCount: users.length,
+          hubCount: hubs.length,
+          deliveryPartnerDetailCount: deliveryPartnerDetails.length,
+          at: new Date().toISOString()
+        })
+      ]
+    );
+
+    await dbRunAsync('COMMIT');
+    return {
+      userCount: users.length,
+      hubCount: hubs.length,
+      deliveryPartnerDetailCount: deliveryPartnerDetails.length
+    };
+  } catch (error) {
+    await dbRunAsync('ROLLBACK').catch(() => {});
+    throw error;
+  }
+};
+
+const uploadOperationalStateToFtp = async (reason = 'state-change') => {
+  if (!hasOperationalStateFtpConfig) return { skipped: true };
+  const client = await createCatalogFtpClient();
+  try {
+    const manifest = await buildOperationalStateManifest();
+    const payload = encryptOperationalStatePayload({
+      ...manifest,
+      synced_at: new Date().toISOString(),
+      sync_reason: reason
+    });
+    const remotePath = normalizeOperationalStateRemotePath();
+    const remoteDir = path.posix.dirname(remotePath);
+    if (remoteDir && remoteDir !== '/' && remoteDir !== '.') {
+      await client.ensureDir(remoteDir);
+    }
+    await client.uploadFrom(Readable.from([payload]), remotePath);
+    const uploadedPayload = await collectCatalogBackupPayloadFromFtp(client, remotePath);
+    const expectedHash = operationalPayloadHash(payload);
+    const uploadedHash = operationalPayloadHash(uploadedPayload);
+    if (expectedHash !== uploadedHash) {
+      throw new Error('Operational backup verification failed after FTP upload. The uploaded file does not match the saved state.');
+    }
+    decryptOperationalStatePayload(uploadedPayload, remotePath);
+    await dbRunAsync(
+      `INSERT OR REPLACE INTO app_settings (setting_key, value, updated_at)
+       VALUES (?, ?, CURRENT_TIMESTAMP)`,
+      [
+        'last_operational_state_sync',
+        JSON.stringify({
+          reason,
+          remotePath,
+          userCount: manifest.users.length,
+          hubCount: manifest.hubs.length,
+          deliveryPartnerDetailCount: manifest.delivery_partner_details.length,
+          checksum: uploadedHash,
+          at: new Date().toISOString()
+        })
+      ]
+    );
+    console.log(`Operational state uploaded to FTP: ${remotePath}`);
+    return {
+      skipped: false,
+      remotePath,
+      userCount: manifest.users.length,
+      hubCount: manifest.hubs.length,
+      deliveryPartnerDetailCount: manifest.delivery_partner_details.length,
+      verified: true,
+      checksum: uploadedHash
+    };
+  } finally {
+    client.close();
+  }
+};
+
+const syncOperationalStateForResponse = async (reason = 'state-change') => {
+  if (!hasOperationalStateFtpConfig) {
+    return {
+      skipped: true,
+      warning: 'Saved on Render only. InfinityFree operational backup is not configured, so users and partner settings can reset after redeploy.'
+    };
+  }
+  try {
+    const result = await uploadOperationalStateToFtp(reason);
+    return { ...result, ok: true };
+  } catch (error) {
+    console.warn(`Operational backup FTP sync failed: ${error.message}`);
+    return {
+      failed: true,
+      warning: `Saved on Render, but InfinityFree operational backup failed: ${error.message}`
+    };
+  }
+};
+
+const restoreOperationalStateFromFtp = async (source = 'startup-operational-import') => {
+  if (!hasOperationalStateFtpConfig) {
+    throw new Error('InfinityFree FTP is not configured for operational state restore.');
+  }
+  const client = await createCatalogFtpClient();
+  try {
+    const remotePath = normalizeOperationalStateRemotePath();
+    const payload = await collectCatalogBackupPayloadFromFtp(client, remotePath);
+    const manifest = decryptOperationalStatePayload(payload, remotePath);
+    return applyOperationalStateManifest(manifest, source);
+  } finally {
+    client.close();
+  }
+};
+
+const restoreOperationalStateOnStartup = async () => {
+  const result = await restoreOperationalStateFromFtp('startup-operational-ftp-import');
+  console.log(
+    `Operational state restored from FTP before startup: ${result.userCount} users, ${result.hubCount} hubs, ${result.deliveryPartnerDetailCount} delivery partner records`
+  );
+  return result;
+};
+
 const createOrderItemsAsync = (orderId, items, prices, warrantyYears) => new Promise((resolve, reject) => {
   const warrantyStartAt = new Date();
   const stmt = db.prepare(
@@ -782,7 +1279,7 @@ const buildOrderDraft = async (user, body) => {
 
   const placeholders = normalizedItems.map(() => '?').join(',');
   const products = await dbAllAsync(
-    `SELECT id, price, dealer_price, distributor_price, warranty_years, category_id
+    `SELECT id, price, dealer_price, distributor_price, warranty_years, category_id, name, description
      FROM products
      WHERE id IN (${placeholders})`,
     normalizedItems.map(item => item.product_id)
@@ -820,15 +1317,23 @@ const buildOrderDraft = async (user, body) => {
   const safeCustomerLng = Number.isFinite(Number(customer_lng)) ? Number(customer_lng) : null;
   const safeCustomerAccuracy = Number.isFinite(Number(customer_accuracy)) ? Number(customer_accuracy) : null;
   const safeCustomerLockedAt = Number.isFinite(Number(customer_location_locked_at)) ? Number(customer_location_locked_at) : null;
-  const serviceability = checkServiceability({ address, pincode, lat: safeCustomerLat, lng: safeCustomerLng });
-  if (!serviceability.serviceable) {
-    throw new Error('This delivery address is outside Camigo service area. Use a Bhubaneswar, Cuttack, Khordha, or Jatni pincode/address.');
+  const productLookup = new Map(products.map(product => [product.id, product]));
+  const deliveryQuote = await buildDeliveryQuote({
+    address,
+    pincode,
+    lat: safeCustomerLat,
+    lng: safeCustomerLng,
+    items: normalizedItems,
+    productLookup
+  });
+  if (!deliveryQuote.serviceable) {
+    throw new Error(deliveryQuote.message);
   }
-  const deliveryFee = taxableAmount > 2000 ? 0 : 40;
+  const deliveryFee = Number(deliveryQuote.charge || 0);
   const gstAmount = Math.round(taxableAmount * 0.18);
   const finalAmount = taxableAmount + gstAmount + deliveryFee + installationFee;
-  const addressWithPincode = serviceability.detectedPincode && !String(address).includes(serviceability.detectedPincode)
-    ? `${address}\nPincode: ${serviceability.detectedPincode}`
+  const addressWithPincode = deliveryQuote.detectedPincode && !String(address).includes(deliveryQuote.detectedPincode)
+    ? `${address}\nPincode: ${deliveryQuote.detectedPincode}`
     : address;
 
   return {
@@ -843,6 +1348,7 @@ const buildOrderDraft = async (user, body) => {
     installationRequested,
     installationFee,
     cameraCount,
+    deliveryQuote,
     finalAmount,
     customerLat: safeCustomerLat,
     customerLng: safeCustomerLng,
@@ -855,17 +1361,22 @@ const createLocalOrderRecord = async ({ userId, draft, status = 'pending', payme
   const deliveryOtp = String(1000 + crypto.randomInt(9000));
   const result = await dbRunAsync(
     `INSERT INTO orders (
-      user_id, total_amount, final_amount, gst_amount, delivery_fee,
+      user_id, total_amount, final_amount, gst_amount, delivery_fee, delivery_mode, delivery_provider, delivery_estimate, delivery_distance_km, delivery_weight_kg,
       installation_requested, installation_fee, installation_status, camera_count,
       status, payment_method, address, customer_lat, customer_lng, customer_accuracy,
       customer_location_locked_at, delivery_otp, payment_status, razorpay_order_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
     [
       userId,
       draft.totalAmount,
       draft.finalAmount,
       draft.gstAmount,
       draft.deliveryFee,
+      draft.deliveryQuote?.mode || 'local',
+      draft.deliveryQuote?.provider || 'Camigo',
+      draft.deliveryQuote?.estimateLabel || '',
+      draft.deliveryQuote?.distanceKm ?? null,
+      draft.deliveryQuote?.estimatedWeightKg ?? null,
       draft.installationRequested ? 1 : 0,
       draft.installationFee,
       draft.installationRequested ? 'requested' : 'not_requested',
@@ -1208,7 +1719,12 @@ const registerUser = async (req, res) => {
       'INSERT INTO users (email, password, plaintext_password, name, phone, phone_verified, phone_verified_at, address) VALUES (?, ?, ?, ?, ?, 0, NULL, ?)',
       [safeEmail, hashedPassword, password, name, safePhone, address]
     );
-    res.json({ id: result.lastID, message: 'Account created. Login with email, then verify your mobile number from Account.' });
+    const operationalBackup = await syncOperationalStateForResponse('user-registered');
+    res.json({
+      id: result.lastID,
+      message: 'Account created. Login with email, then verify your mobile number from Account.',
+      backup_warning: operationalBackup.warning
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1276,7 +1792,12 @@ const verifyPhoneNumber = async (req, res) => {
     );
     const refreshedUser = await dbGetAsync('SELECT * FROM users WHERE id = ?', [req.user.userId]);
     if (!refreshedUser) return res.status(404).json({ error: 'User not found after verification' });
-    res.json({ message: 'Mobile number verified successfully', user: formatUserForClient(refreshedUser) });
+    const operationalBackup = await syncOperationalStateForResponse('phone-verified');
+    res.json({
+      message: 'Mobile number verified successfully',
+      user: formatUserForClient(refreshedUser),
+      backup_warning: operationalBackup.warning
+    });
   } catch (error) {
     res.status(400).json({ error: error.message || 'Phone verification failed' });
   }
@@ -1347,10 +1868,39 @@ app.get('/api/serviceability', (req, res) => {
   });
   res.json({
     ...check,
-    message: check.serviceable
-      ? 'Camigo delivery is available for this area.'
-      : 'Camigo delivery is available only for Bhubaneswar, Cuttack, Khordha, and Jatni service areas.'
+    message: check.localServiceable
+      ? 'Same-day Camigo delivery is available for this area.'
+      : check.courierServiceable
+        ? 'Outside the same-day corridor, Delhivery courier delivery can be used for this pincode.'
+        : 'Enter a valid 6-digit pincode to check local or courier delivery availability.'
   });
+});
+
+app.post('/api/delivery-quote', async (req, res) => {
+  try {
+    const normalizedItems = normalizeOrderItems(req.body.items || []);
+    const placeholders = normalizedItems.map(() => '?').join(',');
+    const products = placeholders
+      ? await dbAllAsync(
+          `SELECT id, category_id, name, description
+           FROM products
+           WHERE id IN (${placeholders})`,
+          normalizedItems.map(item => item.product_id)
+        )
+      : [];
+    const productLookup = new Map(products.map(product => [product.id, product]));
+    const quote = await buildDeliveryQuote({
+      address: req.body.address || '',
+      pincode: req.body.pincode || '',
+      lat: req.body.customer_lat ?? req.body.lat,
+      lng: req.body.customer_lng ?? req.body.lng,
+      items: normalizedItems,
+      productLookup
+    });
+    res.json(quote);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
 app.get('/api/notifications', (req, res) => {
@@ -1515,7 +2065,8 @@ app.post('/api/payments/razorpay/order', authenticateToken, async (req, res) => 
         customer_id: String(currentUser.id),
         payment_method: draft.paymentMethod,
         installation_requested: draft.installationRequested ? '1' : '0',
-        service_area: 'verified'
+        service_area: draft.deliveryQuote?.mode || 'verified',
+        delivery_provider: draft.deliveryQuote?.provider || 'Camigo'
       }
     });
     const orderId = await createLocalOrderRecord({
@@ -1538,6 +2089,14 @@ app.post('/api/payments/razorpay/order', authenticateToken, async (req, res) => 
         delivery_fee: draft.deliveryFee,
         installation_fee: draft.installationFee,
         final_amount: draft.finalAmount
+      },
+      delivery: {
+        mode: draft.deliveryQuote?.mode || 'local',
+        provider: draft.deliveryQuote?.provider || 'Camigo',
+        estimate: draft.deliveryQuote?.estimateLabel || '',
+        zone: draft.deliveryQuote?.zoneLabel || '',
+        distance_km: draft.deliveryQuote?.distanceKm ?? null,
+        chargeable_weight_kg: draft.deliveryQuote?.chargeableWeightKg ?? null
       },
       customer: {
         name: currentUser.name || 'Camigo Customer',
@@ -1922,17 +2481,66 @@ app.post('/api/admin/users', authenticateToken, requireAdmin, async (req, res) =
     return res.status(400).json({ error: 'Invalid role' });
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const safePhone = cleanPhone(phone);
-  const phoneVerified = safePhone && role !== 'user' ? 1 : 0;
-  db.run(
-    'INSERT INTO users (email, password, plaintext_password, name, phone, phone_verified, phone_verified_at, address, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [email, hashedPassword, password, name, safePhone, phoneVerified, phoneVerified ? new Date().toISOString() : null, address, role],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ id: this.lastID, email, password, role, message: 'Login created' });
+  try {
+    const safeEmail = String(email || '').trim().toLowerCase();
+    if (!safeEmail) {
+      return res.status(400).json({ error: 'Valid login ID/email is required' });
     }
-  );
+
+    const duplicateEmail = await dbGetAsync(
+      'SELECT id FROM users WHERE lower(email) = lower(?)',
+      [safeEmail]
+    );
+    if (duplicateEmail) {
+      return res.status(400).json({ error: 'This login ID/email is already used' });
+    }
+
+    const safePhone = cleanPhone(phone);
+    if (safePhone && !isValidIndianMobile(safePhone)) {
+      return res.status(400).json({ error: 'Enter a valid 10-digit mobile number' });
+    }
+    if (safePhone) {
+      const duplicatePhone = await dbGetAsync('SELECT id FROM users WHERE phone = ?', [safePhone]);
+      if (duplicatePhone) {
+        return res.status(400).json({ error: 'This mobile number is already linked to another account' });
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const phoneVerified = safePhone && role !== 'user' ? 1 : 0;
+    const result = await dbRunAsync(
+      `INSERT INTO users (
+         email, password, plaintext_password, name, phone, phone_verified,
+         phone_verified_at, address, role
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        safeEmail,
+        hashedPassword,
+        password,
+        String(name).trim(),
+        safePhone,
+        phoneVerified,
+        phoneVerified ? new Date().toISOString() : null,
+        String(address || '').trim(),
+        role
+      ]
+    );
+    const operationalBackup = await syncOperationalStateForResponse('admin-user-created');
+    res.json({
+      id: result.lastID,
+      email: safeEmail,
+      password,
+      role,
+      message: 'Login created',
+      operational_backup: operationalBackup,
+      operational_warning: operationalBackup.warning
+    });
+  } catch (error) {
+    if (String(error.message || '').includes('UNIQUE constraint failed')) {
+      return res.status(400).json({ error: 'This login ID/email is already used' });
+    }
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.get('/api/admin/orders', authenticateToken, requireAdmin, (req, res) => {
@@ -2348,40 +2956,53 @@ app.put('/api/admin/delivery-partners/:id', authenticateToken, requireAdmin, asy
     return res.status(400).json({ error: 'Login ID must be at least 3 characters' });
   }
 
-  const saveDetails = () => {
-    db.run(
-      `INSERT INTO delivery_partner_details (user_id, vehicle_type, vehicle_number, license_number, hub_id, active)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT(user_id) DO UPDATE SET
-         vehicle_type=excluded.vehicle_type,
-         vehicle_number=excluded.vehicle_number,
-         license_number=excluded.license_number,
-         hub_id=excluded.hub_id,
-         active=excluded.active`,
-      [req.params.id, vehicle_type, vehicle_number || '', license_number || '', hub_id || null, active ? 1 : 0],
-      function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ message: 'Delivery partner details updated' });
-      }
-    );
-  };
-
   if (password && String(password).trim().length < 6) {
     return res.status(400).json({ error: 'Password must be at least 6 characters' });
   }
 
-  const updateUserLogin = async () => {
+  try {
     const fields = [];
     const values = [];
+    const safeEmail = email ? String(email).trim().toLowerCase() : '';
+    const safePhone = phone !== undefined ? cleanPhone(phone || '') : undefined;
 
-    if (email) {
+    if (safeEmail) {
+      const duplicateEmail = await dbGetAsync(
+        'SELECT id FROM users WHERE lower(email) = lower(?) AND id <> ?',
+        [safeEmail, req.params.id]
+      );
+      if (duplicateEmail) {
+        return res.status(400).json({ error: 'This login ID/email is already used' });
+      }
+    }
+
+    if (phone !== undefined) {
+      if (safePhone && !isValidIndianMobile(safePhone)) {
+        return res.status(400).json({ error: 'Enter a valid 10-digit mobile number' });
+      }
+      if (safePhone) {
+        const duplicatePhone = await dbGetAsync(
+          'SELECT id FROM users WHERE phone = ? AND id <> ?',
+          [safePhone, req.params.id]
+        );
+        if (duplicatePhone) {
+          return res.status(400).json({ error: 'This mobile number is already linked to another account' });
+        }
+      }
+    }
+
+    if (safeEmail) {
       fields.push('email = ?');
-      values.push(String(email).trim());
+      values.push(safeEmail);
     }
 
     if (phone !== undefined) {
       fields.push('phone = ?');
-      values.push(String(phone || '').trim());
+      values.push(safePhone);
+      fields.push('phone_verified = ?');
+      values.push(safePhone ? 1 : 0);
+      fields.push('phone_verified_at = ?');
+      values.push(safePhone ? new Date().toISOString() : null);
     }
 
     if (password) {
@@ -2389,77 +3010,105 @@ app.put('/api/admin/delivery-partners/:id', authenticateToken, requireAdmin, asy
       values.push(await bcrypt.hash(String(password), 10), String(password));
     }
 
-    if (!fields.length) {
-      saveDetails();
-      return;
+    if (fields.length) {
+      const loginUpdate = await dbRunAsync(
+        `UPDATE users SET ${fields.join(', ')} WHERE id = ? AND role = ?`,
+        [...values, req.params.id, 'delivery_partner']
+      );
+      if (!loginUpdate.changes) {
+        return res.status(404).json({ error: 'Delivery partner not found' });
+      }
     }
 
-    db.run(
-      `UPDATE users SET ${fields.join(', ')} WHERE id = ? AND role = ?`,
-      [...values, req.params.id, 'delivery_partner'],
-      function(err) {
-        if (err) {
-          if (err.message.includes('UNIQUE constraint failed')) {
-            return res.status(400).json({ error: 'This login ID/email is already used' });
-          }
-          return res.status(500).json({ error: err.message });
-        }
-        if (!this.changes) return res.status(404).json({ error: 'Delivery partner not found' });
-        saveDetails();
-      }
+    await dbRunAsync(
+      `INSERT INTO delivery_partner_details (user_id, vehicle_type, vehicle_number, license_number, hub_id, active)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET
+         vehicle_type = excluded.vehicle_type,
+         vehicle_number = excluded.vehicle_number,
+         license_number = excluded.license_number,
+         hub_id = excluded.hub_id,
+         active = excluded.active`,
+      [req.params.id, vehicle_type, vehicle_number || '', license_number || '', hub_id || null, active ? 1 : 0]
     );
-  };
 
-  updateUserLogin();
+    const operationalBackup = await syncOperationalStateForResponse('delivery-partner-updated');
+    res.json({
+      message: 'Delivery partner details updated',
+      operational_backup: operationalBackup,
+      operational_warning: operationalBackup.warning
+    });
+  } catch (error) {
+    if (String(error.message || '').includes('UNIQUE constraint failed')) {
+      return res.status(400).json({ error: 'This login ID/email is already used' });
+    }
+    res.status(500).json({ error: error.message });
+  }
 });
 
-app.post('/api/admin/hubs', authenticateToken, requireAdmin, (req, res) => {
+app.post('/api/admin/hubs', authenticateToken, requireAdmin, async (req, res) => {
   const { name, address, lat, lng, map_url, active } = req.body;
   if (!name || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) {
     return res.status(400).json({ error: 'Hub name, latitude, and longitude are required' });
   }
 
-  const saveHub = () => {
-    db.run(
+  try {
+    if (active) {
+      await dbRunAsync('UPDATE hubs SET active = 0');
+    }
+    const result = await dbRunAsync(
       'INSERT INTO hubs (name, address, lat, lng, map_url, active) VALUES (?, ?, ?, ?, ?, ?)',
-      [name, address || '', Number(lat), Number(lng), map_url || '', active ? 1 : 0],
-      function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ id: this.lastID, message: 'Hub added' });
-      }
+      [name, address || '', Number(lat), Number(lng), map_url || '', active ? 1 : 0]
     );
-  };
-
-  if (active) db.run('UPDATE hubs SET active = 0', [], saveHub);
-  else saveHub();
+    const operationalBackup = await syncOperationalStateForResponse('hub-created');
+    res.json({
+      id: result.lastID,
+      message: 'Hub added',
+      operational_backup: operationalBackup,
+      operational_warning: operationalBackup.warning
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-app.put('/api/admin/hubs/:id', authenticateToken, requireAdmin, (req, res) => {
+app.put('/api/admin/hubs/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { name, address, lat, lng, map_url, active } = req.body;
   if (!name || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) {
     return res.status(400).json({ error: 'Hub name, latitude, and longitude are required' });
   }
 
-  const updateHub = () => {
-    db.run(
+  try {
+    if (active) {
+      await dbRunAsync('UPDATE hubs SET active = 0 WHERE id != ?', [req.params.id]);
+    }
+    await dbRunAsync(
       'UPDATE hubs SET name=?, address=?, lat=?, lng=?, map_url=?, active=? WHERE id=?',
-      [name, address || '', Number(lat), Number(lng), map_url || '', active ? 1 : 0, req.params.id],
-      function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ message: 'Hub updated' });
-      }
+      [name, address || '', Number(lat), Number(lng), map_url || '', active ? 1 : 0, req.params.id]
     );
-  };
-
-  if (active) db.run('UPDATE hubs SET active = 0 WHERE id != ?', [req.params.id], updateHub);
-  else updateHub();
+    const operationalBackup = await syncOperationalStateForResponse('hub-updated');
+    res.json({
+      message: 'Hub updated',
+      operational_backup: operationalBackup,
+      operational_warning: operationalBackup.warning
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-app.delete('/api/admin/hubs/:id', authenticateToken, requireAdmin, (req, res) => {
-  db.run('DELETE FROM hubs WHERE id = ?', [req.params.id], function(err) {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ message: 'Hub deleted' });
-  });
+app.delete('/api/admin/hubs/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    await dbRunAsync('DELETE FROM hubs WHERE id = ?', [req.params.id]);
+    const operationalBackup = await syncOperationalStateForResponse('hub-deleted');
+    res.json({
+      message: 'Hub deleted',
+      operational_backup: operationalBackup,
+      operational_warning: operationalBackup.warning
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.post('/api/admin/notifications', authenticateToken, requireAdmin, (req, res) => {
@@ -2486,25 +3135,105 @@ app.post('/api/admin/notifications', authenticateToken, requireAdmin, (req, res)
   );
 });
 
-app.put('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) => {
+app.put('/api/admin/users/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const allowedFields = ['name', 'phone', 'address', 'role'];
-  const updates = Object.entries(req.body).filter(([field]) => allowedFields.includes(field));
+  const allowedFields = ['name', 'email', 'phone', 'address', 'role'];
+  const incomingUpdates = Object.fromEntries(
+    Object.entries(req.body).filter(([field]) => allowedFields.includes(field))
+  );
 
-  if (!updates.length) {
+  if (!Object.keys(incomingUpdates).length) {
     return res.status(400).json({ error: 'No valid fields to update' });
   }
 
-  const invalidRole = updates.find(([field, value]) => field === 'role' && !['user', 'dealer', 'distributor', 'delivery_partner', 'installer', 'admin'].includes(value));
-  if (invalidRole) return res.status(400).json({ error: 'Invalid role' });
+  if (incomingUpdates.role && !['user', 'dealer', 'distributor', 'delivery_partner', 'installer', 'admin'].includes(incomingUpdates.role)) {
+    return res.status(400).json({ error: 'Invalid role' });
+  }
 
-  const setClause = updates.map(([field]) => `${field} = ?`).join(', ');
-  const values = updates.map(([, value]) => value);
+  try {
+    const existingUser = await dbGetAsync('SELECT * FROM users WHERE id = ?', [id]);
+    if (!existingUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
-  db.run(`UPDATE users SET ${setClause} WHERE id = ?`, [...values, id], function(err) {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ message: 'User updated' });
-  });
+    const normalizedUpdates = {};
+
+    if (Object.prototype.hasOwnProperty.call(incomingUpdates, 'name')) {
+      const safeName = String(incomingUpdates.name || '').trim();
+      if (!safeName) return res.status(400).json({ error: 'Name is required' });
+      normalizedUpdates.name = safeName;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(incomingUpdates, 'email')) {
+      const safeEmail = String(incomingUpdates.email || '').trim().toLowerCase();
+      if (!safeEmail) return res.status(400).json({ error: 'Login ID/email is required' });
+      const duplicateEmail = await dbGetAsync(
+        'SELECT id FROM users WHERE lower(email) = lower(?) AND id <> ?',
+        [safeEmail, id]
+      );
+      if (duplicateEmail) return res.status(400).json({ error: 'This login ID/email is already used' });
+      normalizedUpdates.email = safeEmail;
+    }
+
+    const nextRole = incomingUpdates.role || existingUser.role;
+    if (Object.prototype.hasOwnProperty.call(incomingUpdates, 'role')) {
+      normalizedUpdates.role = incomingUpdates.role;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(incomingUpdates, 'address')) {
+      normalizedUpdates.address = String(incomingUpdates.address || '').trim();
+    }
+
+    if (Object.prototype.hasOwnProperty.call(incomingUpdates, 'phone')) {
+      const safePhone = cleanPhone(incomingUpdates.phone || '');
+      if (safePhone && !isValidIndianMobile(safePhone)) {
+        return res.status(400).json({ error: 'Enter a valid 10-digit mobile number' });
+      }
+      const duplicatePhone = safePhone
+        ? await dbGetAsync('SELECT id FROM users WHERE phone = ? AND id <> ?', [safePhone, id])
+        : null;
+      if (duplicatePhone) {
+        return res.status(400).json({ error: 'This mobile number is already linked to another account' });
+      }
+      normalizedUpdates.phone = safePhone;
+      if (safePhone && isStaffRole(nextRole)) {
+        normalizedUpdates.phone_verified = 1;
+        normalizedUpdates.phone_verified_at = new Date().toISOString();
+      } else if (!safePhone || nextRole === 'user') {
+        normalizedUpdates.phone_verified = 0;
+        normalizedUpdates.phone_verified_at = null;
+      }
+    } else if (Object.prototype.hasOwnProperty.call(incomingUpdates, 'role')) {
+      if (existingUser.phone && isStaffRole(nextRole)) {
+        normalizedUpdates.phone_verified = 1;
+        normalizedUpdates.phone_verified_at = existingUser.phone_verified_at || new Date().toISOString();
+      } else if (nextRole === 'user') {
+        normalizedUpdates.phone_verified = 0;
+        normalizedUpdates.phone_verified_at = null;
+      }
+    }
+
+    const updateEntries = Object.entries(normalizedUpdates);
+    if (!updateEntries.length) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    const setClause = updateEntries.map(([field]) => `${field} = ?`).join(', ');
+    const values = updateEntries.map(([, value]) => value);
+
+    await dbRunAsync(`UPDATE users SET ${setClause} WHERE id = ?`, [...values, id]);
+    const operationalBackup = await syncOperationalStateForResponse('admin-user-updated');
+    res.json({
+      message: 'User updated',
+      operational_backup: operationalBackup,
+      operational_warning: operationalBackup.warning
+    });
+  } catch (error) {
+    if (String(error.message || '').includes('UNIQUE constraint failed')) {
+      return res.status(400).json({ error: 'This login ID/email is already used' });
+    }
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.get('/api/users/:id', authenticateToken, (req, res) => {
@@ -2644,6 +3373,14 @@ const startServer = async () => {
     }
   } catch (error) {
     console.warn(`Catalog startup restore failed: ${error.message}`);
+  }
+
+  try {
+    if (hasOperationalStateFtpConfig) {
+      await restoreOperationalStateOnStartup();
+    }
+  } catch (error) {
+    console.warn(`Operational state startup restore failed: ${error.message}`);
   }
 
   app.listen(PORT, () => {

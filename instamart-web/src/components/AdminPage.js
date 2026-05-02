@@ -26,6 +26,8 @@ function AdminPage({ user }) {
   const [form, setForm] = useState(emptyProduct);
   const emptyUser = { name: '', email: '', password: '', phone: '', address: '', role: 'dealer' };
   const [userForm, setUserForm] = useState(emptyUser);
+  const emptyUserEdit = { id: null, name: '', email: '', phone: '', address: '', role: 'user' };
+  const [editUser, setEditUser] = useState(emptyUserEdit);
   const emptyHub = { name: 'First Hub - CGI CCTV CAMERA INDIA H.O', address: 'CGI CCTV CAMERA INDIA H.O, Bhubaneswar, Odisha', lat: '20.2602964', lng: '85.8394521', map_url: 'https://share.google/UtXmTRALSt0cZk0gZ', active: true };
   const [hubForm, setHubForm] = useState(emptyHub);
   const [editHub, setEditHub] = useState(null);
@@ -640,6 +642,46 @@ function AdminPage({ user }) {
     if (res.ok) { setUserForm(emptyUser); fetchData(); }
   };
 
+  const startEditUser = (selectedUser) => {
+    setEditUser({
+      id: selectedUser.id,
+      name: selectedUser.name || '',
+      email: selectedUser.email || '',
+      phone: selectedUser.phone || '',
+      address: selectedUser.address || '',
+      role: selectedUser.role || 'user'
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEditUser = () => {
+    setEditUser(emptyUserEdit);
+  };
+
+  const handleUpdateUser = async (e) => {
+    e.preventDefault();
+    if (!editUser.id) return;
+    const token = localStorage.getItem('token');
+    const payload = {
+      name: editUser.name,
+      email: editUser.email,
+      phone: editUser.phone,
+      address: editUser.address,
+      role: editUser.role
+    };
+    const res = await fetch(`${API_URL}/admin/users/${editUser.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    setMessage(res.ok ? `Updated user #${editUser.id}.` : (data.error || 'User update failed.'));
+    if (res.ok) {
+      cancelEditUser();
+      fetchData();
+    }
+  };
+
   const handleAdminCancelOrder = async (order) => {
     if (!window.confirm(`Cancel order #${order.id}?`)) return;
     const token = localStorage.getItem('token');
@@ -693,10 +735,32 @@ function AdminPage({ user }) {
               <button className="btn btn-primary" type="submit">Create Login</button>
             </form>
           </div>
+          <div className="card" style={{ marginBottom: '18px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div>
+                <h3 style={{ margin: '0 0 6px' }}>Edit user details</h3>
+                <p style={{ margin: 0, color: '#64748b' }}>
+                  Click Edit on any user below to update login ID, name, phone, address, or role.
+                </p>
+              </div>
+              {editUser.id ? <span className="tag tag-info">Editing user #{editUser.id}</span> : <span className="tag">Pick a user below</span>}
+            </div>
+            <form className="admin-product-form" onSubmit={handleUpdateUser} style={{ marginTop: '18px', opacity: editUser.id ? 1 : 0.65 }}>
+              <div className="form-group"><label>Name</label><input value={editUser.name} onChange={e => setEditUser({ ...editUser, name: e.target.value })} disabled={!editUser.id} required /></div>
+              <div className="form-group"><label>Login ID</label><input type="text" value={editUser.email} onChange={e => setEditUser({ ...editUser, email: e.target.value })} disabled={!editUser.id} required /></div>
+              <div className="form-group"><label>Phone</label><input value={editUser.phone} onChange={e => setEditUser({ ...editUser, phone: e.target.value })} disabled={!editUser.id} placeholder="10-digit mobile" /></div>
+              <div className="form-group"><label>Address</label><input value={editUser.address} onChange={e => setEditUser({ ...editUser, address: e.target.value })} disabled={!editUser.id} /></div>
+              <div className="form-group"><label>Role</label><select value={editUser.role} onChange={e => setEditUser({ ...editUser, role: e.target.value })} disabled={!editUser.id}><option value="dealer">Dealer</option><option value="distributor">Distributor</option><option value="delivery_partner">Delivery Partner</option><option value="installer">Installer</option><option value="user">Customer</option><option value="admin">Admin</option></select></div>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button className="btn btn-primary" type="submit" disabled={!editUser.id}>Save User</button>
+                <button className="btn btn-outline" type="button" onClick={cancelEditUser} disabled={!editUser.id}>Cancel</button>
+              </div>
+            </form>
+          </div>
           <div className="card" style={{ overflow: 'hidden' }}>
             <div style={{ overflowX: 'auto' }}>
             <table className="admin-table">
-              <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Created</th></tr></thead>
+              <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Created</th><th>Action</th></tr></thead>
               <tbody>{users.map(u => {
                 const showPhone = u.phone && (u.phone_verified || ['admin', 'delivery_partner', 'installer'].includes(u.role));
                 return (
@@ -707,6 +771,7 @@ function AdminPage({ user }) {
                     <td>{showPhone ? u.phone : <span className="tag">Not verified</span>}</td>
                     <td><span className={`tag ${u.role === 'admin' ? 'tag-warning' : u.role === 'dealer' ? 'tag-info' : u.role === 'distributor' ? 'tag-success' : ''}`}>{u.role}</span></td>
                     <td>{new Date(u.created_at).toLocaleDateString()}</td>
+                    <td><button className="btn btn-sm btn-outline" type="button" onClick={() => startEditUser(u)}><Edit size={14} /> Edit</button></td>
                   </tr>
                 );
               })}</tbody>
