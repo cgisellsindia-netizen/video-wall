@@ -1,12 +1,28 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { MapPin, ChevronDown, Search, ShoppingCart, User, LogOut, Shield } from 'lucide-react';
 
-function Header({ user, cartCount, onCartClick, onLoginClick, onLogout, searchQuery, onSearch, appMode = 'web' }) {
+function Header({
+  user,
+  cartCount,
+  onCartClick,
+  onLoginClick,
+  onLogout,
+  searchQuery,
+  onSearch,
+  appMode = 'web',
+  searchSuggestions = [],
+  trendingSearches = []
+}) {
   const displayName = user?.name || user?.email || 'Account';
   const isDeliveryPartner = appMode === 'delivery' || user?.role === 'delivery_partner';
   const isInstaller = appMode === 'installer' || user?.role === 'installer';
   const isOpsMode = isDeliveryPartner || isInstaller;
   const homeLink = isDeliveryPartner ? '/#/delivery-partner' : isInstaller ? '/#/installer' : '/#/';
+  const [searchFocused, setSearchFocused] = useState(false);
+  const visibleSuggestions = useMemo(() => {
+    if (searchQuery?.trim()) return searchSuggestions.slice(0, 6);
+    return trendingSearches.slice(0, 6);
+  }, [searchQuery, searchSuggestions, trendingSearches]);
 
   return (
     <header className="header">
@@ -32,7 +48,30 @@ function Header({ user, cartCount, onCartClick, onLoginClick, onLogout, searchQu
         </nav>
         {!isOpsMode && <div className="search-bar">
           <Search size={18} className="search-icon" />
-          <input type="text" placeholder="Search CCTV cameras, DVRs, NVRs..." value={searchQuery} onChange={(e) => onSearch(e.target.value)} />
+          <input
+            type="text"
+            placeholder="Search CCTV cameras, DVRs, NVRs..."
+            value={searchQuery}
+            onChange={(e) => onSearch(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 120)}
+          />
+          {searchFocused && visibleSuggestions.length > 0 && (
+            <div className="search-suggestions-panel">
+              <span>{searchQuery?.trim() ? 'Suggestions' : 'Trending searches'}</span>
+              {visibleSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => onSearch(suggestion)}
+                >
+                  <Search size={14} />
+                  <span>{suggestion}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>}
         <div className="header-actions">
           {user ? (

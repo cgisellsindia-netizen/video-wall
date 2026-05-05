@@ -53,6 +53,7 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
   const [loading, setLoading] = useState(true);
   const [clock, setClock] = useState(Date.now());
   const [busyOrderId, setBusyOrderId] = useState(null);
+  const [reorderBusyId, setReorderBusyId] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -124,6 +125,80 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
     setBusyOrderId(null);
   };
 
+  const reorderItems = async (order) => {
+    const token = localStorage.getItem('token');
+    if (!token || !Array.isArray(order.items) || !order.items.length) return;
+    setReorderBusyId(order.id);
+    try {
+      for (const item of order.items) {
+        await fetch(`${API_URL}/cart`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            product_id: item.product_id,
+            quantity: Math.max(1, Number(item.quantity || 1))
+          })
+        });
+      }
+      navigate('/checkout');
+    } catch (error) {
+      alert('Could not reorder these items right now.');
+    }
+    setReorderBusyId(null);
+  };
+
+  const printInvoice = (order) => {
+    const invoiceWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700');
+    if (!invoiceWindow) return;
+    const itemRows = (order.items || []).map(item => `
+      <tr>
+        <td>${item.name}</td>
+        <td>${item.quantity}</td>
+        <td>Rs ${item.price}</td>
+        <td>Rs ${Number(item.price || 0) * Number(item.quantity || 1)}</td>
+      </tr>
+    `).join('');
+    const html = `<!doctype html>
+      <html>
+        <head>
+          <title>Camigo Invoice #${order.id}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 28px; color: #13223a; }
+            h1,h2,h3,p { margin: 0 0 10px; }
+            .meta { display:grid; gap:8px; margin-bottom:20px; }
+            table { width:100%; border-collapse: collapse; margin-top: 16px; }
+            th, td { border: 1px solid #dbe3ef; padding: 10px; text-align: left; }
+            th { background: #f8fafc; }
+            .totals { margin-top: 18px; display:grid; gap:8px; justify-content:end; }
+          </style>
+        </head>
+        <body>
+          <h1>Camigo Tax Invoice</h1>
+          <div class="meta">
+            <p><strong>Order:</strong> #${order.id}</p>
+            <p><strong>Date:</strong> ${new Date(order.created_at).toLocaleString()}</p>
+            <p><strong>Customer:</strong> ${user?.name || '-'}</p>
+            <p><strong>Address:</strong> ${order.address || '-'}</p>
+            <p><strong>Payment:</strong> ${String(order.payment_method || '').toUpperCase()}</p>
+          </div>
+          <table>
+            <thead>
+              <tr><th>Product</th><th>Qty</th><th>Unit price</th><th>Total</th></tr>
+            </thead>
+            <tbody>${itemRows}</tbody>
+          </table>
+          <div class="totals">
+            <p><strong>Final amount:</strong> Rs ${order.final_amount}</p>
+            <p><strong>Status:</strong> ${formatOrderStatusLabel(order)}</p>
+          </div>
+          <script>window.print();</script>
+        </body>
+      </html>`;
+    invoiceWindow.document.open();
+    invoiceWindow.document.write(html);
+    invoiceWindow.document.close();
+  };
+
   if (loading) return <div className="loading">Loading orders...</div>;
 
   return (
@@ -165,13 +240,19 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
               <div className="order-card-bottom">
                 <span>{String(order.payment_method || 'payment').toUpperCase()}</span>
                 <strong>Rs {order.final_amount}</strong>
-                {canOpenTracking ? (
-                  <button className="btn btn-sm btn-primary" onClick={() => navigate(`/tracking/${order.id}`)}>
-                    <MapPin size={15} /> Track
+                <div className="order-card-actions">
+                  {canOpenTracking ? (
+                    <button className="btn btn-sm btn-primary" onClick={() => navigate(`/tracking/${order.id}`)}>
+                      <MapPin size={15} /> Track
+                    </button>
+                  ) : (
+                    <span className="order-track-pill">{paymentPending ? 'Payment incomplete' : 'Tracking unavailable'}</span>
+                  )}
+                  <button className="btn btn-sm btn-outline" onClick={() => printInvoice(order)}>Invoice</button>
+                  <button className="btn btn-sm btn-outline" onClick={() => reorderItems(order)} disabled={reorderBusyId === order.id}>
+                    {reorderBusyId === order.id ? 'Reordering...' : 'Reorder'}
                   </button>
-                ) : (
-                  <span className="order-track-pill">{paymentPending ? 'Payment incomplete' : 'Tracking unavailable'}</span>
-                )}
+                </div>
               </div>
               {canCancel && (
                 <div className="order-cancel-strip">

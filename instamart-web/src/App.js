@@ -133,7 +133,23 @@ function MainPage({ user, cartCount, onCartClick, onLoginClick, onLogout, cartIt
         {!searchQuery && <LocationDeliveryStrip />}
         {!searchQuery && <CategoryGrid categories={categories} />}
         {searchQuery ? (
-          <ProductSection title={`Search: "${searchQuery}"`} products={filteredProducts} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} />
+          filteredProducts.length ? (
+            <ProductSection title={`Search: "${searchQuery}"`} products={filteredProducts} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} />
+          ) : (
+            <section className="category-section">
+              <div className="card search-empty-state">
+                <h3>No products found for "{searchQuery}"</h3>
+                <p>Try a broader search like camera, DVR, NVR, switch, SMPS, or accessories.</p>
+                <div className="search-empty-actions">
+                  {['AHD camera', 'IP camera', 'DVR', 'NVR', 'POE switch', 'SMPS'].map((suggestion) => (
+                    <button key={suggestion} className="btn btn-outline btn-sm" onClick={() => setSearchQuery(suggestion)}>
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )
         ) : (
           productsByCategory.map(cat => (
             <ProductSection key={cat.id} title={cat.name} categoryId={cat.id} products={cat.products} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} />
@@ -669,6 +685,19 @@ function AppContent() {
 
   const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0);
   const cartTotal = cartItems.reduce((s, i) => s + (i.price * i.quantity), 0);
+  const trendingSearches = ['AHD camera', 'IP camera', 'DVR', 'NVR', 'POE switch', 'SMPS'];
+  const searchSuggestions = searchQuery.trim()
+    ? Array.from(new Set([
+        ...products
+          .map(product => product.name)
+          .filter(Boolean)
+          .filter(name => String(name).toLowerCase().includes(searchQuery.toLowerCase())),
+        ...categories
+          .map(category => category.name)
+          .filter(Boolean)
+          .filter(name => String(name).toLowerCase().includes(searchQuery.toLowerCase()))
+      ])).slice(0, 8)
+    : [];
   const firstName = String(user?.name || '').trim().split(/\s+/)[0] || '';
   const noticeTitle = appNotice?.personalize && firstName ? `${firstName}, ${appNotice.title}` : appNotice?.title;
   const noticeMessage = appNotice?.personalize && firstName ? `${firstName}, ${appNotice.message}` : appNotice?.message;
@@ -761,6 +790,8 @@ function AppContent() {
         searchQuery={searchQuery}
         onSearch={setSearchQuery}
         appMode={APP_MODE}
+        searchSuggestions={searchSuggestions}
+        trendingSearches={trendingSearches}
       />
 
       <Routes>

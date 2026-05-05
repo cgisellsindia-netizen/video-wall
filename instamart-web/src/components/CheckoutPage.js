@@ -32,6 +32,9 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
   const [deliveryQuote, setDeliveryQuote] = useState(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [phoneVerifyOpen, setPhoneVerifyOpen] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoResult, setPromoResult] = useState(null);
+  const [promoBusy, setPromoBusy] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -114,6 +117,8 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
   };
 
   const subtotal = cartItems.reduce((s, i) => s + (Number(i.price) * Number(i.quantity || 1)), 0);
+  const promoDiscount = Number(promoResult?.discount_amount || 0);
+  const discountedSubtotal = Math.max(0, subtotal - promoDiscount);
   const cameraCount = cartItems.reduce((sum, item) => (isCameraItem(item) ? sum + Number(item.quantity || 1) : sum), 0);
   const installationFee = installationRequested ? cameraCount * 500 : 0;
   const serviceability = checkServiceability({ address, pincode, lat: coords?.lat, lng: coords?.lng });
@@ -126,8 +131,8 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
   const deliveryZoneLabel = deliveryQuote?.zoneLabel
     || (serviceability.mode === 'courier' ? 'Courier via Delhivery' : serviceability.mode === 'local' ? 'Same-day local zone' : 'Blocked');
   const deliveryProvider = deliveryQuote?.provider || (isCourierDelivery ? 'Delhivery' : isLocalDelivery ? 'Uber Parcel + Rapido average' : 'Unavailable');
-  const gst = Math.round(subtotal * 0.18);
-  const payable = subtotal + gst + deliveryFee + installationFee;
+  const gst = Math.round(discountedSubtotal * 0.18);
+  const payable = discountedSubtotal + gst + deliveryFee + installationFee;
   const payDisabled = Boolean(loading || !cartItems.length || !deliveryAvailable || !deliveryQuote || quoteLoading || !address.trim() || !razorpayReady);
 
   useEffect(() => {
@@ -200,6 +205,34 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
     setError(check.serviceable ? '' : 'Enter a valid 6-digit pincode. Same-day is for Bhubaneswar/Cuttack/Khordha/Jatni, and outside-zone orders go by Delhivery courier.');
   };
 
+  const applyPromoCode = async () => {
+    const token = localStorage.getItem('token');
+    const code = promoCode.trim().toUpperCase();
+    if (!code) {
+      setPromoResult(null);
+      setError('Enter a promo code first.');
+      return;
+    }
+    setPromoBusy(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_URL}/promo/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code, order_amount: subtotal })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Promo code could not be applied.');
+      setPromoResult(data);
+      setPromoCode(data.code || code);
+    } catch (promoError) {
+      setPromoResult(null);
+      setError(promoError.message);
+    } finally {
+      setPromoBusy(false);
+    }
+  };
+
   const handlePlaceOrder = async () => {
     setError('');
     if (!user?.phone_verified) { setPhoneVerifyOpen(true); return; }
@@ -234,6 +267,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
           pincode: deliveryQuote?.detectedPincode || deliveryCheck.detectedPincode,
           phone,
           payment_method: paymentMethod,
+          promo_code: promoResult?.code || promoCode.trim().toUpperCase() || undefined,
           installation_requested: installationRequested,
           customer_lat: customerCoords?.lat,
           customer_lng: customerCoords?.lng,
@@ -373,6 +407,26 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
               <button type="button" onClick={handleCheckPincode}><Search size={16} /> Check</button>
             </div>
           </div>
+          <div className="form-group">
+            <label>Coupons / offers</label>
+            <div className="pincode-search-row">
+              <input
+                type="text"
+                placeholder="Enter promo code"
+                value={promoCode}
+                onChange={e => setPromoCode(e.target.value.toUpperCase())}
+              />
+              <button type="button" onClick={applyPromoCode} disabled={promoBusy}>
+                {promoBusy ? 'Applying...' : 'Apply'}
+              </button>
+            </div>
+            {promoResult && (
+              <div className="promo-success-row">
+                <strong>{promoResult.code}</strong>
+                <span>Saved Rs {Math.round(Number(promoResult.discount_amount || 0))} on products.</span>
+              </div>
+            )}
+          </div>
           <div className={deliveryAvailable ? 'serviceability-status ok' : 'serviceability-status blocked'}>
             <strong>
               {deliveryAvailable
@@ -414,6 +468,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
           ))}
         </div>
         <div className="summary-row"><span>Subtotal</span><strong>Rs {subtotal}</strong></div>
+        {promoDiscount > 0 && <div className="summary-row"><span>Discount</span><strong>- Rs {promoDiscount}</strong></div>}
         <div className="summary-row"><span>GST 18%</span><strong>Rs {gst}</strong></div>
         <div className="summary-row"><span>Delivery</span><strong>{deliveryAvailable ? `Rs ${deliveryFee}` : 'Pending'}</strong></div>
         <div className="summary-row"><span>Installation</span><strong>{cameraCount > 0 ? (installationRequested ? `Rs ${installationFee}` : 'Not added') : 'No cameras'}</strong></div>
