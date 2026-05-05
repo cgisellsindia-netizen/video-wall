@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Minus, Plus, Truck, ShieldCheck, Clock3, BadgeCheck, Sparkles, Package2, ShoppingCart, Zap } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Star, Truck, ShieldCheck, Clock3, BadgeCheck, Sparkles, Package2, ShoppingCart, Zap } from 'lucide-react';
 import { API_URL } from '../api';
 
 function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogin, priceForRole }) {
