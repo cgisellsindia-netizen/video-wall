@@ -3712,6 +3712,13 @@ const restoreCatalogOnStartup = async () => {
 
 const startServer = async () => {
   try {
+    await db.ready;
+  } catch (error) {
+    console.error(`Database startup failed: ${error.message}`);
+    process.exit(1);
+  }
+
+  try {
     if (hasCatalogFtpConfig || MEDIA_MANIFEST_URL || MEDIA_MANIFEST_EXPECTED_URL) {
       await restoreCatalogOnStartup();
     }

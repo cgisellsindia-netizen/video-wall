@@ -15,215 +15,267 @@ if (dbPath !== legacyDbPath && !fs.existsSync(dbPath) && fs.existsSync(legacyDbP
 const db = new sqlite3.Database(dbPath);
 console.log(`Camigo SQLite database: ${dbPath}`);
 
-const addColumn = (table, definition) => {
-  db.run(`ALTER TABLE ${table} ADD COLUMN ${definition}`, [], () => {});
+const runAsync = (sql, params = []) => new Promise((resolve, reject) => {
+  db.run(sql, params, function onRun(error) {
+    if (error) return reject(error);
+    return resolve(this);
+  });
+});
+
+const allAsync = (sql, params = []) => new Promise((resolve, reject) => {
+  db.all(sql, params, (error, rows) => {
+    if (error) return reject(error);
+    return resolve(rows);
+  });
+});
+
+const getColumnName = (definition) => String(definition || '').trim().split(/\s+/)[0].replace(/["'`]/g, '');
+
+const ensureColumns = async (table, definitions = []) => {
+  const rows = await allAsync(`PRAGMA table_info(${table})`);
+  const existing = new Set(rows.map((row) => row.name));
+  for (const definition of definitions) {
+    const columnName = getColumnName(definition);
+    if (!existing.has(columnName)) {
+      await runAsync(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
+      existing.add(columnName);
+    }
+  }
 };
 
+let resolveReady;
+let rejectReady;
+const dbReady = new Promise((resolve, reject) => {
+  resolveReady = resolve;
+  rejectReady = reject;
+});
+
 db.serialize(async () => {
-  db.run(`CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE,
-    password TEXT,
-    plaintext_password TEXT,
-    name TEXT,
-    phone TEXT,
-    address TEXT,
-    role TEXT DEFAULT 'user',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
+  try {
+    db.run(`CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE,
+      password TEXT,
+      plaintext_password TEXT,
+      name TEXT,
+      phone TEXT,
+      address TEXT,
+      role TEXT DEFAULT 'user',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS categories (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    image TEXT,
-    sort_order INTEGER
-  )`);
+    db.run(`CREATE TABLE IF NOT EXISTS categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      image TEXT,
+      sort_order INTEGER
+    )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS products (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    description TEXT,
-    price REAL,
-    mrp REAL,
-    discount_percent REAL DEFAULT 0,
-    dealer_price REAL,
-    distributor_price REAL,
-    warranty_years INTEGER DEFAULT 5,
-    image TEXT,
-    category_id INTEGER,
-    stock INTEGER DEFAULT 100,
-    unit TEXT,
-    FOREIGN KEY (category_id) REFERENCES categories(id)
-  )`);
+    db.run(`CREATE TABLE IF NOT EXISTS products (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      description TEXT,
+      price REAL,
+      mrp REAL,
+      discount_percent REAL DEFAULT 0,
+      dealer_price REAL,
+      distributor_price REAL,
+      warranty_years INTEGER DEFAULT 5,
+      image TEXT,
+      category_id INTEGER,
+      stock INTEGER DEFAULT 100,
+      unit TEXT,
+      FOREIGN KEY (category_id) REFERENCES categories(id)
+    )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS product_images (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    product_id INTEGER,
-    image_url TEXT,
-    sort_order INTEGER DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (product_id) REFERENCES products(id)
-  )`);
+    db.run(`CREATE TABLE IF NOT EXISTS product_images (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER,
+      image_url TEXT,
+      sort_order INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (product_id) REFERENCES products(id)
+    )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS cart (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    product_id INTEGER,
-    quantity INTEGER,
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (product_id) REFERENCES products(id)
-  )`);
+    db.run(`CREATE TABLE IF NOT EXISTS cart (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      product_id INTEGER,
+      quantity INTEGER,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (product_id) REFERENCES products(id)
+    )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    total_amount REAL,
-    final_amount REAL,
-    gst_amount REAL,
-    delivery_fee REAL,
-    status TEXT DEFAULT 'pending',
-    payment_method TEXT,
-    address TEXT,
-    customer_lat REAL,
-    customer_lng REAL,
-    customer_accuracy REAL,
-    customer_location_locked_at INTEGER,
-    installation_requested INTEGER DEFAULT 0,
-    installation_fee REAL DEFAULT 0,
-    installation_status TEXT DEFAULT 'not_requested',
-    installer_id INTEGER,
-    camera_count INTEGER DEFAULT 0,
-    delivery_partner_id INTEGER,
-    delivery_otp TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  )`);
+    db.run(`CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      total_amount REAL,
+      final_amount REAL,
+      gst_amount REAL,
+      delivery_fee REAL,
+      delivery_mode TEXT DEFAULT 'local',
+      delivery_provider TEXT,
+      delivery_estimate TEXT,
+      delivery_distance_km REAL,
+      delivery_weight_kg REAL,
+      status TEXT DEFAULT 'pending',
+      payment_method TEXT,
+      address TEXT,
+      customer_lat REAL,
+      customer_lng REAL,
+      customer_accuracy REAL,
+      customer_location_locked_at INTEGER,
+      installation_requested INTEGER DEFAULT 0,
+      installation_fee REAL DEFAULT 0,
+      installation_status TEXT DEFAULT 'not_requested',
+      installer_id INTEGER,
+      camera_count INTEGER DEFAULT 0,
+      delivery_partner_id INTEGER,
+      delivery_otp TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS category_banners (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    category_id INTEGER,
-    image_url TEXT,
-    width INTEGER DEFAULT 1200,
-    height INTEGER DEFAULT 320,
-    sort_order INTEGER DEFAULT 0,
-    active INTEGER DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (category_id) REFERENCES categories(id)
-  )`);
+    db.run(`CREATE TABLE IF NOT EXISTS category_banners (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category_id INTEGER,
+      image_url TEXT,
+      width INTEGER DEFAULT 1200,
+      height INTEGER DEFAULT 320,
+      sort_order INTEGER DEFAULT 0,
+      active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (category_id) REFERENCES categories(id)
+    )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS order_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    order_id INTEGER,
-    product_id INTEGER,
-    quantity INTEGER,
-    price REAL,
-    warranty_years INTEGER DEFAULT 5,
-    warranty_start_at TEXT,
-    warranty_end_at TEXT,
-    FOREIGN KEY (order_id) REFERENCES orders(id),
-    FOREIGN KEY (product_id) REFERENCES products(id)
-  )`);
+    db.run(`CREATE TABLE IF NOT EXISTS order_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER,
+      product_id INTEGER,
+      quantity INTEGER,
+      price REAL,
+      warranty_years INTEGER DEFAULT 5,
+      warranty_start_at TEXT,
+      warranty_end_at TEXT,
+      FOREIGN KEY (order_id) REFERENCES orders(id),
+      FOREIGN KEY (product_id) REFERENCES products(id)
+    )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS promo_codes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    code TEXT UNIQUE,
-    discount_percent INTEGER,
-    max_discount REAL,
-    min_order REAL,
-    usage_limit INTEGER,
-    used_count INTEGER DEFAULT 0,
-    active INTEGER DEFAULT 1
-  )`);
+    db.run(`CREATE TABLE IF NOT EXISTS promo_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE,
+      discount_percent INTEGER,
+      max_discount REAL,
+      min_order REAL,
+      usage_limit INTEGER,
+      used_count INTEGER DEFAULT 0,
+      active INTEGER DEFAULT 1
+    )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS delivery_locations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    partner_id INTEGER UNIQUE,
-    lat REAL,
-    lng REAL,
-    status TEXT DEFAULT 'available',
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (partner_id) REFERENCES users(id)
-  )`);
+    db.run(`CREATE TABLE IF NOT EXISTS delivery_locations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      partner_id INTEGER UNIQUE,
+      lat REAL,
+      lng REAL,
+      status TEXT DEFAULT 'available',
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (partner_id) REFERENCES users(id)
+    )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS delivery_partner_details (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER UNIQUE,
-    vehicle_type TEXT DEFAULT 'bike',
-    vehicle_number TEXT,
-    license_number TEXT,
-    hub_id INTEGER,
-    active INTEGER DEFAULT 1,
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (hub_id) REFERENCES hubs(id)
-  )`);
+    db.run(`CREATE TABLE IF NOT EXISTS delivery_partner_details (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER UNIQUE,
+      vehicle_type TEXT DEFAULT 'bike',
+      vehicle_number TEXT,
+      license_number TEXT,
+      hub_id INTEGER,
+      active INTEGER DEFAULT 1,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (hub_id) REFERENCES hubs(id)
+    )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS hubs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    address TEXT,
-    lat REAL,
-    lng REAL,
-    map_url TEXT,
-    active INTEGER DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
+    db.run(`CREATE TABLE IF NOT EXISTS hubs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      address TEXT,
+      lat REAL,
+      lng REAL,
+      map_url TEXT,
+      active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS notifications (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT,
-    message TEXT,
-    target TEXT DEFAULT 'customer',
-    personalize INTEGER DEFAULT 0,
-    product_id INTEGER,
-    image_url TEXT,
-    user_id INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
+    db.run(`CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT,
+      message TEXT,
+      target TEXT DEFAULT 'customer',
+      personalize INTEGER DEFAULT 0,
+      product_id INTEGER,
+      image_url TEXT,
+      user_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS push_tokens (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    token TEXT UNIQUE,
-    platform TEXT DEFAULT 'android',
-    app_target TEXT DEFAULT 'customer',
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  )`);
+    db.run(`CREATE TABLE IF NOT EXISTS push_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      token TEXT UNIQUE,
+      platform TEXT DEFAULT 'android',
+      app_target TEXT DEFAULT 'customer',
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS app_settings (
-    setting_key TEXT PRIMARY KEY,
-    value TEXT,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
+    db.run(`CREATE TABLE IF NOT EXISTS app_settings (
+      setting_key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
 
-  addColumn('products', 'discount_percent REAL DEFAULT 0');
-  addColumn('users', 'phone_verified INTEGER DEFAULT 0');
-  addColumn('users', 'phone_verified_at TEXT');
-  addColumn('products', 'dealer_price REAL');
-  addColumn('products', 'distributor_price REAL');
-  addColumn('products', 'warranty_years INTEGER DEFAULT 5');
-  addColumn('order_items', 'warranty_years INTEGER DEFAULT 5');
-  addColumn('order_items', 'warranty_start_at TEXT');
-  addColumn('order_items', 'warranty_end_at TEXT');
-  addColumn('orders', 'customer_accuracy REAL');
-  addColumn('orders', 'customer_location_locked_at INTEGER');
-  addColumn('orders', 'installation_requested INTEGER DEFAULT 0');
-  addColumn('orders', 'installation_fee REAL DEFAULT 0');
-  addColumn('orders', 'installation_status TEXT DEFAULT "not_requested"');
-  addColumn('orders', 'installer_id INTEGER');
-  addColumn('orders', 'camera_count INTEGER DEFAULT 0');
-  addColumn('orders', 'delivery_partner_id INTEGER');
-  addColumn('orders', 'gst_amount REAL');
-  addColumn('orders', 'delivery_fee REAL');
-  addColumn('orders', 'payment_status TEXT DEFAULT "created"');
-  addColumn('orders', 'razorpay_order_id TEXT');
-  addColumn('orders', 'razorpay_payment_id TEXT');
-  addColumn('orders', 'razorpay_signature TEXT');
-  addColumn('orders', 'payment_verified_at TEXT');
-  addColumn('notifications', 'personalize INTEGER DEFAULT 0');
-  addColumn('notifications', 'product_id INTEGER');
-  addColumn('notifications', 'image_url TEXT');
-  addColumn('notifications', 'user_id INTEGER');
+    await ensureColumns('products', [
+      'discount_percent REAL DEFAULT 0',
+      'dealer_price REAL',
+      'distributor_price REAL',
+      'warranty_years INTEGER DEFAULT 5'
+    ]);
+    await ensureColumns('users', [
+      'phone_verified INTEGER DEFAULT 0',
+      'phone_verified_at TEXT'
+    ]);
+    await ensureColumns('order_items', [
+      'warranty_years INTEGER DEFAULT 5',
+      'warranty_start_at TEXT',
+      'warranty_end_at TEXT'
+    ]);
+    await ensureColumns('orders', [
+      'customer_accuracy REAL',
+      'customer_location_locked_at INTEGER',
+      'installation_requested INTEGER DEFAULT 0',
+      'installation_fee REAL DEFAULT 0',
+      'installation_status TEXT DEFAULT "not_requested"',
+      'installer_id INTEGER',
+      'camera_count INTEGER DEFAULT 0',
+      'delivery_partner_id INTEGER',
+      'gst_amount REAL',
+      'delivery_fee REAL',
+      'delivery_mode TEXT DEFAULT "local"',
+      'delivery_provider TEXT',
+      'delivery_estimate TEXT',
+      'delivery_distance_km REAL',
+      'delivery_weight_kg REAL',
+      'payment_status TEXT DEFAULT "created"',
+      'razorpay_order_id TEXT',
+      'razorpay_payment_id TEXT',
+      'razorpay_signature TEXT',
+      'payment_verified_at TEXT'
+    ]);
+    await ensureColumns('notifications', [
+      'personalize INTEGER DEFAULT 0',
+      'product_id INTEGER',
+      'image_url TEXT',
+      'user_id INTEGER'
+    ]);
   db.run(`UPDATE order_items
           SET warranty_years = COALESCE(warranty_years, 5),
               warranty_start_at = COALESCE(warranty_start_at, (SELECT created_at FROM orders WHERE orders.id = order_items.order_id)),
@@ -375,6 +427,11 @@ db.serialize(async () => {
     (1, 'SAVE10', 10, 500, 5000, 100),
     (2, 'FIRST50', 50, 1000, 10000, 1),
     (3, 'CGI99', 99, 5000, 5000, 99999)`);
+    resolveReady();
+  } catch (error) {
+    rejectReady(error);
+  }
 });
 
 module.exports = db;
+module.exports.ready = dbReady;
