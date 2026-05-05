@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, CreditCard, MapPin, Search, Smartphone, Wrench, XCircle } from 'lucide-react';
+import { CheckCircle2, CreditCard, MapPin, Search, Smartphone, Wrench, X, XCircle } from 'lucide-react';
 import { API_URL } from '../api';
 import { captureCustomerLocation, getSavedCustomerLocation } from '../locationLock';
 import { checkServiceability, extractPincode } from '../deliveryZone';
+import PhoneVerificationCard from './PhoneVerificationCard';
 
-function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
+function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItems = [] }) {
   const [cartItems, setCartItems] = useState(() => {
     try {
       const savedCart = JSON.parse(localStorage.getItem('cart_backup') || '[]');
@@ -28,10 +29,14 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
   const [loading, setLoading] = useState(false);
   const [lockingLocation, setLockingLocation] = useState(false);
   const [error, setError] = useState('');
+  const [deliveryQuote, setDeliveryQuote] = useState(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [phoneVerifyOpen, setPhoneVerifyOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     setPhone(user?.phone_verified ? user?.phone || '' : '');
+    if (user?.phone_verified) setPhoneVerifyOpen(false);
   }, [user?.phone, user?.phone_verified]);
 
   useEffect(() => {
@@ -100,8 +105,6 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
       .slice(0, 4);
   }, [user?.address]);
 
-  if (!user) return null;
-
   const isCameraItem = (item) => {
     const categoryId = Number(item.category_id);
     if ([1, 2, 3].includes(categoryId)) return true;
@@ -114,12 +117,66 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
   const cameraCount = cartItems.reduce((sum, item) => (isCameraItem(item) ? sum + Number(item.quantity || 1) : sum), 0);
   const installationFee = installationRequested ? cameraCount * 500 : 0;
   const serviceability = checkServiceability({ address, pincode, lat: coords?.lat, lng: coords?.lng });
-  const localAddress = serviceability.serviceable;
-  const deliveryEstimate = localAddress ? 'Today / same-day' : 'Not serviceable';
-  const deliveryFee = localAddress ? (subtotal > 2000 ? 0 : 40) : 0;
+  const deliveryAvailable = Boolean(deliveryQuote?.serviceable || serviceability.serviceable);
+  const isLocalDelivery = deliveryQuote?.mode === 'local' || (!deliveryQuote && serviceability.mode === 'local');
+  const isCourierDelivery = deliveryQuote?.mode === 'courier' || (!deliveryQuote && serviceability.mode === 'courier');
+  const deliveryFee = Number(deliveryQuote?.charge || 0);
+  const deliveryEstimate = deliveryQuote?.estimateLabel
+    || (serviceability.mode === 'courier' ? 'Courier estimate pending' : serviceability.mode === 'local' ? 'Same-day quote pending' : 'Enter valid pincode');
+  const deliveryZoneLabel = deliveryQuote?.zoneLabel
+    || (serviceability.mode === 'courier' ? 'Courier via Delhivery' : serviceability.mode === 'local' ? 'Same-day local zone' : 'Blocked');
+  const deliveryProvider = deliveryQuote?.provider || (isCourierDelivery ? 'Delhivery' : isLocalDelivery ? 'Uber Parcel + Rapido average' : 'Unavailable');
   const gst = Math.round(subtotal * 0.18);
   const payable = subtotal + gst + deliveryFee + installationFee;
-  const canPay = Boolean(cartItems.length && localAddress && address.trim() && phone.trim() && user?.phone_verified && razorpayReady);
+  const payDisabled = Boolean(loading || !cartItems.length || !deliveryAvailable || !deliveryQuote || quoteLoading || !address.trim() || !razorpayReady);
+
+  useEffect(() => {
+    const detectedPincode = pincode.trim() || extractPincode(address);
+    if (!cartItems.length) {
+      setDeliveryQuote(null);
+      return undefined;
+    }
+    if (!address.trim() && !detectedPincode && !coords?.lat) {
+      setDeliveryQuote(null);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        setQuoteLoading(true);
+        const res = await fetch(`${API_URL}/delivery-quote`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            address,
+            pincode: detectedPincode,
+            customer_lat: coords?.lat,
+            customer_lng: coords?.lng,
+            items: cartItems.map(item => ({
+              product_id: item.product_id || item.id,
+              quantity: item.quantity
+            }))
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Could not calculate delivery quote');
+        setDeliveryQuote(data);
+      } catch (quoteError) {
+        if (quoteError.name !== 'AbortError') {
+          setDeliveryQuote(null);
+        }
+      } finally {
+        if (!controller.signal.aborted) setQuoteLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [address, pincode, coords?.lat, coords?.lng, cartItems]);
 
   const buildRazorpayDisplayConfig = () => ({
     display: {
@@ -140,14 +197,15 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
     const pin = pincode.trim() || extractPincode(address);
     if (pin && pin !== pincode) setPincode(pin);
     const check = checkServiceability({ address, pincode: pin, lat: coords?.lat, lng: coords?.lng });
-    setError(check.serviceable ? '' : 'This address is outside Camigo service area. Use a Bhubaneswar, Cuttack, Khordha, or Jatni delivery pincode.');
+    setError(check.serviceable ? '' : 'Enter a valid 6-digit pincode. Same-day is for Bhubaneswar/Cuttack/Khordha/Jatni, and outside-zone orders go by Delhivery courier.');
   };
 
   const handlePlaceOrder = async () => {
     setError('');
-    if (!user?.phone_verified) { setError('Verify your mobile number from Account before checkout.'); return; }
+    if (!user?.phone_verified) { setPhoneVerifyOpen(true); return; }
     if (!address || !phone) { setError('Delivery address and phone are required.'); return; }
     if (!cartItems.length) { setError('Cart is empty.'); return; }
+    if (!deliveryQuote || quoteLoading) { setError('Wait a moment while Camigo finishes the delivery charge calculation.'); return; }
     if (!razorpayReady || !window.Razorpay) { setError('Payment gateway is still loading. Please wait a moment and try again.'); return; }
 
     setLoading(true);
@@ -163,7 +221,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
       if (!customerCoords) { setError('Please allow location permission to lock your delivery point before checkout.'); setLoading(false); return; }
       const deliveryCheck = checkServiceability({ address, pincode, lat: customerCoords?.lat, lng: customerCoords?.lng });
       if (!deliveryCheck.serviceable) {
-        setError('This delivery point is outside Camigo service area. Enter a valid Bhubaneswar, Cuttack, Khordha, or Jatni pincode/address before payment.');
+        setError('Enter a valid 6-digit delivery pincode before payment. Same-day is local, and outside-zone orders go by Delhivery courier.');
         setLoading(false);
         return;
       }
@@ -173,7 +231,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
         body: JSON.stringify({
           items: cartItems.map(i => ({ product_id: i.product_id || i.id, quantity: i.quantity })),
           address,
-          pincode: deliveryCheck.detectedPincode,
+          pincode: deliveryQuote?.detectedPincode || deliveryCheck.detectedPincode,
           phone,
           payment_method: paymentMethod,
           installation_requested: installationRequested,
@@ -251,6 +309,8 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
     setLoading(false);
   };
 
+  if (!user) return null;
+
   return (
     <main className="checkout-page">
       <div className="checkout-main">
@@ -276,12 +336,12 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
             </div>
           )}
           <div className="form-group"><label>Full Address</label><textarea value={address} onChange={e => setAddress(e.target.value)} rows="3" /></div>
-          <div className="form-group"><label>Phone Number</label><input type="tel" value={phone} readOnly placeholder="Verify your mobile from Account first" /></div>
+          <div className="form-group"><label>Phone Number</label><input type="tel" value={phone} readOnly placeholder="Verify mobile at checkout" /></div>
           {!user?.phone_verified && (
             <div className="serviceability-status blocked">
               <strong>Mobile verification required</strong>
-              <span>Go to Account and verify your mobile number before payment.</span>
-              <button type="button" onClick={() => navigate('/orders')}>Open Account</button>
+              <span>Verify your mobile here before payment. You can use the Firebase test OTP while real SMS setup is pending.</span>
+              <button type="button" onClick={() => setPhoneVerifyOpen(true)}>Verify mobile</button>
             </div>
           )}
           <div className={`location-lock-card ${coords?.locked ? 'locked' : ''}`}>
@@ -313,13 +373,18 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
               <button type="button" onClick={handleCheckPincode}><Search size={16} /> Check</button>
             </div>
           </div>
-          <div className={localAddress ? 'serviceability-status ok' : 'serviceability-status blocked'}>
-            <strong>{localAddress ? 'Delivery area verified' : 'Address outside service area'}</strong>
+          <div className={deliveryAvailable ? 'serviceability-status ok' : 'serviceability-status blocked'}>
+            <strong>
+              {deliveryAvailable
+                ? (isLocalDelivery ? 'Same-day local delivery available' : 'Courier delivery available')
+                : 'Delivery area not ready'}
+            </strong>
             <span>
-              {localAddress
-                ? `Accepting orders for ${serviceability.detectedPincode || 'your locked GPS area'} in the Camigo local corridor.`
-                : 'Orders can be placed only for Bhubaneswar, Cuttack, Khordha, and Jatni supported pincodes/GPS points.'}
+              {deliveryAvailable
+                ? (deliveryQuote?.message || `Accepting orders for ${serviceability.detectedPincode || 'your locked GPS area'}.`)
+                : 'Enter a valid 6-digit delivery pincode. Bhubaneswar/Cuttack/Khordha/Jatni use same-day local delivery, while outside-zone orders go by Delhivery courier.'}
             </span>
+            {quoteLoading && <span>Calculating averaged delivery charge...</span>}
           </div>
         </section>
 
@@ -350,10 +415,13 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
         </div>
         <div className="summary-row"><span>Subtotal</span><strong>Rs {subtotal}</strong></div>
         <div className="summary-row"><span>GST 18%</span><strong>Rs {gst}</strong></div>
-        <div className="summary-row"><span>Delivery</span><strong>{deliveryFee === 0 ? 'FREE' : `Rs ${deliveryFee}`}</strong></div>
+        <div className="summary-row"><span>Delivery</span><strong>{deliveryAvailable ? `Rs ${deliveryFee}` : 'Pending'}</strong></div>
         <div className="summary-row"><span>Installation</span><strong>{cameraCount > 0 ? (installationRequested ? `Rs ${installationFee}` : 'Not added') : 'No cameras'}</strong></div>
+        <div className="summary-row"><span>Provider</span><strong>{deliveryProvider}</strong></div>
         <div className="summary-row"><span>Estimate</span><strong>{deliveryEstimate}</strong></div>
-        <div className="summary-row"><span>Delivery zone</span><strong>{localAddress ? 'Verified local zone' : 'Blocked'}</strong></div>
+        <div className="summary-row"><span>Delivery zone</span><strong>{deliveryZoneLabel}</strong></div>
+        {deliveryQuote?.distanceKm != null && <div className="summary-row"><span>Road distance</span><strong>{deliveryQuote.distanceKm} km</strong></div>}
+        {deliveryQuote?.chargeableWeightKg != null && <div className="summary-row"><span>Courier slab</span><strong>{deliveryQuote.chargeableWeightKg} kg</strong></div>}
         <div className="summary-row"><span>GPS accuracy</span><strong>{coords?.accuracy ? `${Math.round(coords.accuracy)}m` : 'Not locked'}</strong></div>
         <div className="summary-total"><span>Payable</span><strong>Rs {payable}</strong></div>
         <div className="installation-choice-card">
@@ -395,10 +463,39 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, liveCartItems = [] }) {
               : 'Installation becomes available when camera products are in the cart.'}
           </p>
         </div>
-        <button className="checkout-pay-btn" onClick={handlePlaceOrder} disabled={loading || !canPay}>
-          {loading ? 'Opening Razorpay...' : !localAddress ? 'Enter serviceable address' : razorpayReady ? `Pay Rs ${payable}` : 'Loading payment gateway...'}
+        <button className="checkout-pay-btn" onClick={handlePlaceOrder} disabled={payDisabled}>
+          {loading
+            ? 'Opening Razorpay...'
+            : !deliveryAvailable
+              ? 'Enter valid delivery pincode'
+              : quoteLoading
+                ? 'Calculating delivery charge...'
+                : !user?.phone_verified
+                  ? 'Verify mobile to pay'
+                  : razorpayReady
+                  ? `Pay Rs ${payable}`
+                  : 'Loading payment gateway...'}
         </button>
       </aside>
+      {phoneVerifyOpen && (
+        <div className="checkout-verify-overlay" role="dialog" aria-modal="true" aria-label="Verify mobile number">
+          <div className="checkout-verify-modal">
+            <button className="checkout-verify-close" type="button" onClick={() => setPhoneVerifyOpen(false)} aria-label="Close verification">
+              <X size={20} />
+            </button>
+            <PhoneVerificationCard
+              user={user}
+              onUserUpdate={(nextUser) => {
+                onUserUpdate?.(nextUser);
+                if (nextUser?.phone_verified) {
+                  setPhone(nextUser.phone || '');
+                  setPhoneVerifyOpen(false);
+                }
+              }}
+            />
+          </div>
+        </div>
+      )}
     </main>
   );
 }

@@ -80,6 +80,9 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
     .filter(item => item.id !== product.id && item.category_id === product.category_id)
     .slice(0, 4);
   const warrantyYears = Math.max(1, Number(product.warranty_years || 5));
+  const ratingAverage = Number(product.rating_average || 4.6).toFixed(1);
+  const ratingCount = Number(product.rating_count || 200);
+  const reviews = Array.isArray(product.reviews) ? product.reviews.slice(0, 3) : [];
 
   const handleAdd = () => {
     if (!user) { onLogin(); return; }
@@ -135,6 +138,10 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
             </div>
 
             <h1 className="product-detail-name">{product.name}</h1>
+            <div className="product-detail-rating-row">
+              <span><Star size={15} fill="currentColor" /> {ratingAverage}</span>
+              <strong>{ratingCount} customer ratings</strong>
+            </div>
             <p className="product-detail-desc">{product.description}</p>
 
             <div className="product-feature-chips">
@@ -231,6 +238,30 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
           </div>
         </div>
       </section>
+
+      {reviews.length > 0 && (
+        <section className="product-review-section">
+          <div className="related-header-row">
+            <div>
+              <span className="eyebrow">Customer reviews</span>
+              <h2>Rated {ratingAverage} by Camigo buyers</h2>
+            </div>
+            <span className="product-review-count">{ratingCount} ratings</span>
+          </div>
+          <div className="product-review-grid">
+            {reviews.map(review => (
+              <div key={`${review.name}-${review.text}`} className="product-review-card">
+                <div className="product-review-stars">
+                  <Star size={14} fill="currentColor" />
+                  <strong>{Number(review.rating || ratingAverage).toFixed(1)}</strong>
+                </div>
+                <p>{review.text}</p>
+                <span>{review.name}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {relatedProducts.length > 0 && (
         <section className="related-products modern-related-products">

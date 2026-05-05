@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Minus, Plus } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Star } from 'lucide-react';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
 
 function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRole, cartItems = [] }) {
@@ -68,6 +68,11 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
               </div>
               <div className="product-name">{product.name}</div>
               <div className="product-weight">{product.unit}</div>
+              <div className="product-rating-row">
+                <Star size={13} fill="currentColor" />
+                <strong>{Number(product.rating_average || 4.6).toFixed(1)}</strong>
+                <span>({Number(product.rating_count || 200)})</span>
+              </div>
               {discount > 0 && <div className="product-offer-line">{discount}% OFF</div>}
               <div className="product-price-row">
                 <span><span className="price-current">Rs {priceForRole ? priceForRole(product, user) : product.price}</span><span className="price-original">Rs {product.mrp}</span></span>

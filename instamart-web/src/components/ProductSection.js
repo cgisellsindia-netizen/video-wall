@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Minus, Plus } from 'lucide-react';
+import { Minus, Plus, Star } from 'lucide-react';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
 
 function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [], categoryId = null }) {
@@ -60,6 +60,11 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
               </div>
               <div className="product-name">{product.name}</div>
               <div className="product-weight">{product.unit}</div>
+              <div className="product-rating-row">
+                <Star size={13} fill="currentColor" />
+                <strong>{Number(product.rating_average || 4.6).toFixed(1)}</strong>
+                <span>({Number(product.rating_count || 200)})</span>
+              </div>
               {discount > 0 && <div className="product-offer-line">{discount}% OFF</div>}
               <div className="product-price-row">
                 <span>

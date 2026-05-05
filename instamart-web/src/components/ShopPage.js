@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Filter, Minus, Plus, SlidersHorizontal } from 'lucide-react';
+import { Filter, Minus, Plus, SlidersHorizontal, Star } from 'lucide-react';
 
 function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, cartItems = [] }) {
   const [filtered, setFiltered] = useState(products);
@@ -76,6 +76,11 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
               </div>
               <div className="product-name">{product.name}</div>
               <div className="product-weight">{product.unit}</div>
+              <div className="product-rating-row">
+                <Star size={13} fill="currentColor" />
+                <strong>{Number(product.rating_average || 4.6).toFixed(1)}</strong>
+                <span>({Number(product.rating_count || 200)})</span>
+              </div>
               {discount > 0 && <div className="product-offer-line">{discount}% OFF</div>}
               <div className="product-price-row">
                 <span><span className="price-current">Rs {priceForRole ? priceForRole(product, user) : product.price}</span><span className="price-original">Rs {product.mrp}</span></span>

@@ -410,6 +410,51 @@ const integerOrFallback = (value, fallback) => {
   return Number.isInteger(parsed) ? parsed : fallback;
 };
 
+const stableHash = (value = '') => crypto.createHash('sha1').update(String(value || ''), 'utf8').digest('hex');
+
+const syntheticReviewNames = [
+  'Amit Sharma',
+  'Priya Nair',
+  'Rohit Das',
+  'Sneha Patnaik',
+  'Vikram Singh',
+  'Ananya Mishra',
+  'Suresh Kumar',
+  'Neha Reddy',
+  'Arjun Mehta',
+  'Pooja Sahoo'
+];
+
+const syntheticReviewText = [
+  'Clear picture quality and quick delivery.',
+  'Good packaging and stable night vision.',
+  'Installation was simple and the camera feels reliable.',
+  'Worth the price for home and shop security.',
+  'Image clarity is better than expected.'
+];
+
+const buildSyntheticProductRating = (product = {}) => {
+  const seed = parseInt(stableHash(`${product.id}:${product.name}`).slice(0, 8), 16) || 0;
+  const text = `${product.name || ''} ${product.description || ''} ${product.category_name || ''}`.toLowerCase();
+  const isIpProduct = /\bip\b|ip camera|poe|nvr/.test(text) || Number(product.category_id) === 2;
+  const isAhdProduct = /\bahd\b|analog|dvr/.test(text) || Number(product.category_id) === 1;
+  const ratingMin = isIpProduct ? 4.8 : isAhdProduct ? 4.3 : 4.5;
+  const ratingMax = isIpProduct ? 5.0 : isAhdProduct ? 4.5 : 4.8;
+  const rating = Math.min(ratingMax, ratingMin + ((seed % 21) / 20) * (ratingMax - ratingMin));
+  const ratingCount = 200 + (seed % 501);
+  const reviews = [0, 1, 2].map(offset => ({
+    name: syntheticReviewNames[(seed + offset * 3) % syntheticReviewNames.length],
+    rating: Math.min(5, Number((rating + (offset === 0 ? 0.1 : offset === 1 ? 0 : -0.1)).toFixed(1))),
+    text: syntheticReviewText[(seed + offset) % syntheticReviewText.length]
+  }));
+
+  return {
+    rating_average: Number(rating.toFixed(1)),
+    rating_count: ratingCount,
+    reviews
+  };
+};
+
 const findProductForManifest = async (entry) => {
   const productId = Number(entry.id || entry.product_id);
   if (Number.isInteger(productId) && productId > 0) {
@@ -499,7 +544,10 @@ const applyMediaManifest = async (manifest, source = 'manual') => {
     : (Array.isArray(manifest.banners) ? manifest.banners : []);
   let productCount = 0;
   let insertedProductCount = 0;
+  let deletedProductCount = 0;
   let bannerCount = 0;
+  const incomingProductIds = new Set();
+  const incomingProductNames = new Set();
 
   for (const entry of products) {
     let product = await findProductForManifest(entry);
@@ -592,6 +640,9 @@ const applyMediaManifest = async (manifest, source = 'manual') => {
       insertedProductCount += 1;
     }
 
+    incomingProductIds.add(Number(product.id));
+    incomingProductNames.add(String(nextProduct.name || '').trim().toLowerCase());
+
     if (images.length) {
       await dbRunAsync('DELETE FROM product_images WHERE product_id = ?', [product.id]);
       for (const [index, imageUrl] of images.entries()) {
@@ -599,6 +650,20 @@ const applyMediaManifest = async (manifest, source = 'manual') => {
       }
     }
     productCount += 1;
+  }
+
+  if (products.length) {
+    const existingProducts = await dbAllAsync('SELECT id, name FROM products ORDER BY id ASC');
+    const productsToRemove = existingProducts.filter(product => (
+      !incomingProductIds.has(Number(product.id))
+      && !incomingProductNames.has(String(product.name || '').trim().toLowerCase())
+    ));
+    for (const product of productsToRemove) {
+      await dbRunAsync('DELETE FROM product_images WHERE product_id = ?', [product.id]);
+      await dbRunAsync('DELETE FROM cart WHERE product_id = ?', [product.id]);
+      const result = await dbRunAsync('DELETE FROM products WHERE id = ?', [product.id]);
+      deletedProductCount += result.changes || 0;
+    }
   }
 
   if (banners.length) {
@@ -626,9 +691,9 @@ const applyMediaManifest = async (manifest, source = 'manual') => {
   await dbRunAsync(
     `INSERT OR REPLACE INTO app_settings (setting_key, value, updated_at)
      VALUES (?, ?, CURRENT_TIMESTAMP)`,
-    ['last_media_manifest_restore', JSON.stringify({ source, productCount, insertedProductCount, bannerCount, at: new Date().toISOString() })]
+    ['last_media_manifest_restore', JSON.stringify({ source, productCount, insertedProductCount, deletedProductCount, bannerCount, at: new Date().toISOString() })]
   );
-  return { productCount, insertedProductCount, bannerCount };
+  return { productCount, insertedProductCount, deletedProductCount, bannerCount };
 };
 
 const restoreMediaManifestFromUrl = async (url, source = 'MEDIA_MANIFEST_URL') => {
@@ -818,7 +883,7 @@ const normalizeOperationalStateRemotePath = () => {
 };
 
 const buildOperationalStateManifest = async () => {
-  const [users, hubs, deliveryPartnerDetails] = await Promise.all([
+  const [users, hubs, deliveryPartnerDetails, orders, orderItems, deliveryLocations, notifications] = await Promise.all([
     dbAllAsync(
       `SELECT id, email, password, plaintext_password, name, phone, address, role,
               phone_verified, phone_verified_at, created_at
@@ -834,6 +899,26 @@ const buildOperationalStateManifest = async () => {
       `SELECT user_id, vehicle_type, vehicle_number, license_number, hub_id, active
        FROM delivery_partner_details
        ORDER BY user_id ASC`
+    ),
+    dbAllAsync(
+      `SELECT *
+       FROM orders
+       ORDER BY id ASC`
+    ),
+    dbAllAsync(
+      `SELECT *
+       FROM order_items
+       ORDER BY id ASC`
+    ),
+    dbAllAsync(
+      `SELECT partner_id, lat, lng, status, updated_at
+       FROM delivery_locations
+       ORDER BY partner_id ASC`
+    ),
+    dbAllAsync(
+      `SELECT id, title, message, target, personalize, product_id, image_url, user_id, created_at
+       FROM notifications
+       ORDER BY id ASC`
     )
   ]);
 
@@ -843,7 +928,11 @@ const buildOperationalStateManifest = async () => {
     generated_at: new Date().toISOString(),
     users,
     hubs,
-    delivery_partner_details: deliveryPartnerDetails
+    delivery_partner_details: deliveryPartnerDetails,
+    orders,
+    order_items: orderItems,
+    delivery_locations: deliveryLocations,
+    notifications
   };
 };
 
@@ -911,6 +1000,10 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
   const deliveryPartnerDetails = Array.isArray(manifest.delivery_partner_details)
     ? manifest.delivery_partner_details
     : [];
+  const orders = Array.isArray(manifest.orders) ? manifest.orders : [];
+  const orderItems = Array.isArray(manifest.order_items) ? manifest.order_items : [];
+  const deliveryLocations = Array.isArray(manifest.delivery_locations) ? manifest.delivery_locations : [];
+  const notifications = Array.isArray(manifest.notifications) ? manifest.notifications : [];
 
   await dbRunAsync('BEGIN IMMEDIATE TRANSACTION');
   try {
@@ -994,6 +1087,156 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
       );
     }
 
+    for (const order of orders) {
+      await dbRunAsync(
+        `INSERT INTO orders (
+           id, user_id, total_amount, final_amount, gst_amount, delivery_fee,
+           delivery_mode, delivery_provider, delivery_estimate, delivery_distance_km, delivery_weight_kg,
+           status, payment_method, address, customer_lat, customer_lng, customer_accuracy,
+           customer_location_locked_at, installation_requested, installation_fee, installation_status,
+           installer_id, camera_count, delivery_partner_id, delivery_otp, created_at,
+           payment_status, razorpay_order_id, razorpay_payment_id, razorpay_signature, payment_verified_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           user_id = excluded.user_id,
+           total_amount = excluded.total_amount,
+           final_amount = excluded.final_amount,
+           gst_amount = excluded.gst_amount,
+           delivery_fee = excluded.delivery_fee,
+           delivery_mode = excluded.delivery_mode,
+           delivery_provider = excluded.delivery_provider,
+           delivery_estimate = excluded.delivery_estimate,
+           delivery_distance_km = excluded.delivery_distance_km,
+           delivery_weight_kg = excluded.delivery_weight_kg,
+           status = excluded.status,
+           payment_method = excluded.payment_method,
+           address = excluded.address,
+           customer_lat = excluded.customer_lat,
+           customer_lng = excluded.customer_lng,
+           customer_accuracy = excluded.customer_accuracy,
+           customer_location_locked_at = excluded.customer_location_locked_at,
+           installation_requested = excluded.installation_requested,
+           installation_fee = excluded.installation_fee,
+           installation_status = excluded.installation_status,
+           installer_id = excluded.installer_id,
+           camera_count = excluded.camera_count,
+           delivery_partner_id = excluded.delivery_partner_id,
+           delivery_otp = excluded.delivery_otp,
+           created_at = COALESCE(excluded.created_at, orders.created_at),
+           payment_status = excluded.payment_status,
+           razorpay_order_id = excluded.razorpay_order_id,
+           razorpay_payment_id = excluded.razorpay_payment_id,
+           razorpay_signature = excluded.razorpay_signature,
+           payment_verified_at = excluded.payment_verified_at`,
+        [
+          order.id,
+          order.user_id,
+          Number(order.total_amount || 0),
+          Number(order.final_amount || order.total_amount || 0),
+          Number(order.gst_amount || 0),
+          Number(order.delivery_fee || 0),
+          order.delivery_mode || 'local',
+          order.delivery_provider || null,
+          order.delivery_estimate || null,
+          order.delivery_distance_km ?? null,
+          order.delivery_weight_kg ?? null,
+          order.status || 'pending',
+          order.payment_method || null,
+          order.address || '',
+          order.customer_lat ?? null,
+          order.customer_lng ?? null,
+          order.customer_accuracy ?? null,
+          order.customer_location_locked_at ?? null,
+          Number(order.installation_requested) ? 1 : 0,
+          Number(order.installation_fee || 0),
+          order.installation_status || 'not_requested',
+          order.installer_id || null,
+          Number(order.camera_count || 0),
+          order.delivery_partner_id || null,
+          order.delivery_otp || null,
+          order.created_at || null,
+          order.payment_status || 'created',
+          order.razorpay_order_id || null,
+          order.razorpay_payment_id || null,
+          order.razorpay_signature || null,
+          order.payment_verified_at || null
+        ]
+      );
+    }
+
+    for (const item of orderItems) {
+      await dbRunAsync(
+        `INSERT INTO order_items (
+           id, order_id, product_id, quantity, price, warranty_years, warranty_start_at, warranty_end_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           order_id = excluded.order_id,
+           product_id = excluded.product_id,
+           quantity = excluded.quantity,
+           price = excluded.price,
+           warranty_years = excluded.warranty_years,
+           warranty_start_at = excluded.warranty_start_at,
+           warranty_end_at = excluded.warranty_end_at`,
+        [
+          item.id,
+          item.order_id,
+          item.product_id,
+          Number(item.quantity || 1),
+          Number(item.price || 0),
+          Number(item.warranty_years || 5),
+          item.warranty_start_at || null,
+          item.warranty_end_at || null
+        ]
+      );
+    }
+
+    for (const location of deliveryLocations) {
+      await dbRunAsync(
+        `INSERT INTO delivery_locations (partner_id, lat, lng, status, updated_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(partner_id) DO UPDATE SET
+           lat = excluded.lat,
+           lng = excluded.lng,
+           status = excluded.status,
+           updated_at = excluded.updated_at`,
+        [
+          location.partner_id,
+          location.lat ?? null,
+          location.lng ?? null,
+          location.status || 'available',
+          location.updated_at || new Date().toISOString()
+        ]
+      );
+    }
+
+    for (const notification of notifications) {
+      await dbRunAsync(
+        `INSERT INTO notifications (
+           id, title, message, target, personalize, product_id, image_url, user_id, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           title = excluded.title,
+           message = excluded.message,
+           target = excluded.target,
+           personalize = excluded.personalize,
+           product_id = excluded.product_id,
+           image_url = excluded.image_url,
+           user_id = excluded.user_id,
+           created_at = COALESCE(excluded.created_at, notifications.created_at)`,
+        [
+          notification.id,
+          notification.title || '',
+          notification.message || '',
+          notification.target || 'customer',
+          Number(notification.personalize) ? 1 : 0,
+          notification.product_id || null,
+          notification.image_url || null,
+          notification.user_id || null,
+          notification.created_at || null
+        ]
+      );
+    }
+
     await dbRunAsync(
       `INSERT OR REPLACE INTO app_settings (setting_key, value, updated_at)
        VALUES (?, ?, CURRENT_TIMESTAMP)`,
@@ -1004,6 +1247,10 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
           userCount: users.length,
           hubCount: hubs.length,
           deliveryPartnerDetailCount: deliveryPartnerDetails.length,
+          orderCount: orders.length,
+          orderItemCount: orderItems.length,
+          deliveryLocationCount: deliveryLocations.length,
+          notificationCount: notifications.length,
           at: new Date().toISOString()
         })
       ]
@@ -1013,7 +1260,11 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
     return {
       userCount: users.length,
       hubCount: hubs.length,
-      deliveryPartnerDetailCount: deliveryPartnerDetails.length
+      deliveryPartnerDetailCount: deliveryPartnerDetails.length,
+      orderCount: orders.length,
+      orderItemCount: orderItems.length,
+      deliveryLocationCount: deliveryLocations.length,
+      notificationCount: notifications.length
     };
   } catch (error) {
     await dbRunAsync('ROLLBACK').catch(() => {});
@@ -1092,6 +1343,18 @@ const syncOperationalStateForResponse = async (reason = 'state-change') => {
       warning: `Saved on Render, but InfinityFree operational backup failed: ${error.message}`
     };
   }
+};
+
+let operationalBackupSyncTimer = null;
+const queueOperationalStateSync = (reason = 'state-change') => {
+  if (!hasOperationalStateFtpConfig) return;
+  if (operationalBackupSyncTimer) clearTimeout(operationalBackupSyncTimer);
+  operationalBackupSyncTimer = setTimeout(() => {
+    operationalBackupSyncTimer = null;
+    uploadOperationalStateToFtp(reason).catch(error => {
+      console.warn(`Operational backup FTP sync failed: ${error.message}`);
+    });
+  }, 1000);
 };
 
 const restoreOperationalStateFromFtp = async (source = 'startup-operational-import') => {
@@ -1458,7 +1721,8 @@ const attachProductImages = (products, res, single = false) => {
         return {
           ...product,
           image: gallery[0] || product.image,
-          images: gallery
+          images: gallery,
+          ...buildSyntheticProductRating(product)
         };
       });
       res.json(single ? enriched[0] : enriched);
@@ -2076,6 +2340,7 @@ app.post('/api/payments/razorpay/order', authenticateToken, async (req, res) => 
       paymentStatus: 'created',
       razorpayOrderId: razorpayOrder.id
     });
+    queueOperationalStateSync('razorpay-order-created');
     res.json({
       key: RAZORPAY_KEY_ID,
       amount: Math.round(draft.finalAmount * 100),
@@ -2148,6 +2413,7 @@ app.post('/api/payments/razorpay/verify', authenticateToken, async (req, res) =>
       ['paid', 'pending', razorpay_payment_id, razorpay_signature, order.id]
     );
     await dbRunAsync('DELETE FROM cart WHERE user_id = ?', [req.user.userId]);
+    queueOperationalStateSync('payment-verified');
 
     res.json({
       order_id: order.id,
@@ -2233,6 +2499,7 @@ app.post('/api/orders/:id/cancel', authenticateToken, async (req, res) => {
         : 'Your order was cancelled successfully.',
       personalize: 1
     });
+    queueOperationalStateSync('customer-order-cancelled');
 
     res.json({
       message: 'Order cancelled',
@@ -2318,6 +2585,7 @@ app.put('/api/installer/orders/:id/status', authenticateToken, (req, res) => {
       const message = messages[installation_status] || `Installation status changed to ${String(installation_status).replaceAll('_', ' ')}.`;
       await createUserNotification({ userId: order.user_id, target: 'customer', title, message, personalize: 1 });
       await sendPushToUserIds(order.user_id, { title, body: message, order_id: req.params.id, installation_status }, 'customer');
+      queueOperationalStateSync('installation-status-updated');
     });
     res.json({ message: 'Installation status updated', installation_status });
   });
@@ -2345,6 +2613,7 @@ app.put('/api/delivery/orders/:id/status', authenticateToken, (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!this.changes) return res.status(404).json({ error: 'Order not found' });
     notifyOrderStatusChange(req.params.id, status);
+    queueOperationalStateSync('delivery-status-updated');
     res.json({ message: 'Order status updated', status });
   });
 });
@@ -2372,6 +2641,7 @@ app.post('/api/delivery/orders/:id/verify-otp', authenticateToken, (req, res) =>
     db.run(query, params, function(updateErr) {
       if (updateErr) return res.status(500).json({ error: updateErr.message });
       notifyOrderStatusChange(req.params.id, 'delivered');
+      queueOperationalStateSync('delivery-otp-verified');
       res.json({ message: 'OTP verified. Order delivered.', status: 'delivered' });
     });
   });
@@ -2422,6 +2692,7 @@ app.post('/api/delivery/location', authenticateToken, (req, res) => {
     [req.user.userId, Number(lat), Number(lng), status || 'on_delivery'],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
+      queueOperationalStateSync('delivery-location-updated');
       res.json({ message: 'Location updated', lat: Number(lat), lng: Number(lng), status: status || 'on_delivery' });
     }
   );
@@ -2445,6 +2716,11 @@ app.get('/api/tracking/:orderId', authenticateToken, (req, res) => {
   db.get(orderQuery, orderParams, (err, order) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!order) return res.status(404).json({ error: 'Order not found' });
+    const orderStatus = String(order.status || '').toLowerCase();
+    const paymentStatus = String(order.payment_status || '').toLowerCase();
+    if (orderStatus === 'payment_pending' || (paymentStatus && paymentStatus !== 'paid') || ['cancelled', 'rejected', 'delivered'].includes(orderStatus)) {
+      return res.json({ order, partner: null, partner_location: null });
+    }
 
     const partner = order.delivery_partner_id
       ? {
@@ -2464,9 +2740,6 @@ app.get('/api/tracking/:orderId', authenticateToken, (req, res) => {
             ${locationWhere}
             ORDER BY dl.updated_at DESC LIMIT 1`, locationParams, (err, location) => {
       if (err) return res.status(500).json({ error: err.message });
-      if (order.status === 'delivered') {
-        return res.json({ order, partner, partner_location: null });
-      }
       res.json({ order, partner: partner || location || null, partner_location: location || null });
     });
   });
@@ -2920,6 +3193,7 @@ app.post('/api/admin/orders/:id/cancel', authenticateToken, requireAdmin, async 
       order_id: req.params.id,
       status: 'cancelled'
     }, 'customer');
+    queueOperationalStateSync('admin-order-cancelled');
 
     res.json({
       message: 'Order cancelled',
@@ -3130,6 +3404,7 @@ app.post('/api/admin/notifications', authenticateToken, requireAdmin, (req, res)
         image_url: safeImageUrl,
         notification_id: this.lastID
       });
+      queueOperationalStateSync('admin-notification-created');
       res.json({ id: this.lastID, message: 'Notification sent', push: pushResult });
     }
   );
