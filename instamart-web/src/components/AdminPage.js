@@ -11,6 +11,7 @@ function AdminPage({ user }) {
   const [hubs, setHubs] = useState([]);
   const [deliveryPartners, setDeliveryPartners] = useState([]);
   const [categoryBanners, setCategoryBanners] = useState([]);
+  const [systemStatus, setSystemStatus] = useState(null);
   const [categoryDrafts, setCategoryDrafts] = useState({});
   const [categoryBusy, setCategoryBusy] = useState({});
   const [activeTab, setActiveTab] = useState('products');
@@ -148,19 +149,20 @@ function AdminPage({ user }) {
   const fetchData = async () => {
     const token = localStorage.getItem('token');
     try {
-      const [uRes, oRes, pRes, cRes, hRes, dRes, bRes] = await Promise.all([
+      const [uRes, oRes, pRes, cRes, hRes, dRes, bRes, sRes] = await Promise.all([
         fetch(`${API_URL}/admin/users`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${API_URL}/admin/orders`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${API_URL}/products`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${API_URL}/categories`),
         fetch(`${API_URL}/hubs`),
         fetch(`${API_URL}/admin/delivery-partners`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_URL}/admin/category-banners`, { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch(`${API_URL}/admin/category-banners`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_URL}/admin/system-status`, { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       if (uRes.status === 403 || oRes.status === 403) {
         setMessage('Admin access required. Login with the admin account to manage products.');
       }
-      const [uData, oData, pData, cData, hData, dData, bData] = await Promise.all([uRes.json(), oRes.json(), pRes.json(), cRes.json(), hRes.json(), dRes.json(), bRes.json()]);
+      const [uData, oData, pData, cData, hData, dData, bData, sData] = await Promise.all([uRes.json(), oRes.json(), pRes.json(), cRes.json(), hRes.json(), dRes.json(), bRes.json(), sRes.json()]);
       setUsers(Array.isArray(uData) ? uData : []);
       setOrders(Array.isArray(oData) ? oData : []);
       setProducts(Array.isArray(pData) ? pData : []);
@@ -168,6 +170,7 @@ function AdminPage({ user }) {
       setHubs(Array.isArray(hData) ? hData : []);
       setDeliveryPartners(Array.isArray(dData) ? dData : []);
       setCategoryBanners(Array.isArray(bData) ? bData : []);
+      setSystemStatus(sRes.ok ? sData : null);
       setLoading(false);
     } catch (e) { setMessage('Could not load admin data. Check backend/login and try again.'); setLoading(false); }
   };
@@ -801,11 +804,77 @@ function AdminPage({ user }) {
         <button className={`btn btn-sm ${activeTab === 'orders' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('orders')}><ShoppingBag size={16} /> Orders ({orders.length})</button>
         <button className={`btn btn-sm ${activeTab === 'products' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('products')}><Package size={16} /> Products ({products.length})</button>
         <button className={`btn btn-sm ${activeTab === 'categories' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('categories')}><ImageIcon size={16} /> Category Tiles ({categories.length})</button>
+        <button className={`btn btn-sm ${activeTab === 'integrations' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('integrations')}><Sparkles size={16} /> Integrations</button>
         <button className={`btn btn-sm ${activeTab === 'delivery' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('delivery')}><Truck size={16} /> Delivery Partners ({deliveryPartners.length})</button>
         <button className={`btn btn-sm ${activeTab === 'hubs' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('hubs')}><MapPin size={16} /> Hubs ({hubs.length})</button>
         <button className={`btn btn-sm ${activeTab === 'banners' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('banners')}><Package size={16} /> Category Banners ({categoryBanners.length})</button>
         <button className={`btn btn-sm ${activeTab === 'notifications' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('notifications')}><Bell size={16} /> Notifications</button>
       </div>
+
+      {activeTab === 'integrations' && (
+        <div className="card banner-admin-panel">
+          <div className="banner-admin-toolbar">
+            <div>
+              <span className="phone-verify-eyebrow">Delivery integrations</span>
+              <h3 style={{ margin: '4px 0 6px' }}>Uber Direct live app status</h3>
+              <p className="checkout-note" style={{ margin: 0 }}>
+                This section shows the Uber app generated in Uber Developers and whether the Camigo backend is ready to create live Uber deliveries.
+              </p>
+            </div>
+          </div>
+
+          <div className="integration-grid">
+            <article className="integration-card">
+              <div className="integration-card-top">
+                <div>
+                  <strong>Uber Direct</strong>
+                  <span className={`tag ${systemStatus?.uber_direct?.ready ? 'tag-success' : 'tag-warning'}`}>
+                    {systemStatus?.uber_direct?.ready ? 'Ready on server' : 'Needs config'}
+                  </span>
+                </div>
+                <div className="integration-meta-pills">
+                  <span className="tag tag-info">{systemStatus?.uber_direct?.auth_mode === 'client_secret' ? 'Client Secret auth' : 'Auth pending'}</span>
+                  <span className="tag">{systemStatus?.uber_direct?.app_generated ? 'App generated' : 'App missing'}</span>
+                </div>
+              </div>
+
+              <div className="integration-detail-grid">
+                <div className="integration-detail">
+                  <label>Uber Application ID</label>
+                  <code>{systemStatus?.uber_direct?.app_id || 'Not set in Render yet'}</code>
+                </div>
+                <div className="integration-detail">
+                  <label>Uber Store ID</label>
+                  <code>{systemStatus?.uber_direct?.store_id || 'Not set in Render yet'}</code>
+                </div>
+                <div className="integration-detail">
+                  <label>Pickup phone</label>
+                  <code>{systemStatus?.uber_direct?.pickup_phone || 'Not set in Render yet'}</code>
+                </div>
+                <div className="integration-detail">
+                  <label>Webhook URL</label>
+                  <code>{systemStatus?.uber_direct?.webhook_url || 'Unavailable'}</code>
+                </div>
+                <div className="integration-detail integration-detail-wide">
+                  <label>Pickup instructions</label>
+                  <code>{systemStatus?.uber_direct?.pickup_instructions || 'No pickup instructions saved yet'}</code>
+                </div>
+              </div>
+
+              <div className="integration-stats-row">
+                <div className="integration-stat-box">
+                  <strong>{systemStatus?.uber_direct?.linked_orders ?? 0}</strong>
+                  <span>Orders linked to Uber</span>
+                </div>
+                <div className="integration-stat-box">
+                  <strong>{systemStatus?.uber_direct?.paid_orders_using_uber ?? 0}</strong>
+                  <span>Paid Uber orders</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      )}
 
       {activeTab === 'users' && (
         <div>

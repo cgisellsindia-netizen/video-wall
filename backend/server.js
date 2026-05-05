@@ -110,6 +110,11 @@ const OPERATIONAL_STATE_ENCRYPTION_KEY = crypto
   .createHash('sha256')
   .update(`${JWT_SECRET}:camigo-operational-state`, 'utf8')
   .digest();
+const publicServerBaseUrl = (
+  process.env.PUBLIC_SERVER_URL ||
+  process.env.RENDER_EXTERNAL_URL ||
+  'https://camigo-store.onrender.com'
+).replace(/\/+$/, '');
 const normalizePublicUrl = (value = '') => String(value || '').trim().replace(/\/+$/, '');
 const catalogRestoreUrlWarning = () => {
   if (!MEDIA_MANIFEST_URL || !MEDIA_MANIFEST_EXPECTED_URL) return '';
@@ -3306,6 +3311,40 @@ app.get('/api/admin/orders', authenticateToken, requireAdmin, (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
+});
+
+app.get('/api/admin/system-status', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const [uberLinkedOrders, paidUberOrders] = await Promise.all([
+      dbGetAsync("SELECT COUNT(*) AS count FROM orders WHERE uber_direct_order_id IS NOT NULL AND TRIM(uber_direct_order_id) <> ''"),
+      dbGetAsync('SELECT COUNT(*) AS count FROM orders WHERE delivery_provider = ? AND payment_status = ?', ['Uber Direct', 'paid'])
+    ]);
+    res.json({
+      uber_direct: {
+        ready: hasUberDirectConfig,
+        app_generated: Boolean(UBER_DIRECT_CLIENT_ID),
+        app_id: UBER_DIRECT_CLIENT_ID || '',
+        customer_id: UBER_DIRECT_CUSTOMER_ID || '',
+        store_id: UBER_DIRECT_STORE_ID || '',
+        pickup_phone: UBER_DIRECT_PICKUP_PHONE || '',
+        pickup_instructions: UBER_DIRECT_PICKUP_INSTRUCTIONS || '',
+        auth_mode: 'client_secret',
+        webhook_url: `${publicServerBaseUrl}/api/webhooks/uber-direct`,
+        linked_orders: Number(uberLinkedOrders?.count || 0),
+        paid_orders_using_uber: Number(paidUberOrders?.count || 0)
+      },
+      razorpay: {
+        ready: hasRazorpayConfig,
+        key_id: RAZORPAY_KEY_ID || ''
+      },
+      media_library: {
+        ready: Boolean(MEDIA_LIBRARY_PUBLIC_BASE),
+        public_base: MEDIA_LIBRARY_PUBLIC_BASE || ''
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.get('/api/admin/category-banners', authenticateToken, requireAdmin, (req, res) => {
