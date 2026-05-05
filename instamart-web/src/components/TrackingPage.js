@@ -73,6 +73,7 @@ function TrackingPage() {
     : 'customer';
   const visiblePartnerLocation = delivered ? null : partnerLocation;
   const partnerName = partnerSummary?.partner_name || partnerLocation?.partner_name || order?.delivery_partner_name || 'Delivery partner';
+  const externalTrackingUrl = partnerSummary?.tracking_url || order?.uber_tracking_url || null;
 
   const submitRating = () => {
     setSubmitted(true);
@@ -210,6 +211,19 @@ function TrackingPage() {
             </div>
             <button className="partner-call-btn" onClick={callPartner} disabled={!(partnerLocation?.partner_phone || partnerSummary?.partner_phone || order?.delivery_partner_phone)}><Phone size={16} /></button>
           </div>
+
+          {externalTrackingUrl && !delivered && (
+            <div className="tracking-instruction-row">
+              <Truck size={20} />
+              <div>
+                <strong>Open Uber tracking</strong>
+                <span>Use the live Uber Direct tracking page for courier-side updates.</span>
+              </div>
+              <button className="partner-call-btn" onClick={() => window.open(externalTrackingUrl, '_blank', 'noopener,noreferrer')}>
+                Open
+              </button>
+            </div>
+          )}
 
           <div className="tracking-instruction-row">
             <PlusCircle size={20} />

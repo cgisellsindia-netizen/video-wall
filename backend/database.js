@@ -268,7 +268,13 @@ db.serialize(async () => {
       'razorpay_order_id TEXT',
       'razorpay_payment_id TEXT',
       'razorpay_signature TEXT',
-      'payment_verified_at TEXT'
+      'payment_verified_at TEXT',
+      'uber_direct_order_id TEXT',
+      'uber_tracking_url TEXT',
+      'uber_status TEXT',
+      'uber_courier_name TEXT',
+      'uber_courier_phone TEXT',
+      'uber_last_event_at TEXT'
     ]);
     await ensureColumns('notifications', [
       'personalize INTEGER DEFAULT 0',

@@ -66,6 +66,15 @@ const JWT_SECRET = process.env.JWT_SECRET || 'camigo-local-dev-secret-change-bef
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || '';
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || '';
 const hasRazorpayConfig = Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET);
+const UBER_DIRECT_CUSTOMER_ID = process.env.UBER_DIRECT_CUSTOMER_ID || '';
+const UBER_DIRECT_CLIENT_ID = process.env.UBER_DIRECT_CLIENT_ID || '';
+const UBER_DIRECT_CLIENT_SECRET = process.env.UBER_DIRECT_CLIENT_SECRET || '';
+const UBER_DIRECT_STORE_ID = process.env.UBER_DIRECT_STORE_ID || '';
+const UBER_DIRECT_PICKUP_PHONE = process.env.UBER_DIRECT_PICKUP_PHONE || '';
+const UBER_DIRECT_PICKUP_INSTRUCTIONS = process.env.UBER_DIRECT_PICKUP_INSTRUCTIONS || '';
+const hasUberDirectConfig = Boolean(
+  UBER_DIRECT_CLIENT_ID && UBER_DIRECT_CLIENT_SECRET && UBER_DIRECT_STORE_ID && UBER_DIRECT_PICKUP_PHONE
+);
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_BANNER_MODEL = process.env.OPENAI_BANNER_MODEL || 'gpt-4o-mini';
 const MEDIA_MANIFEST_URL = process.env.MEDIA_MANIFEST_URL || '';
@@ -177,6 +186,11 @@ const DELHIVERY_RATE_CARD = {
     safetyMarkupRate: 0.2,
     estimateLabel: '3-6 days'
   }
+};
+
+let uberDirectTokenCache = {
+  accessToken: '',
+  expiresAt: 0
 };
 
 const averageList = (values = []) => {
@@ -344,9 +358,28 @@ const buildDeliveryQuote = async ({ address = '', pincode = '', lat, lng, items 
       provider: rateCard.provider,
       quote: rateCard.baseFee + (mappedDistanceKm * rateCard.perKmFee) + rateCard.handlingFee
     }));
-    const baseQuote = averageList(partnerQuotes.map(item => item.quote));
-    const safetyMarkup = Math.max(12, baseQuote * 0.16);
-    const charge = roundToStep(baseQuote + safetyMarkup, 5);
+    const fallbackBaseQuote = averageList(partnerQuotes.map(item => item.quote));
+    const fallbackSafetyMarkup = Math.max(12, fallbackBaseQuote * 0.16);
+    let provider = 'Uber Parcel + Rapido average';
+    let providerCode = 'local-average';
+    let baseQuote = fallbackBaseQuote;
+    let safetyMarkup = fallbackSafetyMarkup;
+    let charge = roundToStep(baseQuote + safetyMarkup, 5);
+    if (hasUberDirectConfig) {
+      try {
+        const uberEstimate = await createUberDirectEstimate({ address, lat, lng });
+        const uberBaseQuote = Number(uberEstimate.deliveryFeeMinor || 0) / 100;
+        if (uberBaseQuote > 0) {
+          provider = 'Uber Direct';
+          providerCode = 'uber-direct';
+          baseQuote = uberBaseQuote;
+          safetyMarkup = Math.max(10, uberBaseQuote * 0.08);
+          charge = roundToStep(baseQuote + safetyMarkup, 5);
+        }
+      } catch (error) {
+        console.warn(`Uber Direct estimate fallback used: ${error.message}`);
+      }
+    }
     const estimateLabel = routeMetrics?.durationMin
       ? routeMetrics.durationMin <= 60
         ? '45-90 mins'
@@ -363,11 +396,13 @@ const buildDeliveryQuote = async ({ address = '', pincode = '', lat, lng, items 
       charge,
       baseQuote: roundCurrency(baseQuote),
       safetyMarkup: roundCurrency(safetyMarkup),
-      provider: 'Uber Parcel + Rapido average',
-      providerCode: 'local-average',
+      provider,
+      providerCode,
       estimateLabel,
       zoneLabel: 'Same-day local zone',
-      message: `Same-day delivery charge is averaged from Uber Parcel and Rapido, then increased slightly for Camigo delivery safety.`,
+      message: providerCode === 'uber-direct'
+        ? 'Same-day delivery quote is coming from Uber Direct, with a small Camigo safety margin added to the checkout delivery charge.'
+        : 'Same-day delivery charge is averaged from Uber Parcel and Rapido, then increased slightly for Camigo delivery safety.',
       distanceKm: roundOneDecimal(mappedDistanceKm),
       durationMin: routeMetrics?.durationMin || null,
       distanceSource: routeMetrics?.source || (hasPreciseCoords ? 'gps-estimate' : 'default-estimate'),
@@ -400,6 +435,238 @@ const buildDeliveryQuote = async ({ address = '', pincode = '', lat, lng, items 
     estimatedWeightKg: roundOneDecimal(estimatedWeightKg),
     chargeableWeightKg
   };
+};
+
+const splitContactName = (value = '') => {
+  const parts = String(value || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return { firstName: 'Camigo', lastName: 'Customer' };
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(' ') || 'Customer'
+  };
+};
+
+const toE164IndianPhone = (value = '') => {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('91') && digits.length >= 12) return `+${digits}`;
+  const local = digits.slice(-10);
+  return local ? `+91${local}` : '';
+};
+
+const buildUberDropoffAddress = ({ address = '', lat, lng } = {}) => {
+  const formattedAddress = String(address || '').replace(/\s+/g, ' ').trim();
+  const payload = { formatted_address: formattedAddress };
+  if (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))) {
+    payload.location = {
+      latitude: Number(lat),
+      longitude: Number(lng)
+    };
+  }
+  return payload;
+};
+
+const getUberDirectAccessToken = async () => {
+  if (!hasUberDirectConfig) {
+    throw new Error('Uber Direct is not configured on the server yet');
+  }
+  if (uberDirectTokenCache.accessToken && Date.now() < uberDirectTokenCache.expiresAt - 60000) {
+    return uberDirectTokenCache.accessToken;
+  }
+  const body = new URLSearchParams({
+    client_id: UBER_DIRECT_CLIENT_ID,
+    client_secret: UBER_DIRECT_CLIENT_SECRET,
+    grant_type: 'client_credentials',
+    scope: 'eats.deliveries'
+  });
+  const response = await fetch('https://auth.uber.com/oauth/v2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString()
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.access_token) {
+    throw new Error(data.message || data.error_description || 'Uber Direct authentication failed');
+  }
+  uberDirectTokenCache = {
+    accessToken: data.access_token,
+    expiresAt: Date.now() + (Number(data.expires_in || 0) * 1000)
+  };
+  return uberDirectTokenCache.accessToken;
+};
+
+const uberDirectRequest = async (path, { method = 'GET', body } = {}) => {
+  const accessToken = await getUberDirectAccessToken();
+  const response = await fetch(`https://api.uber.com${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if (response.status === 204) return null;
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Uber Direct request failed');
+  }
+  return data;
+};
+
+const createUberDirectEstimate = async ({ address, lat, lng } = {}) => {
+  const quote = await uberDirectRequest('/v1/eats/deliveries/estimates', {
+    method: 'POST',
+    body: {
+      pickup: {
+        store_id: UBER_DIRECT_STORE_ID,
+        instructions: UBER_DIRECT_PICKUP_INSTRUCTIONS || null
+      },
+      dropoff_address: buildUberDropoffAddress({ address, lat, lng }),
+      pickup_times: [0]
+    }
+  });
+  const estimate = Array.isArray(quote?.estimates) ? quote.estimates[0] : null;
+  return {
+    estimateId: quote?.estimate_id || '',
+    pickupAt: estimate?.pickup_at ?? 0,
+    deliveryFeeMinor: Number(estimate?.delivery_fee?.total || 0),
+    currencyCode: estimate?.delivery_fee?.currency_code || 'INR',
+    etdTimestamp: estimate?.etd || null
+  };
+};
+
+const mapUberTripStatusToCamigo = (statusCode = '') => {
+  switch (String(statusCode || '').toUpperCase()) {
+    case 'SCHEDULED':
+      return 'pending';
+    case 'EN_ROUTE_TO_PICKUP':
+      return 'accepted';
+    case 'ARRIVED_AT_PICKUP':
+      return 'arrived_at_store';
+    case 'EN_ROUTE_TO_DROPOFF':
+    case 'ARRIVED_AT_DROPOFF':
+      return 'out_for_delivery';
+    case 'COMPLETED':
+      return 'delivered';
+    case 'FAILED':
+      return 'cancelled';
+    default:
+      return null;
+  }
+};
+
+const syncUberDirectOrderStatus = async (order, uberStatus) => {
+  const courierTrip = Array.isArray(uberStatus?.courier_trips) ? uberStatus.courier_trips[uberStatus.courier_trips.length - 1] : null;
+  const courier = courierTrip?.courier || {};
+  const nextStatus = mapUberTripStatusToCamigo(courierTrip?.status || courierTrip?.status_code || uberStatus?.order_status);
+  await dbRunAsync(
+    `UPDATE orders
+     SET uber_status = ?, uber_tracking_url = COALESCE(?, uber_tracking_url), uber_courier_name = ?, uber_courier_phone = ?, uber_last_event_at = CURRENT_TIMESTAMP,
+         status = CASE WHEN ? IS NOT NULL THEN ? ELSE status END
+     WHERE id = ?`,
+    [
+      courierTrip?.status || courierTrip?.status_code || uberStatus?.order_status || null,
+      uberStatus?.order_tracking_url || null,
+      courier?.name || null,
+      courier?.phone || courier?.phone_number || courier?.public_phone_info?.formatted_phone_number || null,
+      nextStatus,
+      nextStatus,
+      order.id
+    ]
+  );
+};
+
+const createUberDirectDeliveryForOrder = async (order, currentUser) => {
+  if (!hasUberDirectConfig) return null;
+  const orderItems = await dbAllAsync(
+    `SELECT oi.*, p.name, p.description, p.category_id
+     FROM order_items oi
+     JOIN products p ON oi.product_id = p.id
+     WHERE oi.order_id = ?
+     ORDER BY oi.id ASC`,
+    [order.id]
+  );
+  if (!orderItems.length) {
+    throw new Error('Uber Direct delivery needs at least one order item');
+  }
+  const estimate = await createUberDirectEstimate({
+    address: order.address,
+    lat: order.customer_lat,
+    lng: order.customer_lng
+  });
+  if (!estimate.estimateId) {
+    throw new Error('Uber Direct did not return an estimate ID');
+  }
+  const { firstName, lastName } = splitContactName(currentUser?.name || 'Camigo Customer');
+  const payload = {
+    estimate_id: estimate.estimateId,
+    pickup_at: estimate.pickupAt,
+    external_order_id: `camigo-${order.id}`,
+    external_user_id: String(order.user_id),
+    pickup: {
+      store_id: UBER_DIRECT_STORE_ID,
+      instructions: UBER_DIRECT_PICKUP_INSTRUCTIONS || null
+    },
+    dropoff: {
+      address: buildUberDropoffAddress({
+        address: order.address,
+        lat: order.customer_lat,
+        lng: order.customer_lng
+      }),
+      contact: {
+        first_name: firstName,
+        last_name: lastName,
+        email: currentUser?.email || '',
+        phone: toE164IndianPhone(currentUser?.phone || '')
+      },
+      instructions: 'Camigo order delivery',
+      type: 'DOOR'
+    },
+    order_items: orderItems.map((item) => ({
+      name: item.name,
+      description: item.description || '',
+      external_id: String(item.product_id),
+      quantity: Number(item.quantity || 1),
+      price: Math.round(Number(item.price || 0) * 100),
+      currency_code: 'INR',
+      weight: Math.max(100, Math.round(Number(item.quantity || 1) * 500))
+    })),
+    order_summary: {
+      currency_code: 'INR',
+      order_value: Math.round(Number(order.total_amount || order.final_amount || 0) * 100)
+    },
+    return_trips_enabled: false
+  };
+  const created = await uberDirectRequest('/v1/eats/deliveries/orders', {
+    method: 'POST',
+    body: payload
+  });
+  await dbRunAsync(
+    `UPDATE orders
+     SET uber_direct_order_id = ?, uber_tracking_url = ?, uber_status = ?, delivery_provider = ?, uber_last_event_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [
+      created?.order_id || null,
+      created?.order_tracking_url || null,
+      'SCHEDULED',
+      'Uber Direct',
+      order.id
+    ]
+  );
+  return created;
+};
+
+const getUberDirectDeliveryStatus = async (orderId) => uberDirectRequest(`/v1/eats/deliveries/orders/${orderId}`);
+
+const cancelUberDirectDelivery = async (orderId, cancellingParty = 'CUSTOMER') => {
+  if (!orderId) return null;
+  return uberDirectRequest(`/v1/eats/orders/${orderId}/cancel`, {
+    method: 'POST',
+    body: {
+      reason: 'CUSTOMER_CALLED_TO_CANCEL',
+      cancelling_party: cancellingParty
+    }
+  });
 };
 
 const addYears = (date, years) => {
@@ -1168,8 +1435,9 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
            status, payment_method, address, customer_lat, customer_lng, customer_accuracy,
            customer_location_locked_at, installation_requested, installation_fee, installation_status,
            installer_id, camera_count, delivery_partner_id, delivery_otp, created_at,
-           payment_status, razorpay_order_id, razorpay_payment_id, razorpay_signature, payment_verified_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           payment_status, razorpay_order_id, razorpay_payment_id, razorpay_signature, payment_verified_at,
+           uber_direct_order_id, uber_tracking_url, uber_status, uber_courier_name, uber_courier_phone, uber_last_event_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            user_id = excluded.user_id,
            total_amount = excluded.total_amount,
@@ -1200,7 +1468,13 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
            razorpay_order_id = excluded.razorpay_order_id,
            razorpay_payment_id = excluded.razorpay_payment_id,
            razorpay_signature = excluded.razorpay_signature,
-           payment_verified_at = excluded.payment_verified_at`,
+           payment_verified_at = excluded.payment_verified_at,
+           uber_direct_order_id = excluded.uber_direct_order_id,
+           uber_tracking_url = excluded.uber_tracking_url,
+           uber_status = excluded.uber_status,
+           uber_courier_name = excluded.uber_courier_name,
+           uber_courier_phone = excluded.uber_courier_phone,
+           uber_last_event_at = excluded.uber_last_event_at`,
         [
           order.id,
           order.user_id,
@@ -1232,7 +1506,13 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
           order.razorpay_order_id || null,
           order.razorpay_payment_id || null,
           order.razorpay_signature || null,
-          order.payment_verified_at || null
+          order.payment_verified_at || null,
+          order.uber_direct_order_id || null,
+          order.uber_tracking_url || null,
+          order.uber_status || null,
+          order.uber_courier_name || null,
+          order.uber_courier_phone || null,
+          order.uber_last_event_at || null
         ]
       );
     }
@@ -2490,6 +2770,14 @@ app.post('/api/payments/razorpay/verify', authenticateToken, async (req, res) =>
        WHERE id = ?`,
       ['paid', 'pending', razorpay_payment_id, razorpay_signature, order.id]
     );
+    const currentUser = await dbGetAsync('SELECT * FROM users WHERE id = ?', [req.user.userId]);
+    if (currentUser && String(order.delivery_mode || '').toLowerCase() === 'local' && hasUberDirectConfig) {
+      try {
+        await createUberDirectDeliveryForOrder(order, currentUser);
+      } catch (uberError) {
+        console.warn(`Uber Direct create delivery failed for order ${order.id}: ${uberError.message}`);
+      }
+    }
     await dbRunAsync('DELETE FROM cart WHERE user_id = ?', [req.user.userId]);
     queueOperationalStateSync('payment-verified');
 
@@ -2562,6 +2850,14 @@ app.post('/api/orders/:id/cancel', authenticateToken, async (req, res) => {
     const nextPaymentStatus = String(order.payment_status || '').toLowerCase() === 'paid'
       ? 'refund_pending'
       : 'cancelled';
+
+    if (order.uber_direct_order_id && hasUberDirectConfig) {
+      try {
+        await cancelUberDirectDelivery(order.uber_direct_order_id, 'CUSTOMER');
+      } catch (uberError) {
+        console.warn(`Uber Direct cancel failed for order ${order.id}: ${uberError.message}`);
+      }
+    }
 
     await dbRunAsync(
       'UPDATE orders SET status = ?, payment_status = ? WHERE id = ? AND user_id = ?',
@@ -2811,7 +3107,7 @@ app.post('/api/delivery/location', authenticateToken, (req, res) => {
   );
 });
 
-app.get('/api/tracking/:orderId', authenticateToken, (req, res) => {
+app.get('/api/tracking/:orderId', authenticateToken, async (req, res) => {
   const elevated = req.user.role === 'admin' || req.user.role === 'delivery_partner';
   const orderParams = elevated
     ? [req.params.orderId]
@@ -2826,9 +3122,38 @@ app.get('/api/tracking/:orderId', authenticateToken, (req, res) => {
        LEFT JOIN users dp ON o.delivery_partner_id = dp.id
        WHERE o.id = ? AND o.user_id = ?`;
 
-  db.get(orderQuery, orderParams, (err, order) => {
-    if (err) return res.status(500).json({ error: err.message });
+  try {
+    let order = await dbGetAsync(orderQuery, orderParams);
     if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    if (order.uber_direct_order_id && hasUberDirectConfig) {
+      try {
+        const uberStatus = await getUberDirectDeliveryStatus(order.uber_direct_order_id);
+        await syncUberDirectOrderStatus(order, uberStatus);
+        order = await dbGetAsync(orderQuery, orderParams);
+        const courierTrip = Array.isArray(uberStatus?.courier_trips) ? uberStatus.courier_trips[uberStatus.courier_trips.length - 1] : null;
+        const courier = courierTrip?.courier || {};
+        const partnerLocation = courier?.location
+          ? {
+              lat: Number(courier.location.latitude ?? courier.location.lat),
+              lng: Number(courier.location.longitude ?? courier.location.lng),
+              updated_at: new Date().toISOString(),
+              partner_name: courier.name || order.uber_courier_name || 'Uber courier',
+              partner_phone: courier.phone || courier.phone_number || order.uber_courier_phone || null
+            }
+          : null;
+        const partner = {
+          partner_name: courier.name || order.uber_courier_name || 'Uber courier',
+          partner_phone: courier.phone || courier.phone_number || order.uber_courier_phone || null,
+          tracking_url: uberStatus?.order_tracking_url || order.uber_tracking_url || null,
+          provider: 'Uber Direct'
+        };
+        return res.json({ order, partner, partner_location: partnerLocation });
+      } catch (uberError) {
+        console.warn(`Uber Direct status fallback used for order ${order.id}: ${uberError.message}`);
+      }
+    }
+
     const orderStatus = String(order.status || '').toLowerCase();
     const paymentStatus = String(order.payment_status || '').toLowerCase();
     if (orderStatus === 'payment_pending' || (paymentStatus && paymentStatus !== 'paid') || ['cancelled', 'rejected', 'delivered'].includes(orderStatus)) {
@@ -2855,7 +3180,51 @@ app.get('/api/tracking/:orderId', authenticateToken, (req, res) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ order, partner: partner || location || null, partner_location: location || null });
     });
-  });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/webhooks/uber-direct', async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const externalOrderId = String(payload?.meta?.external_order_id || payload?.external_order_id || '').trim();
+    const uberOrderId = String(payload?.meta?.order_id || payload?.data?.id || payload?.order_id || '').trim();
+    let order = null;
+    if (/^camigo-\d+$/.test(externalOrderId)) {
+      order = await dbGetAsync('SELECT * FROM orders WHERE id = ?', [Number(externalOrderId.replace('camigo-', ''))]);
+    }
+    if (!order && uberOrderId) {
+      order = await dbGetAsync('SELECT * FROM orders WHERE uber_direct_order_id = ?', [uberOrderId]);
+    }
+    if (!order) return res.status(200).json({ ok: true });
+
+    let uberStatus = null;
+    if (uberOrderId && hasUberDirectConfig) {
+      try {
+        uberStatus = await getUberDirectDeliveryStatus(uberOrderId);
+      } catch (error) {
+        uberStatus = null;
+      }
+    }
+    if (uberStatus) {
+      await syncUberDirectOrderStatus(order, uberStatus);
+    } else {
+      const rawStatus = payload?.meta?.status || payload?.status || null;
+      const mappedStatus = mapUberTripStatusToCamigo(rawStatus);
+      await dbRunAsync(
+        `UPDATE orders
+         SET uber_direct_order_id = COALESCE(?, uber_direct_order_id), uber_status = ?, uber_last_event_at = CURRENT_TIMESTAMP,
+             status = CASE WHEN ? IS NOT NULL THEN ? ELSE status END
+         WHERE id = ?`,
+        [uberOrderId || null, rawStatus, mappedStatus, mappedStatus, order.id]
+      );
+    }
+    queueOperationalStateSync('uber-direct-webhook');
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    return res.status(200).json({ ok: true });
+  }
 });
 
 app.post('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
@@ -3277,6 +3646,14 @@ app.post('/api/admin/orders/:id/cancel', authenticateToken, requireAdmin, async 
     const currentStatus = String(order.status || '').toLowerCase();
     if (['cancelled', 'delivered'].includes(currentStatus)) {
       return res.status(400).json({ error: 'This order cannot be cancelled' });
+    }
+
+    if (order.uber_direct_order_id && hasUberDirectConfig) {
+      try {
+        await cancelUberDirectDelivery(order.uber_direct_order_id, 'MERCHANT');
+      } catch (uberError) {
+        console.warn(`Uber Direct admin cancel failed for order ${order.id}: ${uberError.message}`);
+      }
     }
 
     const nextPaymentStatus = String(order.payment_status || '').toLowerCase() === 'paid'

@@ -14,5 +14,17 @@ services:
         sync: false
       - key: RAZORPAY_KEY_SECRET
         sync: false
+      - key: UBER_DIRECT_CUSTOMER_ID
+        sync: false
+      - key: UBER_DIRECT_CLIENT_ID
+        sync: false
+      - key: UBER_DIRECT_CLIENT_SECRET
+        sync: false
+      - key: UBER_DIRECT_STORE_ID
+        sync: false
+      - key: UBER_DIRECT_PICKUP_PHONE
+        sync: false
+      - key: UBER_DIRECT_PICKUP_INSTRUCTIONS
+        sync: false
       - key: CORS_ORIGINS
         value: ""
