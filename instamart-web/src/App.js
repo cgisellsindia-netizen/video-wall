@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { HashRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
@@ -116,7 +116,23 @@ const priceForRole = (product, user) => {
   return Math.round(Number(product.price || 0) * discount);
 };
 
-function MainPage({ user, cartCount, onCartClick, onLoginClick, onLogout, cartItems, addToCart, removeFromCart, products, categories, searchQuery, setSearchQuery }) {
+function MainPage({
+  user,
+  cartCount,
+  onCartClick,
+  onLoginClick,
+  onLogout,
+  cartItems,
+  addToCart,
+  removeFromCart,
+  products,
+  categories,
+  searchQuery,
+  setSearchQuery,
+  recentProducts = [],
+  recommendedProducts = [],
+  bestsellingProducts = []
+}) {
   const filteredProducts = searchQuery
     ? products.filter(p => String(p.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
     : products;
@@ -132,6 +148,36 @@ function MainPage({ user, cartCount, onCartClick, onLoginClick, onLogout, cartIt
         {!searchQuery && <HeroBanner />}
         {!searchQuery && <LocationDeliveryStrip />}
         {!searchQuery && <CategoryGrid categories={categories} />}
+        {!searchQuery && recentProducts.length > 0 && (
+          <ProductSection
+            title="Buy Again"
+            products={recentProducts}
+            onAdd={addToCart}
+            onRemove={removeFromCart}
+            user={user}
+            cartItems={cartItems}
+          />
+        )}
+        {!searchQuery && recommendedProducts.length > 0 && (
+          <ProductSection
+            title="Recommended for You"
+            products={recommendedProducts}
+            onAdd={addToCart}
+            onRemove={removeFromCart}
+            user={user}
+            cartItems={cartItems}
+          />
+        )}
+        {!searchQuery && bestsellingProducts.length > 0 && (
+          <ProductSection
+            title="Most Loved CCTV Picks"
+            products={bestsellingProducts}
+            onAdd={addToCart}
+            onRemove={removeFromCart}
+            user={user}
+            cartItems={cartItems}
+          />
+        )}
         {searchQuery ? (
           filteredProducts.length ? (
             <ProductSection title={`Search: "${searchQuery}"`} products={filteredProducts} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} />
@@ -172,6 +218,7 @@ function AppContent() {
   const [activeOrder, setActiveOrder] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [appNotice, setAppNotice] = useState(null);
+  const [customerOrders, setCustomerOrders] = useState([]);
   const [notificationPermission, setNotificationPermission] = useState(() => (
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
   ));
@@ -218,6 +265,21 @@ function AppContent() {
       }
       const data = await res.json();
       if (res.ok && data?.id) updateUserState(data);
+    } catch (e) {}
+  };
+
+  const fetchCustomerOrders = async (referenceUser = user) => {
+    if (!referenceUser || ['delivery_partner', 'installer', 'admin'].includes(String(referenceUser.role || ''))) {
+      setCustomerOrders([]);
+      return;
+    }
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/orders`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.status === 401 || res.status === 403) return;
+      const data = await res.json().catch(() => []);
+      setCustomerOrders(Array.isArray(data) ? data : []);
     } catch (e) {}
   };
 
@@ -465,6 +527,9 @@ function AppContent() {
     if (user) {
       fetchCart();
       restoreActiveOrder(user);
+      fetchCustomerOrders(user);
+    } else {
+      setCustomerOrders([]);
     }
   }, [user]);
 
@@ -685,6 +750,49 @@ function AppContent() {
 
   const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0);
   const cartTotal = cartItems.reduce((s, i) => s + (i.price * i.quantity), 0);
+  const recentProductIds = useMemo(() => {
+    const ids = [];
+    customerOrders.forEach((order) => {
+      (order.items || []).forEach((item) => {
+        const productId = Number(item.product_id || item.id);
+        if (Number.isInteger(productId) && !ids.includes(productId)) ids.push(productId);
+      });
+    });
+    return ids;
+  }, [customerOrders]);
+  const recentProducts = useMemo(
+    () => recentProductIds.map((productId) => products.find((product) => Number(product.id) === productId)).filter(Boolean).slice(0, 10),
+    [recentProductIds, products]
+  );
+  const recommendedProducts = useMemo(() => {
+    if (!products.length) return [];
+    const recentCategoryIds = Array.from(new Set(
+      recentProducts
+        .map((product) => Number(product.category_id || 0))
+        .filter((categoryId) => Number.isInteger(categoryId) && categoryId > 0)
+    ));
+    const source = recentCategoryIds.length
+      ? products.filter((product) => recentCategoryIds.includes(Number(product.category_id || 0)))
+      : products;
+    return source
+      .filter((product) => !recentProductIds.includes(Number(product.id)))
+      .sort((a, b) => {
+        const ratingDelta = Number(b.rating_average || 0) - Number(a.rating_average || 0);
+        if (ratingDelta !== 0) return ratingDelta;
+        return Number(b.rating_count || 0) - Number(a.rating_count || 0);
+      })
+      .slice(0, 10);
+  }, [products, recentProducts, recentProductIds]);
+  const bestsellingProducts = useMemo(
+    () => [...products]
+      .sort((a, b) => {
+        const countDelta = Number(b.rating_count || 0) - Number(a.rating_count || 0);
+        if (countDelta !== 0) return countDelta;
+        return Number(b.rating_average || 0) - Number(a.rating_average || 0);
+      })
+      .slice(0, 10),
+    [products]
+  );
   const trendingSearches = ['AHD camera', 'IP camera', 'DVR', 'NVR', 'POE switch', 'SMPS'];
   const searchSuggestions = searchQuery.trim()
     ? Array.from(new Set([
@@ -804,6 +912,9 @@ function AppContent() {
               removeFromCart={removeFromCart}
               products={products} categories={categories}
               searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+              recentProducts={recentProducts}
+              recommendedProducts={recommendedProducts}
+              bestsellingProducts={bestsellingProducts}
             />
           </DeliveryOnlyRoute>
         } />

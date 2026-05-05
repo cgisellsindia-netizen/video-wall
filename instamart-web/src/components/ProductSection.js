@@ -20,7 +20,13 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
       {categoryId !== null && categoryId !== undefined && <CategoryBannerCarousel placementId={categoryId} />}
       <div className="section-header">
         <h2 className="section-title">{title}</h2>
-        <span className="see-all">See all</span>
+        <button
+          type="button"
+          className="see-all see-all-btn"
+          onClick={() => navigate(categoryId !== null && categoryId !== undefined ? `/category/${categoryId}` : '/shop')}
+        >
+          See all
+        </button>
       </div>
       <div className="product-scroll">
         {products.map(product => {

@@ -1,57 +1,111 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Filter, Minus, Plus, SlidersHorizontal, Star } from 'lucide-react';
+import { Filter, Minus, Plus, Search, SlidersHorizontal, Star } from 'lucide-react';
 
 function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, cartItems = [] }) {
-  const [filtered, setFiltered] = useState(products);
   const [selectedCat, setSelectedCat] = useState('all');
   const [sortBy, setSortBy] = useState('default');
+  const [priceBand, setPriceBand] = useState('all');
+  const [availability, setAvailability] = useState('all');
+  const [minRating, setMinRating] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
+
   const stopCardTap = (event) => {
     event.preventDefault();
     event.stopPropagation();
   };
+
   const handlePointerAction = (handler) => (event) => {
     stopCardTap(event);
     handler();
   };
 
-  useEffect(() => {
+  const filtered = useMemo(() => {
     let result = [...products];
-    if (selectedCat !== 'all') result = result.filter(p => p.category_id === parseInt(selectedCat));
-    if (sortBy === 'price-low') result.sort((a, b) => a.price - b.price);
-    if (sortBy === 'price-high') result.sort((a, b) => b.price - a.price);
-    if (sortBy === 'name') result.sort((a, b) => a.name.localeCompare(b.name));
-    setFiltered(result);
-  }, [products, selectedCat, sortBy]);
+    if (selectedCat !== 'all') result = result.filter((product) => product.category_id === parseInt(selectedCat, 10));
+    if (availability === 'in-stock') result = result.filter((product) => Number(product.stock || 0) > 0);
+    if (minRating !== 'all') result = result.filter((product) => Number(product.rating_average || 0) >= Number(minRating));
+    if (searchTerm.trim()) {
+      const query = searchTerm.trim().toLowerCase();
+      result = result.filter((product) => {
+        const haystack = [product.name, product.description, product.unit].join(' ').toLowerCase();
+        return haystack.includes(query);
+      });
+    }
+    if (priceBand === 'under-2000') result = result.filter((product) => Number(product.price || 0) < 2000);
+    if (priceBand === '2000-5000') result = result.filter((product) => Number(product.price || 0) >= 2000 && Number(product.price || 0) <= 5000);
+    if (priceBand === 'above-5000') result = result.filter((product) => Number(product.price || 0) > 5000);
+
+    if (sortBy === 'price-low') result.sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
+    if (sortBy === 'price-high') result.sort((a, b) => Number(b.price || 0) - Number(a.price || 0));
+    if (sortBy === 'name') result.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    if (sortBy === 'rating') result.sort((a, b) => Number(b.rating_average || 0) - Number(a.rating_average || 0));
+    if (sortBy === 'discount') result.sort((a, b) => Number(b.discount_percent || 0) - Number(a.discount_percent || 0));
+    return result;
+  }, [products, selectedCat, sortBy, priceBand, availability, minRating, searchTerm]);
 
   return (
-    <div className="container" style={{ maxWidth: '1200px', padding: '24px 16px 100px' }}>
+    <div className="container shop-page-shell">
       <h2 className="section-title" style={{ marginBottom: '20px' }}>Shop All Products</h2>
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Filter size={18} />
-          <select value={selectedCat} onChange={e => setSelectedCat(e.target.value)}
-            style={{ padding: '10px 14px', borderRadius: '12px', border: '1px solid #dbe3ef', fontSize: '14px', fontWeight: 600 }}>
-            <option value="all">All Categories</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+
+      <div className="shop-filter-shell">
+        <div className="shop-search-inline">
+          <Search size={18} />
+          <input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search inside all products"
+          />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <SlidersHorizontal size={18} />
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-            style={{ padding: '10px 14px', borderRadius: '12px', border: '1px solid #dbe3ef', fontSize: '14px', fontWeight: 600 }}>
-            <option value="default">Default</option>
-            <option value="price-low">Price: Low to High</option>
-            <option value="price-high">Price: High to Low</option>
-            <option value="name">Name: A-Z</option>
-          </select>
+        <div className="shop-filter-grid">
+          <div className="shop-filter-field">
+            <Filter size={18} />
+            <select value={selectedCat} onChange={(e) => setSelectedCat(e.target.value)}>
+              <option value="all">All Categories</option>
+              {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+            </select>
+          </div>
+          <div className="shop-filter-field">
+            <SlidersHorizontal size={18} />
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              <option value="default">Default</option>
+              <option value="price-low">Price: Low to High</option>
+              <option value="price-high">Price: High to Low</option>
+              <option value="rating">Top Rated</option>
+              <option value="discount">Best Discount</option>
+              <option value="name">Name: A-Z</option>
+            </select>
+          </div>
+          <div className="shop-filter-field">
+            <select value={priceBand} onChange={(e) => setPriceBand(e.target.value)}>
+              <option value="all">All Prices</option>
+              <option value="under-2000">Under Rs 2000</option>
+              <option value="2000-5000">Rs 2000 - 5000</option>
+              <option value="above-5000">Above Rs 5000</option>
+            </select>
+          </div>
+          <div className="shop-filter-field">
+            <select value={availability} onChange={(e) => setAvailability(e.target.value)}>
+              <option value="all">All Stock States</option>
+              <option value="in-stock">In Stock Only</option>
+            </select>
+          </div>
+          <div className="shop-filter-field">
+            <select value={minRating} onChange={(e) => setMinRating(e.target.value)}>
+              <option value="all">All Ratings</option>
+              <option value="4">4.0+ rating</option>
+              <option value="4.5">4.5+ rating</option>
+              <option value="4.8">4.8+ rating</option>
+            </select>
+          </div>
+          <div className="shop-result-count">{filtered.length} products</div>
         </div>
-        <div style={{ fontSize: '14px', color: '#64748b', fontWeight: 600 }}>{filtered.length} products</div>
       </div>
+
       <div className="shop-product-grid">
-        {filtered.map(product => {
-          const cartItem = cartItems.find(item => Number(item.product_id || item.id) === Number(product.id));
+        {filtered.map((product) => {
+          const cartItem = cartItems.find((item) => Number(item.product_id || item.id) === Number(product.id));
           const selectedQty = cartItem?.quantity || 0;
           const discount = Number(product.discount_percent) > 0 ? Math.round(Number(product.discount_percent)) : Math.round((1 - product.price / product.mrp) * 100);
           return (
@@ -84,6 +138,9 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
               {discount > 0 && <div className="product-offer-line">{discount}% OFF</div>}
               <div className="product-price-row">
                 <span><span className="price-current">Rs {priceForRole ? priceForRole(product, user) : product.price}</span><span className="price-original">Rs {product.mrp}</span></span>
+              </div>
+              <div className="shop-card-meta-row">
+                <span className={`stock-dot ${Number(product.stock || 0) > 0 ? 'ok' : 'low'}`}>{Number(product.stock || 0) > 0 ? 'In stock' : 'Out of stock'}</span>
               </div>
               {(user?.role === 'dealer' || user?.role === 'distributor') && <div className="trade-price-note">{user.role} price</div>}
             </div>
