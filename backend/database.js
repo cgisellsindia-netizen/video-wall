@@ -227,6 +227,48 @@ db.serialize(async () => {
       FOREIGN KEY (user_id) REFERENCES users(id)
     )`);
 
+    db.run(`CREATE TABLE IF NOT EXISTS warranty_registrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      order_id INTEGER,
+      order_item_id INTEGER,
+      product_id INTEGER,
+      serial_number TEXT,
+      installer_name TEXT,
+      purchase_use_case TEXT,
+      notes TEXT,
+      status TEXT DEFAULT 'registered',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (order_id) REFERENCES orders(id),
+      FOREIGN KEY (order_item_id) REFERENCES order_items(id),
+      FOREIGN KEY (product_id) REFERENCES products(id),
+      UNIQUE(order_item_id)
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS service_tickets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      order_id INTEGER,
+      order_item_id INTEGER,
+      product_id INTEGER,
+      ticket_type TEXT DEFAULT 'support',
+      title TEXT,
+      description TEXT,
+      contact_phone TEXT,
+      preferred_slot TEXT,
+      status TEXT DEFAULT 'open',
+      priority TEXT DEFAULT 'normal',
+      resolution_notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (order_id) REFERENCES orders(id),
+      FOREIGN KEY (order_item_id) REFERENCES order_items(id),
+      FOREIGN KEY (product_id) REFERENCES products(id)
+    )`);
+
     db.run(`CREATE TABLE IF NOT EXISTS app_settings (
       setting_key TEXT PRIMARY KEY,
       value TEXT,
@@ -290,6 +332,25 @@ db.serialize(async () => {
       'product_id INTEGER',
       'image_url TEXT',
       'user_id INTEGER'
+    ]);
+    await ensureColumns('warranty_registrations', [
+      'serial_number TEXT',
+      'installer_name TEXT',
+      'purchase_use_case TEXT',
+      'notes TEXT',
+      'status TEXT DEFAULT "registered"',
+      'updated_at DATETIME DEFAULT CURRENT_TIMESTAMP'
+    ]);
+    await ensureColumns('service_tickets', [
+      'ticket_type TEXT DEFAULT "support"',
+      'title TEXT',
+      'description TEXT',
+      'contact_phone TEXT',
+      'preferred_slot TEXT',
+      'status TEXT DEFAULT "open"',
+      'priority TEXT DEFAULT "normal"',
+      'resolution_notes TEXT',
+      'updated_at DATETIME DEFAULT CURRENT_TIMESTAMP'
     ]);
   db.run(`UPDATE order_items
           SET warranty_years = COALESCE(warranty_years, 5),

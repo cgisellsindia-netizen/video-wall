@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, MapPin, Package, Truck } from 'lucide-react';
+import { BadgeCheck, CheckCircle2, Headphones, MapPin, Package, ShieldCheck, Truck } from 'lucide-react';
 import { API_URL } from '../api';
 import PhoneVerificationCard from './PhoneVerificationCard';
 import { formatOrderStatusLabel, isPaymentPendingOrder } from '../orderTracking';
@@ -54,10 +54,19 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
   const [clock, setClock] = useState(Date.now());
   const [busyOrderId, setBusyOrderId] = useState(null);
   const [reorderBusyId, setReorderBusyId] = useState(null);
+  const [warrantyRegistrations, setWarrantyRegistrations] = useState([]);
+  const [serviceTickets, setServiceTickets] = useState([]);
+  const [warrantyDrafts, setWarrantyDrafts] = useState({});
+  const [ticketDrafts, setTicketDrafts] = useState({});
+  const [warrantyBusy, setWarrantyBusy] = useState({});
+  const [ticketBusy, setTicketBusy] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!user) { onLogin(); return; }
+    if (!user) {
+      onLogin();
+      return;
+    }
     fetchOrders();
   }, [user]);
 
@@ -69,15 +78,25 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
   const fetchOrders = async () => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`${API_URL}/orders`, { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      setOrders(Array.isArray(data) ? data : []);
+      const [ordersRes, warrantyRes, ticketsRes] = await Promise.all([
+        fetch(`${API_URL}/orders`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/account/warranty-registrations`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/account/service-tickets`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      const [ordersData, warrantyData, ticketsData] = await Promise.all([
+        ordersRes.json().catch(() => []),
+        warrantyRes.json().catch(() => []),
+        ticketsRes.json().catch(() => [])
+      ]);
+      setOrders(Array.isArray(ordersData) ? ordersData : []);
+      setWarrantyRegistrations(Array.isArray(warrantyData) ? warrantyData : []);
+      setServiceTickets(Array.isArray(ticketsData) ? ticketsData : []);
     } catch (e) {}
     setLoading(false);
   };
 
   const getStatusColor = (status) => {
-    switch(status) {
+    switch (status) {
       case 'delivered': return '#1ba672';
       case 'payment_pending': return '#e74c3c';
       case 'pending': return '#fc8019';
@@ -100,6 +119,39 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
     }
   };
 
+  const getRegistrationForItem = (itemId) => warrantyRegistrations.find((entry) => Number(entry.order_item_id) === Number(itemId));
+  const getTicketsForItem = (itemId) => serviceTickets.filter((entry) => Number(entry.order_item_id) === Number(itemId));
+
+  const updateWarrantyDraft = (itemId, field, value) => {
+    setWarrantyDrafts((current) => ({
+      ...current,
+      [itemId]: {
+        serial_number: '',
+        installer_name: '',
+        purchase_use_case: '',
+        notes: '',
+        ...(current[itemId] || {}),
+        [field]: value
+      }
+    }));
+  };
+
+  const updateTicketDraft = (itemId, field, value) => {
+    setTicketDrafts((current) => ({
+      ...current,
+      [itemId]: {
+        ticket_type: 'support',
+        title: '',
+        description: '',
+        contact_phone: user?.phone || '',
+        preferred_slot: '',
+        priority: 'normal',
+        ...(current[itemId] || {}),
+        [field]: value
+      }
+    }));
+  };
+
   const cancelOrder = async (orderId) => {
     const token = localStorage.getItem('token');
     setBusyOrderId(orderId);
@@ -114,7 +166,7 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
         const activeOrder = JSON.parse(localStorage.getItem('camigo_active_order') || 'null');
         if (String(activeOrder?.id) === String(orderId)) localStorage.removeItem('camigo_active_order');
       } catch (e) {}
-      setOrders(current => current.map(order => (
+      setOrders((current) => current.map((order) => (
         order.id === orderId
           ? { ...order, status: 'cancelled', payment_status: data.payment_status }
           : order
@@ -150,7 +202,7 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
   const printInvoice = (order) => {
     const invoiceWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700');
     if (!invoiceWindow) return;
-    const itemRows = (order.items || []).map(item => `
+    const itemRows = (order.items || []).map((item) => `
       <tr>
         <td>${item.name}</td>
         <td>${item.quantity}</td>
@@ -199,6 +251,68 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
     invoiceWindow.document.close();
   };
 
+  const submitWarranty = async (order, item) => {
+    const token = localStorage.getItem('token');
+    const draft = warrantyDrafts[item.id] || {};
+    if (!String(draft.serial_number || '').trim()) {
+      alert('Please enter the product serial number.');
+      return;
+    }
+    setWarrantyBusy((current) => ({ ...current, [item.id]: true }));
+    try {
+      const res = await fetch(`${API_URL}/orders/${order.id}/warranty-register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          order_item_id: item.id,
+          serial_number: draft.serial_number,
+          installer_name: draft.installer_name,
+          purchase_use_case: draft.purchase_use_case,
+          notes: draft.notes
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Warranty registration failed.');
+      setWarrantyRegistrations((current) => [data.registration, ...current]);
+      setWarrantyDrafts((current) => ({ ...current, [item.id]: { ...current[item.id], open: false } }));
+    } catch (error) {
+      alert(error.message);
+    }
+    setWarrantyBusy((current) => ({ ...current, [item.id]: false }));
+  };
+
+  const submitTicket = async (order, item) => {
+    const token = localStorage.getItem('token');
+    const draft = ticketDrafts[item.id] || {};
+    if (!String(draft.title || '').trim() || !String(draft.description || '').trim()) {
+      alert('Please enter a short title and issue description.');
+      return;
+    }
+    setTicketBusy((current) => ({ ...current, [item.id]: true }));
+    try {
+      const res = await fetch(`${API_URL}/orders/${order.id}/service-tickets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          order_item_id: item.id,
+          ticket_type: draft.ticket_type,
+          title: draft.title,
+          description: draft.description,
+          contact_phone: draft.contact_phone,
+          preferred_slot: draft.preferred_slot,
+          priority: draft.priority
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Support ticket failed.');
+      setServiceTickets((current) => [data.ticket, ...current]);
+      setTicketDrafts((current) => ({ ...current, [item.id]: { ...current[item.id], open: false } }));
+    } catch (error) {
+      alert(error.message);
+    }
+    setTicketBusy((current) => ({ ...current, [item.id]: false }));
+  };
+
   if (loading) return <div className="loading">Loading orders...</div>;
 
   return (
@@ -217,7 +331,7 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
         </div>
       ) : (
         <div className="orders-list">
-          {orders.map(order => (
+          {orders.map((order) => (
             <div key={order.id} className="card order-card">
               {(() => {
                 const displayStatus = formatOrderStatusLabel(order);
@@ -228,82 +342,165 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
                 const secondsLeft = Math.ceil(cancelRemainingMs / 1000);
                 return (
                   <>
-              <div className="order-card-top">
-                <div>
-                  <span className="order-id">Order #{order.id}</span>
-                  <span className="order-date">{new Date(order.created_at).toLocaleDateString()}</span>
-                </div>
-                <span className="order-status" style={{ background: getStatusColor(String(order.status || '').toLowerCase()) + '20', color: getStatusColor(String(order.status || '').toLowerCase()) }}>
-                  {displayStatus.toUpperCase()}
-                </span>
-              </div>
-              <div className="order-card-bottom">
-                <span>{String(order.payment_method || 'payment').toUpperCase()}</span>
-                <strong>Rs {order.final_amount}</strong>
-                <div className="order-card-actions">
-                  {canOpenTracking ? (
-                    <button className="btn btn-sm btn-primary" onClick={() => navigate(`/tracking/${order.id}`)}>
-                      <MapPin size={15} /> Track
-                    </button>
-                  ) : (
-                    <span className="order-track-pill">{paymentPending ? 'Payment incomplete' : 'Tracking unavailable'}</span>
-                  )}
-                  <button className="btn btn-sm btn-outline" onClick={() => printInvoice(order)}>Invoice</button>
-                  <button className="btn btn-sm btn-outline" onClick={() => reorderItems(order)} disabled={reorderBusyId === order.id}>
-                    {reorderBusyId === order.id ? 'Reordering...' : 'Reorder'}
-                  </button>
-                </div>
-              </div>
-              {canCancel && (
-                <div className="order-cancel-strip">
-                  <span>Cancel available for {secondsLeft}s</span>
-                  <button className="btn btn-sm btn-secondary" onClick={() => cancelOrder(order.id)} disabled={busyOrderId === order.id}>
-                    {busyOrderId === order.id ? 'Cancelling...' : 'Cancel order'}
-                  </button>
-                </div>
-              )}
-              <div className="order-progress">
-                <div className="order-progress-head">
-                  <span><Truck size={15} /> {paymentPending ? 'Payment status' : 'Live delivery status'}</span>
-                  <span>{displayStatus}</span>
-                </div>
-                <div className="order-progress-track">
-                  <span style={{ width: `${getProgress(order.status)}%` }} />
-                </div>
-                <div className="order-progress-foot">
-                  <span><CheckCircle2 size={14} /> Confirmed</span>
-                  <span>Packed</span>
-                  <span>On road</span>
-                  <span>Delivered</span>
-                </div>
-              </div>
-              {paymentPending && (
-                <div className="order-cancel-strip">
-                  <span>Online payment was not completed, so delivery tracking has not started for this order.</span>
-                </div>
-              )}
-              {Array.isArray(order.items) && order.items.length > 0 && (
-                <div className="order-warranty-list">
-                  <div className="order-warranty-title">Product warranty</div>
-                  {order.items.map(item => (
-                    <div key={item.id} className="order-warranty-item">
-                      <div className="order-warranty-product">
-                        {item.image && <img src={item.image} alt={item.name} />}
-                        <div>
-                          <strong>{item.name}</strong>
-                          <span>Qty {item.quantity} • {item.warranty_years || 5} year warranty</span>
-                        </div>
+                    <div className="order-card-top">
+                      <div>
+                        <span className="order-id">Order #{order.id}</span>
+                        <span className="order-date">{new Date(order.created_at).toLocaleDateString()}</span>
                       </div>
-                      <div className="order-warranty-time">
-                        <strong>{getWarrantyRemaining(item.warranty_end_at)} left</strong>
-                        <span>Start: {formatWarrantyDate(item.warranty_start_at)}</span>
-                        <span>Expires: {formatWarrantyDate(item.warranty_end_at)}</span>
+                      <span className="order-status" style={{ background: `${getStatusColor(String(order.status || '').toLowerCase())}20`, color: getStatusColor(String(order.status || '').toLowerCase()) }}>
+                        {displayStatus.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="order-card-bottom">
+                      <span>{String(order.payment_method || 'payment').toUpperCase()}</span>
+                      <strong>Rs {order.final_amount}</strong>
+                      <div className="order-card-actions">
+                        {canOpenTracking ? (
+                          <button className="btn btn-sm btn-primary" onClick={() => navigate(`/tracking/${order.id}`)}>
+                            <MapPin size={15} /> Track
+                          </button>
+                        ) : (
+                          <span className="order-track-pill">{paymentPending ? 'Payment incomplete' : 'Tracking unavailable'}</span>
+                        )}
+                        <button className="btn btn-sm btn-outline" onClick={() => printInvoice(order)}>Invoice</button>
+                        <button className="btn btn-sm btn-outline" onClick={() => reorderItems(order)} disabled={reorderBusyId === order.id}>
+                          {reorderBusyId === order.id ? 'Reordering...' : 'Reorder'}
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-              <p className="order-address-line"><MapPin size={14} /> {order.address}</p>
+                    {canCancel && (
+                      <div className="order-cancel-strip">
+                        <span>Cancel available for {secondsLeft}s</span>
+                        <button className="btn btn-sm btn-secondary" onClick={() => cancelOrder(order.id)} disabled={busyOrderId === order.id}>
+                          {busyOrderId === order.id ? 'Cancelling...' : 'Cancel order'}
+                        </button>
+                      </div>
+                    )}
+                    <div className="order-progress">
+                      <div className="order-progress-head">
+                        <span><Truck size={15} /> {paymentPending ? 'Payment status' : 'Live delivery status'}</span>
+                        <span>{displayStatus}</span>
+                      </div>
+                      <div className="order-progress-track">
+                        <span style={{ width: `${getProgress(order.status)}%` }} />
+                      </div>
+                      <div className="order-progress-foot">
+                        <span><CheckCircle2 size={14} /> Confirmed</span>
+                        <span>Packed</span>
+                        <span>On road</span>
+                        <span>Delivered</span>
+                      </div>
+                    </div>
+                    {paymentPending && (
+                      <div className="order-cancel-strip">
+                        <span>Online payment was not completed, so delivery tracking has not started for this order.</span>
+                      </div>
+                    )}
+                    {Array.isArray(order.items) && order.items.length > 0 && (
+                      <div className="order-warranty-list">
+                        <div className="order-warranty-title">Product warranty and support</div>
+                        {order.items.map((item) => {
+                          const registration = getRegistrationForItem(item.id);
+                          const tickets = getTicketsForItem(item.id);
+                          const warrantyDraft = warrantyDrafts[item.id] || {};
+                          const ticketDraft = ticketDrafts[item.id] || {
+                            ticket_type: 'support',
+                            priority: 'normal',
+                            contact_phone: user?.phone || ''
+                          };
+                          return (
+                            <div key={item.id} className="order-warranty-item order-aftercare-item">
+                              <div className="order-warranty-product">
+                                {item.image && <img src={item.image} alt={item.name} />}
+                                <div>
+                                  <strong>{item.name}</strong>
+                                  <span>Qty {item.quantity} • {item.warranty_years || 5} year warranty</span>
+                                </div>
+                              </div>
+                              <div className="order-warranty-time">
+                                <strong>{getWarrantyRemaining(item.warranty_end_at)} left</strong>
+                                <span>Start: {formatWarrantyDate(item.warranty_start_at)}</span>
+                                <span>Expires: {formatWarrantyDate(item.warranty_end_at)}</span>
+                              </div>
+                              <div className="aftercare-panel">
+                                <div className="aftercare-status-row">
+                                  <span className={`aftercare-chip ${registration ? 'ok' : ''}`}>
+                                    <ShieldCheck size={14} />
+                                    {registration ? `Warranty ${String(registration.status || 'registered').replaceAll('_', ' ')}` : 'Warranty not registered'}
+                                  </span>
+                                  <span className={`aftercare-chip ${tickets.length ? 'info' : ''}`}>
+                                <Headphones size={14} />
+                                    {tickets.length ? `${tickets.length} support ticket${tickets.length > 1 ? 's' : ''}` : 'No support ticket'}
+                                  </span>
+                                </div>
+
+                                <div className="aftercare-action-row">
+                                  {!registration && (
+                                    <button type="button" className="btn btn-sm btn-outline" onClick={() => updateWarrantyDraft(item.id, 'open', !warrantyDraft.open)}>
+                                      <BadgeCheck size={14} /> {warrantyDraft.open ? 'Close warranty form' : 'Register warranty'}
+                                    </button>
+                                  )}
+                                  <button type="button" className="btn btn-sm btn-outline" onClick={() => updateTicketDraft(item.id, 'open', !ticketDraft.open)}>
+                                <Headphones size={14} /> {ticketDraft.open ? 'Close support form' : 'Raise support ticket'}
+                                  </button>
+                                </div>
+
+                                {!registration && warrantyDraft.open && (
+                                  <div className="aftercare-form">
+                                    <div className="aftercare-form-grid">
+                                      <input placeholder="Product serial number" value={warrantyDraft.serial_number || ''} onChange={(e) => updateWarrantyDraft(item.id, 'serial_number', e.target.value)} />
+                                      <input placeholder="Installer / dealer name" value={warrantyDraft.installer_name || ''} onChange={(e) => updateWarrantyDraft(item.id, 'installer_name', e.target.value)} />
+                                      <input placeholder="Home / shop / office use" value={warrantyDraft.purchase_use_case || ''} onChange={(e) => updateWarrantyDraft(item.id, 'purchase_use_case', e.target.value)} />
+                                      <input placeholder="Notes" value={warrantyDraft.notes || ''} onChange={(e) => updateWarrantyDraft(item.id, 'notes', e.target.value)} />
+                                    </div>
+                                    <button type="button" className="btn btn-sm btn-primary" onClick={() => submitWarranty(order, item)} disabled={warrantyBusy[item.id]}>
+                                      {warrantyBusy[item.id] ? 'Registering...' : 'Save warranty'}
+                                    </button>
+                                  </div>
+                                )}
+
+                                {ticketDraft.open && (
+                                  <div className="aftercare-form">
+                                    <div className="aftercare-form-grid">
+                                      <select value={ticketDraft.ticket_type || 'support'} onChange={(e) => updateTicketDraft(item.id, 'ticket_type', e.target.value)}>
+                                        <option value="support">General support</option>
+                                        <option value="refund">Refund / replace</option>
+                                        <option value="installation">Installation issue</option>
+                                        <option value="warranty">Warranty claim</option>
+                                      </select>
+                                      <select value={ticketDraft.priority || 'normal'} onChange={(e) => updateTicketDraft(item.id, 'priority', e.target.value)}>
+                                        <option value="low">Low priority</option>
+                                        <option value="normal">Normal priority</option>
+                                        <option value="high">High priority</option>
+                                      </select>
+                                      <input placeholder="Short issue title" value={ticketDraft.title || ''} onChange={(e) => updateTicketDraft(item.id, 'title', e.target.value)} />
+                                      <input placeholder="Contact phone" value={ticketDraft.contact_phone || ''} onChange={(e) => updateTicketDraft(item.id, 'contact_phone', e.target.value)} />
+                                      <input placeholder="Preferred callback / visit slot" value={ticketDraft.preferred_slot || ''} onChange={(e) => updateTicketDraft(item.id, 'preferred_slot', e.target.value)} />
+                                      <textarea placeholder="Describe the issue" value={ticketDraft.description || ''} onChange={(e) => updateTicketDraft(item.id, 'description', e.target.value)} />
+                                    </div>
+                                    <button type="button" className="btn btn-sm btn-primary" onClick={() => submitTicket(order, item)} disabled={ticketBusy[item.id]}>
+                                      {ticketBusy[item.id] ? 'Submitting...' : 'Submit ticket'}
+                                    </button>
+                                  </div>
+                                )}
+
+                                {tickets.length > 0 && (
+                                  <div className="aftercare-history">
+                                    {tickets.slice(0, 2).map((ticket) => (
+                                      <div key={ticket.id} className="aftercare-history-item">
+                                        <strong>{ticket.title}</strong>
+                                        <span>{String(ticket.ticket_type || 'support').replaceAll('_', ' ')} • {String(ticket.status || 'open').replaceAll('_', ' ')}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <p className="order-address-line"><MapPin size={14} /> {order.address}</p>
                   </>
                 );
               })()}

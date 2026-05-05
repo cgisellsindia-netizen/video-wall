@@ -1355,7 +1355,7 @@ const normalizeOperationalStateRemotePath = () => {
 };
 
 const buildOperationalStateManifest = async () => {
-  const [users, hubs, deliveryPartnerDetails, orders, orderItems, deliveryLocations, notifications] = await Promise.all([
+  const [users, hubs, deliveryPartnerDetails, orders, orderItems, deliveryLocations, notifications, warrantyRegistrations, serviceTickets] = await Promise.all([
     dbAllAsync(
       `SELECT id, email, password, plaintext_password, name, phone, address, role,
               phone_verified, phone_verified_at, created_at
@@ -1391,6 +1391,16 @@ const buildOperationalStateManifest = async () => {
       `SELECT id, title, message, target, personalize, product_id, image_url, user_id, created_at
        FROM notifications
        ORDER BY id ASC`
+    ),
+    dbAllAsync(
+      `SELECT *
+       FROM warranty_registrations
+       ORDER BY id ASC`
+    ),
+    dbAllAsync(
+      `SELECT *
+       FROM service_tickets
+       ORDER BY id ASC`
     )
   ]);
 
@@ -1404,7 +1414,9 @@ const buildOperationalStateManifest = async () => {
     orders,
     order_items: orderItems,
     delivery_locations: deliveryLocations,
-    notifications
+    notifications,
+    warranty_registrations: warrantyRegistrations,
+    service_tickets: serviceTickets
   };
 };
 
@@ -1476,6 +1488,8 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
   const orderItems = Array.isArray(manifest.order_items) ? manifest.order_items : [];
   const deliveryLocations = Array.isArray(manifest.delivery_locations) ? manifest.delivery_locations : [];
   const notifications = Array.isArray(manifest.notifications) ? manifest.notifications : [];
+  const warrantyRegistrations = Array.isArray(manifest.warranty_registrations) ? manifest.warranty_registrations : [];
+  const serviceTickets = Array.isArray(manifest.service_tickets) ? manifest.service_tickets : [];
 
   await dbRunAsync('BEGIN IMMEDIATE TRANSACTION');
   try {
@@ -1742,6 +1756,82 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
       );
     }
 
+    for (const registration of warrantyRegistrations) {
+      await dbRunAsync(
+        `INSERT INTO warranty_registrations (
+           id, user_id, order_id, order_item_id, product_id, serial_number, installer_name,
+           purchase_use_case, notes, status, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           user_id = excluded.user_id,
+           order_id = excluded.order_id,
+           order_item_id = excluded.order_item_id,
+           product_id = excluded.product_id,
+           serial_number = excluded.serial_number,
+           installer_name = excluded.installer_name,
+           purchase_use_case = excluded.purchase_use_case,
+           notes = excluded.notes,
+           status = excluded.status,
+           created_at = COALESCE(excluded.created_at, warranty_registrations.created_at),
+           updated_at = COALESCE(excluded.updated_at, warranty_registrations.updated_at)`,
+        [
+          registration.id,
+          registration.user_id || null,
+          registration.order_id || null,
+          registration.order_item_id || null,
+          registration.product_id || null,
+          registration.serial_number || null,
+          registration.installer_name || null,
+          registration.purchase_use_case || null,
+          registration.notes || null,
+          registration.status || 'registered',
+          registration.created_at || null,
+          registration.updated_at || null
+        ]
+      );
+    }
+
+    for (const ticket of serviceTickets) {
+      await dbRunAsync(
+        `INSERT INTO service_tickets (
+           id, user_id, order_id, order_item_id, product_id, ticket_type, title, description,
+           contact_phone, preferred_slot, status, priority, resolution_notes, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           user_id = excluded.user_id,
+           order_id = excluded.order_id,
+           order_item_id = excluded.order_item_id,
+           product_id = excluded.product_id,
+           ticket_type = excluded.ticket_type,
+           title = excluded.title,
+           description = excluded.description,
+           contact_phone = excluded.contact_phone,
+           preferred_slot = excluded.preferred_slot,
+           status = excluded.status,
+           priority = excluded.priority,
+           resolution_notes = excluded.resolution_notes,
+           created_at = COALESCE(excluded.created_at, service_tickets.created_at),
+           updated_at = COALESCE(excluded.updated_at, service_tickets.updated_at)`,
+        [
+          ticket.id,
+          ticket.user_id || null,
+          ticket.order_id || null,
+          ticket.order_item_id || null,
+          ticket.product_id || null,
+          ticket.ticket_type || 'support',
+          ticket.title || '',
+          ticket.description || '',
+          ticket.contact_phone || null,
+          ticket.preferred_slot || null,
+          ticket.status || 'open',
+          ticket.priority || 'normal',
+          ticket.resolution_notes || null,
+          ticket.created_at || null,
+          ticket.updated_at || null
+        ]
+      );
+    }
+
     await dbRunAsync(
       `INSERT OR REPLACE INTO app_settings (setting_key, value, updated_at)
        VALUES (?, ?, CURRENT_TIMESTAMP)`,
@@ -1756,6 +1846,8 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
           orderItemCount: orderItems.length,
           deliveryLocationCount: deliveryLocations.length,
           notificationCount: notifications.length,
+          warrantyRegistrationCount: warrantyRegistrations.length,
+          serviceTicketCount: serviceTickets.length,
           at: new Date().toISOString()
         })
       ]
@@ -1769,7 +1861,9 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
       orderCount: orders.length,
       orderItemCount: orderItems.length,
       deliveryLocationCount: deliveryLocations.length,
-      notificationCount: notifications.length
+      notificationCount: notifications.length,
+      warrantyRegistrationCount: warrantyRegistrations.length,
+      serviceTicketCount: serviceTickets.length
     };
   } catch (error) {
     await dbRunAsync('ROLLBACK').catch(() => {});
@@ -2200,6 +2294,20 @@ const attachOrderItems = (orders, res) => {
       res.json(orders.map(order => ({ ...order, items: grouped[order.id] || [] })));
     }
   );
+};
+
+const normalizeTicketStatus = (value = '', fallback = 'open') => {
+  const status = String(value || '').trim().toLowerCase();
+  return new Set(['open', 'in_progress', 'waiting_customer', 'resolved', 'closed']).has(status)
+    ? status
+    : fallback;
+};
+
+const normalizeWarrantyStatus = (value = '', fallback = 'registered') => {
+  const status = String(value || '').trim().toLowerCase();
+  return new Set(['registered', 'verified', 'claimed', 'expired']).has(status)
+    ? status
+    : fallback;
 };
 
 const attachProductImages = (products, res, single = false) => {
@@ -2993,6 +3101,169 @@ app.get('/api/orders', authenticateToken, (req, res) => {
   });
 });
 
+app.get('/api/account/warranty-registrations', authenticateToken, async (req, res) => {
+  try {
+    const rows = await dbAllAsync(
+      `SELECT wr.*, oi.quantity, oi.warranty_start_at, oi.warranty_end_at, p.name AS product_name, p.image AS product_image
+       FROM warranty_registrations wr
+       LEFT JOIN order_items oi ON oi.id = wr.order_item_id
+       LEFT JOIN products p ON p.id = wr.product_id
+       WHERE wr.user_id = ?
+       ORDER BY wr.created_at DESC, wr.id DESC`,
+      [req.user.userId]
+    );
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/account/service-tickets', authenticateToken, async (req, res) => {
+  try {
+    const rows = await dbAllAsync(
+      `SELECT st.*, p.name AS product_name, p.image AS product_image
+       FROM service_tickets st
+       LEFT JOIN products p ON p.id = st.product_id
+       WHERE st.user_id = ?
+       ORDER BY st.created_at DESC, st.id DESC`,
+      [req.user.userId]
+    );
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/orders/:id/warranty-register', authenticateToken, async (req, res) => {
+  try {
+    const order = await dbGetAsync('SELECT * FROM orders WHERE id = ? AND user_id = ?', [req.params.id, req.user.userId]);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const orderItemId = Number(req.body?.order_item_id || 0);
+    const item = await dbGetAsync(
+      `SELECT oi.*, p.name AS product_name
+       FROM order_items oi
+       JOIN products p ON p.id = oi.product_id
+       WHERE oi.id = ? AND oi.order_id = ?`,
+      [orderItemId, order.id]
+    );
+    if (!item) return res.status(404).json({ error: 'Ordered product not found' });
+
+    const existing = await dbGetAsync('SELECT * FROM warranty_registrations WHERE order_item_id = ?', [item.id]);
+    if (existing) {
+      return res.status(400).json({ error: 'Warranty is already registered for this product item.' });
+    }
+
+    const serialNumber = String(req.body?.serial_number || '').trim();
+    const installerName = String(req.body?.installer_name || '').trim();
+    const purchaseUseCase = String(req.body?.purchase_use_case || '').trim();
+    const notes = String(req.body?.notes || '').trim();
+    if (!serialNumber) return res.status(400).json({ error: 'Serial number is required.' });
+
+    const result = await dbRunAsync(
+      `INSERT INTO warranty_registrations (
+         user_id, order_id, order_item_id, product_id, serial_number, installer_name,
+         purchase_use_case, notes, status, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [
+        req.user.userId,
+        order.id,
+        item.id,
+        item.product_id,
+        serialNumber,
+        installerName || null,
+        purchaseUseCase || null,
+        notes || null,
+        'registered'
+      ]
+    );
+
+    await createUserNotification({
+      userId: req.user.userId,
+      target: 'customer',
+      title: 'Warranty registered',
+      message: `${item.product_name} is now registered under your Camigo warranty records.`,
+      personalize: 1
+    });
+    queueOperationalStateSync('warranty-registered');
+
+    const registration = await dbGetAsync('SELECT * FROM warranty_registrations WHERE id = ?', [result.lastID]);
+    res.json({ message: 'Warranty registered.', registration });
+  } catch (error) {
+    if (String(error.message || '').includes('UNIQUE constraint failed')) {
+      return res.status(400).json({ error: 'Warranty is already registered for this product item.' });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/orders/:id/service-tickets', authenticateToken, async (req, res) => {
+  try {
+    const order = await dbGetAsync('SELECT * FROM orders WHERE id = ? AND user_id = ?', [req.params.id, req.user.userId]);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const orderItemId = Number(req.body?.order_item_id || 0);
+    const item = await dbGetAsync(
+      `SELECT oi.*, p.name AS product_name
+       FROM order_items oi
+       JOIN products p ON p.id = oi.product_id
+       WHERE oi.id = ? AND oi.order_id = ?`,
+      [orderItemId, order.id]
+    );
+    if (!item) return res.status(404).json({ error: 'Ordered product not found' });
+
+    const ticketType = String(req.body?.ticket_type || 'support').trim().toLowerCase();
+    const safeTicketType = new Set(['support', 'refund', 'installation', 'warranty']).has(ticketType)
+      ? ticketType
+      : 'support';
+    const title = String(req.body?.title || '').trim();
+    const description = String(req.body?.description || '').trim();
+    const contactPhone = cleanPhone(req.body?.contact_phone || '');
+    const preferredSlot = String(req.body?.preferred_slot || '').trim();
+    const priority = ['low', 'normal', 'high'].includes(String(req.body?.priority || '').trim().toLowerCase())
+      ? String(req.body?.priority || '').trim().toLowerCase()
+      : 'normal';
+
+    if (!title || !description) {
+      return res.status(400).json({ error: 'Title and issue details are required.' });
+    }
+
+    const result = await dbRunAsync(
+      `INSERT INTO service_tickets (
+         user_id, order_id, order_item_id, product_id, ticket_type, title, description,
+         contact_phone, preferred_slot, status, priority, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [
+        req.user.userId,
+        order.id,
+        item.id,
+        item.product_id,
+        safeTicketType,
+        title,
+        description,
+        contactPhone || null,
+        preferredSlot || null,
+        'open',
+        priority
+      ]
+    );
+
+    await createUserNotification({
+      userId: req.user.userId,
+      target: 'customer',
+      title: 'Support ticket created',
+      message: `${item.product_name} issue has been sent to the Camigo support queue.`,
+      personalize: 1
+    });
+    queueOperationalStateSync('service-ticket-created');
+
+    const ticket = await dbGetAsync('SELECT * FROM service_tickets WHERE id = ?', [result.lastID]);
+    res.json({ message: 'Service ticket created.', ticket });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/orders/:id/cancel', authenticateToken, async (req, res) => {
   try {
     const order = await dbGetAsync(
@@ -3465,6 +3736,100 @@ app.get('/api/admin/orders', authenticateToken, requireAdmin, (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
+});
+
+app.get('/api/admin/warranty-registrations', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const rows = await dbAllAsync(
+      `SELECT wr.*, u.name AS user_name, u.phone AS user_phone, p.name AS product_name, p.image AS product_image
+       FROM warranty_registrations wr
+       LEFT JOIN users u ON u.id = wr.user_id
+       LEFT JOIN products p ON p.id = wr.product_id
+       ORDER BY wr.created_at DESC, wr.id DESC`
+    );
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/admin/warranty-registrations/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const existing = await dbGetAsync('SELECT * FROM warranty_registrations WHERE id = ?', [req.params.id]);
+    if (!existing) return res.status(404).json({ error: 'Warranty registration not found' });
+
+    const nextStatus = normalizeWarrantyStatus(req.body?.status, existing.status || 'registered');
+    const notes = String(req.body?.notes ?? existing.notes ?? '').trim();
+    await dbRunAsync(
+      'UPDATE warranty_registrations SET status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [nextStatus, notes || null, req.params.id]
+    );
+    queueOperationalStateSync('admin-warranty-updated');
+
+    const updated = await dbGetAsync('SELECT * FROM warranty_registrations WHERE id = ?', [req.params.id]);
+    if (updated?.user_id) {
+      await createUserNotification({
+        userId: updated.user_id,
+        target: 'customer',
+        title: 'Warranty record updated',
+        message: `Your Camigo warranty record is now marked as ${nextStatus.replaceAll('_', ' ')}.`,
+        personalize: 1
+      });
+    }
+    res.json({ message: 'Warranty registration updated.', registration: updated });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/admin/service-tickets', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const rows = await dbAllAsync(
+      `SELECT st.*, u.name AS user_name, u.phone AS user_phone, p.name AS product_name, p.image AS product_image
+       FROM service_tickets st
+       LEFT JOIN users u ON u.id = st.user_id
+       LEFT JOIN products p ON p.id = st.product_id
+       ORDER BY st.created_at DESC, st.id DESC`
+    );
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/admin/service-tickets/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const existing = await dbGetAsync('SELECT * FROM service_tickets WHERE id = ?', [req.params.id]);
+    if (!existing) return res.status(404).json({ error: 'Service ticket not found' });
+
+    const nextStatus = normalizeTicketStatus(req.body?.status, existing.status || 'open');
+    const resolutionNotes = String(req.body?.resolution_notes ?? existing.resolution_notes ?? '').trim();
+    const priority = ['low', 'normal', 'high'].includes(String(req.body?.priority || '').trim().toLowerCase())
+      ? String(req.body?.priority || '').trim().toLowerCase()
+      : (existing.priority || 'normal');
+
+    await dbRunAsync(
+      `UPDATE service_tickets
+       SET status = ?, priority = ?, resolution_notes = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [nextStatus, priority, resolutionNotes || null, req.params.id]
+    );
+    queueOperationalStateSync('admin-service-ticket-updated');
+
+    const updated = await dbGetAsync('SELECT * FROM service_tickets WHERE id = ?', [req.params.id]);
+    if (updated?.user_id) {
+      await createUserNotification({
+        userId: updated.user_id,
+        target: 'customer',
+        title: 'Support ticket updated',
+        message: `Your Camigo support ticket is now ${nextStatus.replaceAll('_', ' ')}.`,
+        personalize: 1
+      });
+    }
+    res.json({ message: 'Service ticket updated.', ticket: updated });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.post('/api/admin/orders/:id/manual-dispatch', authenticateToken, requireAdmin, async (req, res) => {

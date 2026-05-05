@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Shield, Users, ShoppingBag, Package, Plus, Trash2, Edit, MapPin, Truck, Sparkles, FolderOpen, Image as ImageIcon, ArrowUp, Copy, ExternalLink, Bike, CheckCircle2 } from 'lucide-react';
+import { Bell, Shield, Users, ShoppingBag, Package, Plus, Trash2, Edit, MapPin, Truck, Sparkles, FolderOpen, Image as ImageIcon, ArrowUp, Copy, ExternalLink, Bike, CheckCircle2, Headphones } from 'lucide-react';
 import { API_URL } from '../api';
 
 function AdminPage({ user }) {
@@ -11,10 +11,14 @@ function AdminPage({ user }) {
   const [hubs, setHubs] = useState([]);
   const [deliveryPartners, setDeliveryPartners] = useState([]);
   const [categoryBanners, setCategoryBanners] = useState([]);
+  const [warrantyRegistrations, setWarrantyRegistrations] = useState([]);
+  const [serviceTickets, setServiceTickets] = useState([]);
   const [systemStatus, setSystemStatus] = useState(null);
   const [dispatchDrafts, setDispatchDrafts] = useState({});
   const [categoryDrafts, setCategoryDrafts] = useState({});
   const [categoryBusy, setCategoryBusy] = useState({});
+  const [warrantyAdminDrafts, setWarrantyAdminDrafts] = useState({});
+  const [ticketAdminDrafts, setTicketAdminDrafts] = useState({});
   const [activeTab, setActiveTab] = useState('products');
   const [loading, setLoading] = useState(true);
   const [editProduct, setEditProduct] = useState(null);
@@ -97,6 +101,39 @@ function AdminPage({ user }) {
     });
   }, [orders]);
 
+  useEffect(() => {
+    setWarrantyAdminDrafts(prev => {
+      const next = { ...prev };
+      warrantyRegistrations.forEach((registration) => {
+        next[registration.id] = next[registration.id] || {
+          status: registration.status || 'registered',
+          notes: registration.notes || ''
+        };
+      });
+      Object.keys(next).forEach((key) => {
+        if (!warrantyRegistrations.some((registration) => String(registration.id) === String(key))) delete next[key];
+      });
+      return next;
+    });
+  }, [warrantyRegistrations]);
+
+  useEffect(() => {
+    setTicketAdminDrafts(prev => {
+      const next = { ...prev };
+      serviceTickets.forEach((ticket) => {
+        next[ticket.id] = next[ticket.id] || {
+          status: ticket.status || 'open',
+          priority: ticket.priority || 'normal',
+          resolution_notes: ticket.resolution_notes || ''
+        };
+      });
+      Object.keys(next).forEach((key) => {
+        if (!serviceTickets.some((ticket) => String(ticket.id) === String(key))) delete next[key];
+      });
+      return next;
+    });
+  }, [serviceTickets]);
+
   const catalogBackupNotice = (data) => data?.catalog_warning ? ` ${data.catalog_warning}` : '';
 
   const filteredBannerList = useMemo(() => {
@@ -167,7 +204,7 @@ function AdminPage({ user }) {
   const fetchData = async () => {
     const token = localStorage.getItem('token');
     try {
-      const [uRes, oRes, pRes, cRes, hRes, dRes, bRes, sRes] = await Promise.all([
+      const [uRes, oRes, pRes, cRes, hRes, dRes, bRes, sRes, wrRes, stRes] = await Promise.all([
         fetch(`${API_URL}/admin/users`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${API_URL}/admin/orders`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${API_URL}/products`, { headers: { 'Authorization': `Bearer ${token}` } }),
@@ -175,12 +212,14 @@ function AdminPage({ user }) {
         fetch(`${API_URL}/hubs`),
         fetch(`${API_URL}/admin/delivery-partners`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${API_URL}/admin/category-banners`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_URL}/admin/system-status`, { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch(`${API_URL}/admin/system-status`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_URL}/admin/warranty-registrations`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_URL}/admin/service-tickets`, { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       if (uRes.status === 403 || oRes.status === 403) {
         setMessage('Admin access required. Login with the admin account to manage products.');
       }
-      const [uData, oData, pData, cData, hData, dData, bData, sData] = await Promise.all([uRes.json(), oRes.json(), pRes.json(), cRes.json(), hRes.json(), dRes.json(), bRes.json(), sRes.json()]);
+      const [uData, oData, pData, cData, hData, dData, bData, sData, wrData, stData] = await Promise.all([uRes.json(), oRes.json(), pRes.json(), cRes.json(), hRes.json(), dRes.json(), bRes.json(), sRes.json(), wrRes.json(), stRes.json()]);
       setUsers(Array.isArray(uData) ? uData : []);
       setOrders(Array.isArray(oData) ? oData : []);
       setProducts(Array.isArray(pData) ? pData : []);
@@ -188,6 +227,8 @@ function AdminPage({ user }) {
       setHubs(Array.isArray(hData) ? hData : []);
       setDeliveryPartners(Array.isArray(dData) ? dData : []);
       setCategoryBanners(Array.isArray(bData) ? bData : []);
+      setWarrantyRegistrations(Array.isArray(wrData) ? wrData : []);
+      setServiceTickets(Array.isArray(stData) ? stData : []);
       setSystemStatus(sRes.ok ? sData : null);
       setLoading(false);
     } catch (e) { setMessage('Could not load admin data. Check backend/login and try again.'); setLoading(false); }
@@ -868,6 +909,43 @@ function AdminPage({ user }) {
     }
   };
 
+  const saveWarrantyRegistration = async (registration) => {
+    const token = localStorage.getItem('token');
+    const draft = warrantyAdminDrafts[registration.id] || {};
+    const res = await fetch(`${API_URL}/admin/warranty-registrations/${registration.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        status: draft.status || registration.status,
+        notes: draft.notes ?? registration.notes ?? ''
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    setMessage(res.ok ? `Warranty updated for ${registration.product_name || `registration #${registration.id}`}.` : (data.error || 'Could not update warranty registration.'));
+    if (res.ok && data.registration) {
+      setWarrantyRegistrations(current => current.map(item => item.id === registration.id ? { ...item, ...data.registration } : item));
+    }
+  };
+
+  const saveServiceTicket = async (ticket) => {
+    const token = localStorage.getItem('token');
+    const draft = ticketAdminDrafts[ticket.id] || {};
+    const res = await fetch(`${API_URL}/admin/service-tickets/${ticket.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        status: draft.status || ticket.status,
+        priority: draft.priority || ticket.priority,
+        resolution_notes: draft.resolution_notes ?? ticket.resolution_notes ?? ''
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    setMessage(res.ok ? `Support ticket #${ticket.id} updated.` : (data.error || 'Could not update service ticket.'));
+    if (res.ok && data.ticket) {
+      setServiceTickets(current => current.map(item => item.id === ticket.id ? { ...item, ...data.ticket } : item));
+    }
+  };
+
   if (loading) return <div className="loading">Loading admin panel...</div>;
 
   return (
@@ -882,6 +960,7 @@ function AdminPage({ user }) {
       <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
         <button className={`btn btn-sm ${activeTab === 'users' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('users')}><Users size={16} /> Users ({users.length})</button>
         <button className={`btn btn-sm ${activeTab === 'orders' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('orders')}><ShoppingBag size={16} /> Orders ({orders.length})</button>
+        <button className={`btn btn-sm ${activeTab === 'support' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('support')}><Headphones size={16} /> Support ({serviceTickets.length})</button>
         <button className={`btn btn-sm ${activeTab === 'products' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('products')}><Package size={16} /> Products ({products.length})</button>
         <button className={`btn btn-sm ${activeTab === 'categories' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('categories')}><ImageIcon size={16} /> Category Tiles ({categories.length})</button>
         <button className={`btn btn-sm ${activeTab === 'integrations' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('integrations')}><Sparkles size={16} /> Integrations</button>
@@ -1149,6 +1228,145 @@ function AdminPage({ user }) {
                 );
               })}</tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'support' && (
+        <div className="support-admin-stack">
+          <div className="card">
+            <div className="support-admin-head">
+              <div>
+                <span className="phone-verify-eyebrow">After-sales</span>
+                <h3 style={{ margin: '4px 0 6px' }}>Customer support queue</h3>
+                <p className="checkout-note" style={{ margin: 0 }}>
+                  Work service issues, refund requests, installation escalations, and warranty records from one place.
+                </p>
+              </div>
+              <div className="support-admin-stats">
+                <div className="integration-stat-box">
+                  <strong>{serviceTickets.length}</strong>
+                  <span>Open and historical tickets</span>
+                </div>
+                <div className="integration-stat-box">
+                  <strong>{warrantyRegistrations.length}</strong>
+                  <span>Warranty registrations</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <h3 style={{ marginTop: 0 }}>Service tickets</h3>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="admin-table">
+                <thead><tr><th>Ticket</th><th>Customer</th><th>Product</th><th>Status</th><th>Priority</th><th>Action</th></tr></thead>
+                <tbody>{serviceTickets.map(ticket => {
+                  const draft = ticketAdminDrafts[ticket.id] || { status: ticket.status || 'open', priority: ticket.priority || 'normal', resolution_notes: ticket.resolution_notes || '' };
+                  return (
+                    <tr key={ticket.id}>
+                      <td>
+                        <div className="admin-order-cell">
+                          <strong>#{ticket.id} • {ticket.title}</strong>
+                          <span>{String(ticket.ticket_type || 'support').replaceAll('_', ' ')}</span>
+                          <span>{ticket.description}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="admin-order-cell">
+                          <strong>{ticket.user_name || '-'}</strong>
+                          <span>{ticket.user_phone || ticket.contact_phone || 'No phone'}</span>
+                          <span>Order #{ticket.order_id || '-'}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="admin-order-cell">
+                          <strong>{ticket.product_name || '-'}</strong>
+                          <span>{ticket.preferred_slot || 'No preferred slot'}</span>
+                        </div>
+                      </td>
+                      <td><span className={`tag ${draft.status === 'resolved' || draft.status === 'closed' ? 'tag-success' : draft.status === 'in_progress' ? 'tag-info' : 'tag-warning'}`}>{draft.status}</span></td>
+                      <td><span className={`tag ${draft.priority === 'high' ? 'tag-warning' : draft.priority === 'low' ? '' : 'tag-info'}`}>{draft.priority}</span></td>
+                      <td>
+                        <div className="support-admin-actions">
+                          <select value={draft.status} onChange={e => setTicketAdminDrafts(prev => ({ ...prev, [ticket.id]: { ...draft, status: e.target.value } }))}>
+                            <option value="open">Open</option>
+                            <option value="in_progress">In progress</option>
+                            <option value="waiting_customer">Waiting customer</option>
+                            <option value="resolved">Resolved</option>
+                            <option value="closed">Closed</option>
+                          </select>
+                          <select value={draft.priority} onChange={e => setTicketAdminDrafts(prev => ({ ...prev, [ticket.id]: { ...draft, priority: e.target.value } }))}>
+                            <option value="low">Low</option>
+                            <option value="normal">Normal</option>
+                            <option value="high">High</option>
+                          </select>
+                          <textarea
+                            value={draft.resolution_notes}
+                            onChange={e => setTicketAdminDrafts(prev => ({ ...prev, [ticket.id]: { ...draft, resolution_notes: e.target.value } }))}
+                            placeholder="Resolution notes"
+                          />
+                          <button className="btn btn-sm btn-primary" type="button" onClick={() => saveServiceTicket(ticket)}>Save ticket</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}</tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <h3 style={{ marginTop: 0 }}>Warranty registrations</h3>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="admin-table">
+                <thead><tr><th>Registration</th><th>Customer</th><th>Product</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody>{warrantyRegistrations.map(registration => {
+                  const draft = warrantyAdminDrafts[registration.id] || { status: registration.status || 'registered', notes: registration.notes || '' };
+                  return (
+                    <tr key={registration.id}>
+                      <td>
+                        <div className="admin-order-cell">
+                          <strong>#{registration.id}</strong>
+                          <span>Serial: {registration.serial_number || '-'}</span>
+                          <span>{registration.installer_name || 'No installer/dealer noted'}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="admin-order-cell">
+                          <strong>{registration.user_name || '-'}</strong>
+                          <span>{registration.user_phone || 'No phone'}</span>
+                          <span>Order #{registration.order_id || '-'}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="admin-order-cell">
+                          <strong>{registration.product_name || '-'}</strong>
+                          <span>{registration.purchase_use_case || 'Use case not entered'}</span>
+                        </div>
+                      </td>
+                      <td><span className={`tag ${draft.status === 'verified' || draft.status === 'claimed' ? 'tag-success' : draft.status === 'expired' ? '' : 'tag-info'}`}>{draft.status}</span></td>
+                      <td>
+                        <div className="support-admin-actions">
+                          <select value={draft.status} onChange={e => setWarrantyAdminDrafts(prev => ({ ...prev, [registration.id]: { ...draft, status: e.target.value } }))}>
+                            <option value="registered">Registered</option>
+                            <option value="verified">Verified</option>
+                            <option value="claimed">Claimed</option>
+                            <option value="expired">Expired</option>
+                          </select>
+                          <textarea
+                            value={draft.notes}
+                            onChange={e => setWarrantyAdminDrafts(prev => ({ ...prev, [registration.id]: { ...draft, notes: e.target.value } }))}
+                            placeholder="Warranty notes"
+                          />
+                          <button className="btn btn-sm btn-primary" type="button" onClick={() => saveWarrantyRegistration(registration)}>Save warranty</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}</tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
