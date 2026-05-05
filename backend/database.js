@@ -279,7 +279,11 @@ db.serialize(async () => {
       'manual_dispatch_status TEXT DEFAULT "not_booked"',
       'manual_dispatch_reference TEXT',
       'manual_dispatch_notes TEXT',
-      'manual_dispatch_updated_at TEXT'
+      'manual_dispatch_updated_at TEXT',
+      'delhivery_waybill TEXT',
+      'delhivery_status TEXT',
+      'delhivery_reference TEXT',
+      'delhivery_last_event_at TEXT'
     ]);
     await ensureColumns('notifications', [
       'personalize INTEGER DEFAULT 0',

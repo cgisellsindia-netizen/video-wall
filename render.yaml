@@ -26,5 +26,29 @@ services:
         sync: false
       - key: UBER_DIRECT_PICKUP_INSTRUCTIONS
         sync: false
+      - key: DELHIVERY_API_TOKEN
+        sync: false
+      - key: DELHIVERY_CLIENT_NAME
+        sync: false
+      - key: DELHIVERY_PICKUP_LOCATION
+        sync: false
+      - key: DELHIVERY_SELLER_NAME
+        sync: false
+      - key: DELHIVERY_SELLER_PHONE
+        sync: false
+      - key: DELHIVERY_SELLER_ADDRESS
+        sync: false
+      - key: DELHIVERY_SELLER_PINCODE
+        sync: false
+      - key: DELHIVERY_SELLER_CITY
+        sync: false
+      - key: DELHIVERY_SELLER_STATE
+        sync: false
+      - key: DELHIVERY_SELLER_COUNTRY
+        sync: false
+      - key: DELHIVERY_SELLER_GSTIN
+        sync: false
+      - key: DELHIVERY_HSN_CODE
+        sync: false
       - key: CORS_ORIGINS
         value: ""

@@ -75,6 +75,26 @@ const UBER_DIRECT_PICKUP_INSTRUCTIONS = process.env.UBER_DIRECT_PICKUP_INSTRUCTI
 const hasUberDirectConfig = Boolean(
   UBER_DIRECT_CLIENT_ID && UBER_DIRECT_CLIENT_SECRET && UBER_DIRECT_STORE_ID && UBER_DIRECT_PICKUP_PHONE
 );
+const DELHIVERY_API_TOKEN = process.env.DELHIVERY_API_TOKEN || '';
+const DELHIVERY_CLIENT_NAME = process.env.DELHIVERY_CLIENT_NAME || '';
+const DELHIVERY_PICKUP_LOCATION = process.env.DELHIVERY_PICKUP_LOCATION || '';
+const DELHIVERY_SELLER_NAME = process.env.DELHIVERY_SELLER_NAME || 'Camigo';
+const DELHIVERY_SELLER_PHONE = process.env.DELHIVERY_SELLER_PHONE || '';
+const DELHIVERY_SELLER_ADDRESS = process.env.DELHIVERY_SELLER_ADDRESS || '';
+const DELHIVERY_SELLER_PINCODE = process.env.DELHIVERY_SELLER_PINCODE || '';
+const DELHIVERY_SELLER_CITY = process.env.DELHIVERY_SELLER_CITY || 'Bhubaneswar';
+const DELHIVERY_SELLER_STATE = process.env.DELHIVERY_SELLER_STATE || 'Odisha';
+const DELHIVERY_SELLER_COUNTRY = process.env.DELHIVERY_SELLER_COUNTRY || 'India';
+const DELHIVERY_SELLER_GSTIN = process.env.DELHIVERY_SELLER_GSTIN || '';
+const DELHIVERY_HSN_CODE = process.env.DELHIVERY_HSN_CODE || '';
+const hasDelhiveryApiConfig = Boolean(
+  DELHIVERY_API_TOKEN &&
+  DELHIVERY_CLIENT_NAME &&
+  DELHIVERY_PICKUP_LOCATION &&
+  DELHIVERY_SELLER_PHONE &&
+  DELHIVERY_SELLER_ADDRESS &&
+  DELHIVERY_SELLER_PINCODE
+);
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_BANNER_MODEL = process.env.OPENAI_BANNER_MODEL || 'gpt-4o-mini';
 const MEDIA_MANIFEST_URL = process.env.MEDIA_MANIFEST_URL || '';
@@ -451,6 +471,11 @@ const splitContactName = (value = '') => {
   };
 };
 
+const sanitizeDelhiveryText = (value = '') => String(value || '')
+  .replace(/[&#%;\\]/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
 const toE164IndianPhone = (value = '') => {
   const digits = String(value || '').replace(/\D/g, '');
   if (!digits) return '';
@@ -469,6 +494,108 @@ const buildUberDropoffAddress = ({ address = '', lat, lng } = {}) => {
     };
   }
   return payload;
+};
+
+const createDelhiveryShipmentForOrder = async (order, currentUser, productLookup = new Map()) => {
+  if (!hasDelhiveryApiConfig) return null;
+  const orderItems = await dbAllAsync(
+    `SELECT oi.*, p.name, p.description, p.category_id
+     FROM order_items oi
+     JOIN products p ON oi.product_id = p.id
+     WHERE oi.order_id = ?
+     ORDER BY oi.id ASC`,
+    [order.id]
+  );
+  if (!orderItems.length) {
+    throw new Error('Delhivery shipment needs at least one order item');
+  }
+
+  const weightLookup = new Map(orderItems.map(item => [item.product_id, { category_id: item.category_id }]));
+  const estimatedWeightKg = estimateItemWeightKg(orderItems, weightLookup.size ? weightLookup : productLookup);
+  const totalPieces = orderItems.reduce((sum, item) => sum + Math.max(1, Number(item.quantity || 1)), 0);
+  const consigneePhone = String(currentUser?.phone || '').replace(/\D/g, '').slice(-10);
+  if (!consigneePhone) {
+    throw new Error('Customer phone is required for Delhivery shipment creation');
+  }
+
+  const shipments = [{
+    name: sanitizeDelhiveryText(currentUser?.name || 'Camigo Customer'),
+    add: sanitizeDelhiveryText(order.address || currentUser?.address || ''),
+    pin: String(order.address || '').match(/\b([1-9]\d{5})\b/)?.[1] || '',
+    city: sanitizeDelhiveryText(String(order.address || '').split(',').slice(-2, -1)[0] || 'Bhubaneswar'),
+    state: DELHIVERY_SELLER_STATE,
+    country: DELHIVERY_SELLER_COUNTRY,
+    phone: consigneePhone,
+    order: `camigo-${order.id}`,
+    payment_mode: 'Prepaid',
+    return_pin: DELHIVERY_SELLER_PINCODE,
+    return_city: DELHIVERY_SELLER_CITY,
+    return_phone: String(DELHIVERY_SELLER_PHONE).replace(/\D/g, '').slice(-10),
+    return_add: sanitizeDelhiveryText(DELHIVERY_SELLER_ADDRESS),
+    return_state: DELHIVERY_SELLER_STATE,
+    return_country: DELHIVERY_SELLER_COUNTRY,
+    products_desc: sanitizeDelhiveryText(orderItems.map(item => item.name).join(', ')).slice(0, 240),
+    hsn_code: DELHIVERY_HSN_CODE || undefined,
+    cod_amount: '0',
+    order_date: new Date(order.created_at || Date.now()).toISOString().slice(0, 19).replace('T', ' '),
+    total_amount: String(Math.round(Number(order.final_amount || order.total_amount || 0))),
+    seller_add: sanitizeDelhiveryText(DELHIVERY_SELLER_ADDRESS),
+    seller_name: sanitizeDelhiveryText(DELHIVERY_SELLER_NAME),
+    seller_inv: `camigo-${order.id}`,
+    quantity: String(totalPieces),
+    shipment_width: '20',
+    shipment_height: '20',
+    weight: String(Math.max(500, Math.round(Number(estimatedWeightKg || 0.5) * 1000))),
+    seller_gst_tin: DELHIVERY_SELLER_GSTIN || undefined,
+    client: DELHIVERY_CLIENT_NAME,
+    pickup_location: DELHIVERY_PICKUP_LOCATION
+  }];
+
+  const payload = {
+    shipments,
+    pickup_location: {
+      name: DELHIVERY_PICKUP_LOCATION
+    }
+  };
+
+  const body = new URLSearchParams({
+    format: 'json',
+    data: JSON.stringify(payload)
+  });
+
+  const response = await fetch('https://track.delhivery.com/api/cmu/create.json', {
+    method: 'POST',
+    headers: {
+      Authorization: `Token ${DELHIVERY_API_TOKEN}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json'
+    },
+    body: body.toString()
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.error || data?.message || 'Delhivery shipment creation failed');
+  }
+  const packageInfo = Array.isArray(data?.packages) ? data.packages[0] : null;
+  const waybill = packageInfo?.waybill || data?.packages?.[0]?.waybill || data?.waybill || null;
+  const status = packageInfo?.status || data?.packages?.[0]?.status || 'manifested';
+  await dbRunAsync(
+    `UPDATE orders
+     SET delhivery_waybill = ?, delhivery_status = ?, delhivery_reference = ?, delhivery_last_event_at = CURRENT_TIMESTAMP,
+         manual_dispatch_provider = COALESCE(manual_dispatch_provider, ?),
+         manual_dispatch_status = CASE WHEN COALESCE(manual_dispatch_status, 'not_booked') = 'not_booked' THEN 'booked' ELSE manual_dispatch_status END,
+         manual_dispatch_reference = COALESCE(manual_dispatch_reference, ?)
+     WHERE id = ?`,
+    [
+      waybill,
+      status,
+      `camigo-${order.id}`,
+      'Delhivery auto',
+      waybill || `camigo-${order.id}`,
+      order.id
+    ]
+  );
+  return { data, waybill, status };
 };
 
 const getUberDirectAccessToken = async () => {
@@ -1442,8 +1569,9 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
            installer_id, camera_count, delivery_partner_id, delivery_otp, created_at,
            payment_status, razorpay_order_id, razorpay_payment_id, razorpay_signature, payment_verified_at,
            uber_direct_order_id, uber_tracking_url, uber_status, uber_courier_name, uber_courier_phone, uber_last_event_at,
-           manual_dispatch_provider, manual_dispatch_status, manual_dispatch_reference, manual_dispatch_notes, manual_dispatch_updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           manual_dispatch_provider, manual_dispatch_status, manual_dispatch_reference, manual_dispatch_notes, manual_dispatch_updated_at,
+           delhivery_waybill, delhivery_status, delhivery_reference, delhivery_last_event_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            user_id = excluded.user_id,
            total_amount = excluded.total_amount,
@@ -1485,7 +1613,11 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
            manual_dispatch_status = excluded.manual_dispatch_status,
            manual_dispatch_reference = excluded.manual_dispatch_reference,
            manual_dispatch_notes = excluded.manual_dispatch_notes,
-           manual_dispatch_updated_at = excluded.manual_dispatch_updated_at`,
+           manual_dispatch_updated_at = excluded.manual_dispatch_updated_at,
+           delhivery_waybill = excluded.delhivery_waybill,
+           delhivery_status = excluded.delhivery_status,
+           delhivery_reference = excluded.delhivery_reference,
+           delhivery_last_event_at = excluded.delhivery_last_event_at`,
         [
           order.id,
           order.user_id,
@@ -1528,7 +1660,11 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
           order.manual_dispatch_status || null,
           order.manual_dispatch_reference || null,
           order.manual_dispatch_notes || null,
-          order.manual_dispatch_updated_at || null
+          order.manual_dispatch_updated_at || null,
+          order.delhivery_waybill || null,
+          order.delhivery_status || null,
+          order.delhivery_reference || null,
+          order.delhivery_last_event_at || null
         ]
       );
     }
@@ -2794,6 +2930,13 @@ app.post('/api/payments/razorpay/verify', authenticateToken, async (req, res) =>
         console.warn(`Uber Direct create delivery failed for order ${order.id}: ${uberError.message}`);
       }
     }
+    if (currentUser && String(order.delivery_mode || '').toLowerCase() === 'courier' && hasDelhiveryApiConfig) {
+      try {
+        await createDelhiveryShipmentForOrder(order, currentUser);
+      } catch (delhiveryError) {
+        console.warn(`Delhivery shipment create failed for order ${order.id}: ${delhiveryError.message}`);
+      }
+    }
     await dbRunAsync('DELETE FROM cart WHERE user_id = ?', [req.user.userId]);
     queueOperationalStateSync('payment-verified');
 
@@ -3402,6 +3545,13 @@ app.get('/api/admin/system-status', authenticateToken, requireAdmin, async (req,
       razorpay: {
         ready: hasRazorpayConfig,
         key_id: RAZORPAY_KEY_ID || ''
+      },
+      delhivery: {
+        ready: hasDelhiveryApiConfig,
+        client_name: DELHIVERY_CLIENT_NAME || '',
+        pickup_location: DELHIVERY_PICKUP_LOCATION || '',
+        seller_phone: DELHIVERY_SELLER_PHONE || '',
+        seller_pincode: DELHIVERY_SELLER_PINCODE || ''
       },
       media_library: {
         ready: Boolean(MEDIA_LIBRARY_PUBLIC_BASE),

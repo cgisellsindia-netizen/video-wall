@@ -952,6 +952,39 @@ function AdminPage({ user }) {
                 </div>
               </div>
             </article>
+
+            <article className="integration-card">
+              <div className="integration-card-top">
+                <div>
+                  <strong>Delhivery courier</strong>
+                  <span className={`tag ${systemStatus?.delhivery?.ready ? 'tag-success' : 'tag-warning'}`}>
+                    {systemStatus?.delhivery?.ready ? 'Auto courier ready' : 'Needs config'}
+                  </span>
+                </div>
+                <div className="integration-meta-pills">
+                  <span className="tag tag-info">Outside fast local zone</span>
+                </div>
+              </div>
+
+              <div className="integration-detail-grid">
+                <div className="integration-detail">
+                  <label>Client name</label>
+                  <code>{systemStatus?.delhivery?.client_name || 'Not set in Render yet'}</code>
+                </div>
+                <div className="integration-detail">
+                  <label>Pickup location</label>
+                  <code>{systemStatus?.delhivery?.pickup_location || 'Not set in Render yet'}</code>
+                </div>
+                <div className="integration-detail">
+                  <label>Seller phone</label>
+                  <code>{systemStatus?.delhivery?.seller_phone || 'Not set in Render yet'}</code>
+                </div>
+                <div className="integration-detail">
+                  <label>Seller pincode</label>
+                  <code>{systemStatus?.delhivery?.seller_pincode || 'Not set in Render yet'}</code>
+                </div>
+              </div>
+            </article>
           </div>
         </div>
       )}
