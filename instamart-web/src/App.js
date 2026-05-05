@@ -169,6 +169,26 @@ function AppContent() {
     setUser(nextUser);
   };
 
+  const clearSessionState = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('camigo_active_order');
+    setUser(null);
+    setCartItems([]);
+    setActiveOrder(null);
+  };
+
+  const handleAuthFailure = (message = 'Your session expired. Please login again to continue.') => {
+    clearSessionState();
+    setAppNotice({
+      id: 'session-expired',
+      title: 'Session expired',
+      message,
+      personalize: 0
+    });
+    setLoginOpen(true);
+  };
+
   const refreshCurrentUser = async (referenceUser) => {
     const token = localStorage.getItem('token');
     if (!token || !referenceUser?.id) return;
@@ -176,6 +196,10 @@ function AppContent() {
       const res = await fetch(`${API_URL}/users/${referenceUser.id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (res.status === 401 || res.status === 403) {
+        handleAuthFailure();
+        return;
+      }
       const data = await res.json();
       if (res.ok && data?.id) updateUserState(data);
     } catch (e) {}
@@ -436,6 +460,10 @@ function AppContent() {
       const saved = JSON.parse(localStorage.getItem('camigo_active_order') || 'null');
       if (saved?.id) {
         const trackingRes = await fetch(`${API_URL}/tracking/${saved.id}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (trackingRes.status === 401 || trackingRes.status === 403) {
+          handleAuthFailure();
+          return;
+        }
         const tracking = await trackingRes.json().catch(() => null);
         if (trackingRes.ok && isTrackableOrder(tracking?.order)) {
           setActiveOrder({
@@ -451,6 +479,10 @@ function AppContent() {
       }
 
       const res = await fetch(`${API_URL}/orders`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.status === 401 || res.status === 403) {
+        handleAuthFailure();
+        return;
+      }
       const orders = await res.json();
       const liveOrder = Array.isArray(orders)
         ? orders.find(order => isTrackableOrder(order))
@@ -525,6 +557,10 @@ function AppContent() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ product_id: product.id, quantity: 1 })
       });
+      if (res.status === 401 || res.status === 403) {
+        handleAuthFailure('Your login timed out, so the product could not be added. Please login again.');
+        return;
+      }
       if (!res.ok) throw new Error('Cart add failed');
       await new Promise(resolve => setTimeout(resolve, 180));
       await fetchCart({ preserveBusy: false });
@@ -555,6 +591,10 @@ function AppContent() {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` }
         });
+        if (res.status === 401 || res.status === 403) {
+          handleAuthFailure('Your login timed out, so the cart could not be updated. Please login again.');
+          return;
+        }
         if (!res.ok) throw new Error('Cart remove failed');
       } else {
         const res = await fetch(`${API_URL}/cart/${item.id}`, {
@@ -562,6 +602,10 @@ function AppContent() {
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ quantity: nextQty })
         });
+        if (res.status === 401 || res.status === 403) {
+          handleAuthFailure('Your login timed out, so the cart could not be updated. Please login again.');
+          return;
+        }
         if (!res.ok) throw new Error('Cart update failed');
       }
       await new Promise(resolve => setTimeout(resolve, 180));
@@ -578,6 +622,10 @@ function AppContent() {
     if (!token) return;
     try {
       const res = await fetch(`${API_URL}/cart`, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (res.status === 401 || res.status === 403) {
+        handleAuthFailure('Your login timed out. Please login again to restore your cart.');
+        return;
+      }
       const data = await res.json();
       const safeData = Array.isArray(data) ? data : [];
       setCartItems(current => {
@@ -616,10 +664,7 @@ function AppContent() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
-    setCartItems([]);
+    clearSessionState();
   };
 
   const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0);
@@ -641,7 +686,7 @@ function AppContent() {
   };
   const dismissNotice = (event) => {
     event?.stopPropagation?.();
-    if (appNotice?.id) localStorage.setItem(`camigo_notice_${appNotice.id}`, '1');
+    if (appNotice?.id && /^\d+$/.test(String(appNotice.id))) localStorage.setItem(`camigo_notice_${appNotice.id}`, '1');
     setAppNotice(null);
   };
   const showEnablePhoneAlerts = notificationPermission === 'default';

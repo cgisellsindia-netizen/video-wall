@@ -198,6 +198,29 @@ const haversineKm = (lat1, lng1, lat2, lng2) => {
   return 6371 * c;
 };
 
+const fetchRoadRouteMetrics = async (startLat, startLng, endLat, endLng) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3500);
+  try {
+    const response = await fetch(
+      `https://router.project-osrm.org/route/v1/driving/${Number(startLng)},${Number(startLat)};${Number(endLng)},${Number(endLat)}?overview=false&steps=false`,
+      { signal: controller.signal }
+    );
+    const data = await response.json().catch(() => null);
+    const route = data?.routes?.[0];
+    if (!response.ok || !route?.distance) return null;
+    return {
+      distanceKm: route.distance / 1000,
+      durationMin: Math.max(1, Math.round(route.duration / 60)),
+      source: 'road-route'
+    };
+  } catch (error) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 const isLocalServiceZone = (lat, lng) => {
   const valueLat = Number(lat);
   const valueLng = Number(lng);
@@ -310,9 +333,13 @@ const buildDeliveryQuote = async ({ address = '', pincode = '', lat, lng, items 
   if (serviceability.localServiceable) {
     const hub = await getDispatchHub();
     const hasPreciseCoords = Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
-    const mappedDistanceKm = hasPreciseCoords
-      ? Math.max(1.5, haversineKm(hub.lat, hub.lng, Number(lat), Number(lng)) * 1.28)
+    const routeMetrics = hasPreciseCoords
+      ? await fetchRoadRouteMetrics(hub.lat, hub.lng, Number(lat), Number(lng))
+      : null;
+    const fallbackDistanceKm = hasPreciseCoords
+      ? Math.max(1.5, haversineKm(hub.lat, hub.lng, Number(lat), Number(lng)) * 1.22)
       : 8;
+    const mappedDistanceKm = Math.max(1.5, Number(routeMetrics?.distanceKm || fallbackDistanceKm));
     const partnerQuotes = LOCAL_PARTNER_RATE_CARD.map((rateCard) => ({
       provider: rateCard.provider,
       quote: rateCard.baseFee + (mappedDistanceKm * rateCard.perKmFee) + rateCard.handlingFee
@@ -320,7 +347,17 @@ const buildDeliveryQuote = async ({ address = '', pincode = '', lat, lng, items 
     const baseQuote = averageList(partnerQuotes.map(item => item.quote));
     const safetyMarkup = Math.max(12, baseQuote * 0.16);
     const charge = roundToStep(baseQuote + safetyMarkup, 5);
-    const estimateLabel = mappedDistanceKm <= 8 ? '45-90 mins' : mappedDistanceKm <= 18 ? '90-150 mins' : 'Same day';
+    const estimateLabel = routeMetrics?.durationMin
+      ? routeMetrics.durationMin <= 60
+        ? '45-90 mins'
+        : routeMetrics.durationMin <= 150
+          ? '90-150 mins'
+          : 'Same day'
+      : mappedDistanceKm <= 8
+        ? '45-90 mins'
+        : mappedDistanceKm <= 18
+          ? '90-150 mins'
+          : 'Same day';
     return {
       ...serviceability,
       charge,
@@ -332,6 +369,8 @@ const buildDeliveryQuote = async ({ address = '', pincode = '', lat, lng, items 
       zoneLabel: 'Same-day local zone',
       message: `Same-day delivery charge is averaged from Uber Parcel and Rapido, then increased slightly for Camigo delivery safety.`,
       distanceKm: roundOneDecimal(mappedDistanceKm),
+      durationMin: routeMetrics?.durationMin || null,
+      distanceSource: routeMetrics?.source || (hasPreciseCoords ? 'gps-estimate' : 'default-estimate'),
       estimatedWeightKg: null,
       chargeableWeightKg: null,
       hubName: hub.name
@@ -1929,7 +1968,7 @@ const isStaffRole = (role = '') => ['admin', 'delivery_partner', 'installer'].in
 const signAuthToken = (user) => jwt.sign(
   { userId: user.id, email: user.email, role: user.role },
   JWT_SECRET,
-  { expiresIn: '24h' }
+  { expiresIn: '30d' }
 );
 
 const formatUserForClient = (user) => {
@@ -2043,7 +2082,12 @@ const authenticateToken = (req, res, next) => {
   if (!token) return res.status(401).json({ error: 'Access denied' });
   
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Invalid token' });
+    if (err) {
+      if (err.name === 'TokenExpiredError') {
+        return res.status(401).json({ error: 'Session expired. Please login again.' });
+      }
+      return res.status(403).json({ error: 'Invalid token' });
+    }
     req.user = user;
     next();
   });
