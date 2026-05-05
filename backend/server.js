@@ -1441,8 +1441,9 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
            customer_location_locked_at, installation_requested, installation_fee, installation_status,
            installer_id, camera_count, delivery_partner_id, delivery_otp, created_at,
            payment_status, razorpay_order_id, razorpay_payment_id, razorpay_signature, payment_verified_at,
-           uber_direct_order_id, uber_tracking_url, uber_status, uber_courier_name, uber_courier_phone, uber_last_event_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           uber_direct_order_id, uber_tracking_url, uber_status, uber_courier_name, uber_courier_phone, uber_last_event_at,
+           manual_dispatch_provider, manual_dispatch_status, manual_dispatch_reference, manual_dispatch_notes, manual_dispatch_updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            user_id = excluded.user_id,
            total_amount = excluded.total_amount,
@@ -1479,7 +1480,12 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
            uber_status = excluded.uber_status,
            uber_courier_name = excluded.uber_courier_name,
            uber_courier_phone = excluded.uber_courier_phone,
-           uber_last_event_at = excluded.uber_last_event_at`,
+           uber_last_event_at = excluded.uber_last_event_at,
+           manual_dispatch_provider = excluded.manual_dispatch_provider,
+           manual_dispatch_status = excluded.manual_dispatch_status,
+           manual_dispatch_reference = excluded.manual_dispatch_reference,
+           manual_dispatch_notes = excluded.manual_dispatch_notes,
+           manual_dispatch_updated_at = excluded.manual_dispatch_updated_at`,
         [
           order.id,
           order.user_id,
@@ -1517,7 +1523,12 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
           order.uber_status || null,
           order.uber_courier_name || null,
           order.uber_courier_phone || null,
-          order.uber_last_event_at || null
+          order.uber_last_event_at || null,
+          order.manual_dispatch_provider || null,
+          order.manual_dispatch_status || null,
+          order.manual_dispatch_reference || null,
+          order.manual_dispatch_notes || null,
+          order.manual_dispatch_updated_at || null
         ]
       );
     }
@@ -3304,13 +3315,68 @@ app.post('/api/admin/users', authenticateToken, requireAdmin, async (req, res) =
 });
 
 app.get('/api/admin/orders', authenticateToken, requireAdmin, (req, res) => {
-  db.all(`SELECT o.*, u.email, u.name as user_name 
+  db.all(`SELECT o.*, u.email, u.phone, u.name as user_name 
           FROM orders o 
           JOIN users u ON o.user_id = u.id 
           ORDER BY o.created_at DESC`, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
+});
+
+app.post('/api/admin/orders/:id/manual-dispatch', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const order = await dbGetAsync('SELECT * FROM orders WHERE id = ?', [req.params.id]);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const provider = String(req.body?.provider || '').trim();
+    const reference = String(req.body?.reference || '').trim();
+    const notes = String(req.body?.notes || '').trim();
+    const requestedDispatchStatus = String(req.body?.dispatch_status || '').trim().toLowerCase();
+    const requestedOrderStatus = String(req.body?.order_status || '').trim().toLowerCase();
+    const allowedDispatchStatuses = new Set(['not_booked', 'booked', 'assigned', 'out_for_delivery', 'delivered', 'cancelled']);
+    const allowedOrderStatuses = new Set(['pending', 'accepted', 'out_for_delivery', 'delivered', 'cancelled']);
+    const nextDispatchStatus = allowedDispatchStatuses.has(requestedDispatchStatus)
+      ? requestedDispatchStatus
+      : (String(order.manual_dispatch_status || '').trim().toLowerCase() || 'not_booked');
+
+    let nextOrderStatus = allowedOrderStatuses.has(requestedOrderStatus)
+      ? requestedOrderStatus
+      : String(order.status || 'pending').toLowerCase();
+
+    if (!requestedOrderStatus) {
+      if (['booked', 'assigned'].includes(nextDispatchStatus) && nextOrderStatus === 'pending') nextOrderStatus = 'accepted';
+      if (nextDispatchStatus === 'out_for_delivery') nextOrderStatus = 'out_for_delivery';
+      if (nextDispatchStatus === 'delivered') nextOrderStatus = 'delivered';
+    }
+
+    await dbRunAsync(
+      `UPDATE orders
+       SET manual_dispatch_provider = ?,
+           manual_dispatch_status = ?,
+           manual_dispatch_reference = ?,
+           manual_dispatch_notes = ?,
+           manual_dispatch_updated_at = CURRENT_TIMESTAMP,
+           delivery_provider = CASE WHEN ? <> '' THEN ? ELSE delivery_provider END,
+           status = ?
+       WHERE id = ?`,
+      [
+        provider || null,
+        nextDispatchStatus,
+        reference || null,
+        notes || null,
+        provider,
+        provider,
+        nextOrderStatus,
+        order.id
+      ]
+    );
+    queueOperationalStateSync('manual-dispatch-updated');
+    const updated = await dbGetAsync('SELECT * FROM orders WHERE id = ?', [order.id]);
+    res.json({ message: 'Manual dispatch updated.', order: updated });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.get('/api/admin/system-status', authenticateToken, requireAdmin, async (req, res) => {

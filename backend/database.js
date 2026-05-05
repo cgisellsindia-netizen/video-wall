@@ -274,7 +274,12 @@ db.serialize(async () => {
       'uber_status TEXT',
       'uber_courier_name TEXT',
       'uber_courier_phone TEXT',
-      'uber_last_event_at TEXT'
+      'uber_last_event_at TEXT',
+      'manual_dispatch_provider TEXT',
+      'manual_dispatch_status TEXT DEFAULT "not_booked"',
+      'manual_dispatch_reference TEXT',
+      'manual_dispatch_notes TEXT',
+      'manual_dispatch_updated_at TEXT'
     ]);
     await ensureColumns('notifications', [
       'personalize INTEGER DEFAULT 0',

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Shield, Users, ShoppingBag, Package, Plus, Trash2, Edit, MapPin, Truck, Sparkles, FolderOpen, Image as ImageIcon, ArrowUp } from 'lucide-react';
+import { Bell, Shield, Users, ShoppingBag, Package, Plus, Trash2, Edit, MapPin, Truck, Sparkles, FolderOpen, Image as ImageIcon, ArrowUp, Copy, ExternalLink, Bike, CheckCircle2 } from 'lucide-react';
 import { API_URL } from '../api';
 
 function AdminPage({ user }) {
@@ -12,6 +12,7 @@ function AdminPage({ user }) {
   const [deliveryPartners, setDeliveryPartners] = useState([]);
   const [categoryBanners, setCategoryBanners] = useState([]);
   const [systemStatus, setSystemStatus] = useState(null);
+  const [dispatchDrafts, setDispatchDrafts] = useState({});
   const [categoryDrafts, setCategoryDrafts] = useState({});
   const [categoryBusy, setCategoryBusy] = useState({});
   const [activeTab, setActiveTab] = useState('products');
@@ -78,6 +79,23 @@ function AdminPage({ user }) {
       return next;
     });
   }, [categories]);
+
+  useEffect(() => {
+    setDispatchDrafts(prev => {
+      const next = { ...prev };
+      orders.forEach(order => {
+        next[order.id] = next[order.id] || {
+          provider: order.manual_dispatch_provider || '',
+          reference: order.manual_dispatch_reference || '',
+          notes: order.manual_dispatch_notes || ''
+        };
+      });
+      Object.keys(next).forEach(key => {
+        if (!orders.some(order => String(order.id) === String(key))) delete next[key];
+      });
+      return next;
+    });
+  }, [orders]);
 
   const catalogBackupNotice = (data) => data?.catalog_warning ? ` ${data.catalog_warning}` : '';
 
@@ -788,6 +806,68 @@ function AdminPage({ user }) {
     }
   };
 
+  const buildDispatchBrief = (order) => {
+    const draft = dispatchDrafts[order.id] || {};
+    const lines = [
+      `Camigo order #${order.id}`,
+      `Customer: ${order.user_name || '-'}`,
+      `Phone: ${order.phone || '-'}`,
+      `Address: ${order.address || '-'}`,
+      `Amount: Rs ${order.final_amount || order.total_amount || 0}`,
+      `Delivery mode: ${order.delivery_mode || 'local'}`,
+      `Distance: ${order.delivery_distance_km ? `${order.delivery_distance_km} km` : 'Not calculated'}`,
+      `Reference: ${draft.reference || order.manual_dispatch_reference || '-'}`,
+      `Notes: ${draft.notes || order.manual_dispatch_notes || 'Handle as same-city manual dispatch'}`
+    ];
+    return lines.join('\n');
+  };
+
+  const copyDispatchBrief = async (order) => {
+    try {
+      await navigator.clipboard.writeText(buildDispatchBrief(order));
+      setMessage(`Dispatch brief copied for order #${order.id}.`);
+    } catch (error) {
+      setMessage('Could not copy dispatch brief from this browser.');
+    }
+  };
+
+  const openDispatchMap = (order) => {
+    const query = order.customer_lat && order.customer_lng
+      ? `${order.customer_lat},${order.customer_lng}`
+      : (order.address || '');
+    if (!query) {
+      setMessage(`No delivery address found for order #${order.id}.`);
+      return;
+    }
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const saveManualDispatch = async (order, dispatchStatus = 'booked', orderStatus = '') => {
+    const token = localStorage.getItem('token');
+    const draft = dispatchDrafts[order.id] || {};
+    const provider = String(draft.provider || '').trim();
+    if (!provider && dispatchStatus !== 'not_booked') {
+      setMessage(`Choose a dispatch provider for order #${order.id} first.`);
+      return;
+    }
+    const res = await fetch(`${API_URL}/admin/orders/${order.id}/manual-dispatch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        provider,
+        reference: draft.reference || '',
+        notes: draft.notes || '',
+        dispatch_status: dispatchStatus,
+        order_status: orderStatus
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    setMessage(res.ok ? `Manual dispatch updated for order #${order.id}.` : (data.error || 'Could not update manual dispatch.'));
+    if (res.ok && data.order) {
+      setOrders(current => current.map(item => item.id === order.id ? { ...item, ...data.order } : item));
+    }
+  };
+
   if (loading) return <div className="loading">Loading admin panel...</div>;
 
   return (
@@ -940,14 +1020,42 @@ function AdminPage({ user }) {
         <div className="card" style={{ overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
             <table className="admin-table">
-              <thead><tr><th>Order</th><th>Customer</th><th>Email</th><th>Amount</th><th>Status</th><th>Payment</th><th>Date</th><th>Action</th></tr></thead>
+              <thead><tr><th>Order</th><th>Customer</th><th>Delivery</th><th>Amount</th><th>Status</th><th>Payment</th><th>Date</th><th>Action</th></tr></thead>
               <tbody>{orders.map(o => {
                 const canCancel = !['cancelled', 'delivered'].includes(String(o.status || '').toLowerCase());
+                const draft = dispatchDrafts[o.id] || { provider: '', reference: '', notes: '' };
+                const isLocal = String(o.delivery_mode || '').toLowerCase() === 'local';
                 return (
                   <tr key={o.id}>
-                    <td>#{o.id}</td>
-                    <td>{o.user_name}</td>
-                    <td>{o.email}</td>
+                    <td>
+                      <div className="admin-order-cell">
+                        <strong>#{o.id}</strong>
+                        <span>{o.camera_count ? `${o.camera_count} camera item(s)` : 'Accessory / mixed cart'}</span>
+                        {isLocal && <span className="tag tag-info">Same-city dispatch</span>}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="admin-order-cell">
+                        <strong>{o.user_name}</strong>
+                        <span>{o.phone || 'No phone saved'}</span>
+                        <span>{o.email}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="admin-order-cell">
+                        <strong>{o.delivery_provider || (isLocal ? 'Manual local dispatch' : 'Courier route')}</strong>
+                        <span>{o.address || 'No delivery address saved'}</span>
+                        <span>
+                          {o.delivery_distance_km ? `${o.delivery_distance_km} km` : 'Distance pending'}
+                          {o.delivery_estimate ? ` • ${o.delivery_estimate}` : ''}
+                        </span>
+                        {o.manual_dispatch_status && o.manual_dispatch_status !== 'not_booked' && (
+                          <span className="tag tag-warning">
+                            {String(o.manual_dispatch_status).replaceAll('_', ' ')}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td>Rs {o.final_amount}</td>
                     <td><span className={`tag ${o.status === 'delivered' ? 'tag-success' : o.status === 'pending' ? 'tag-warning' : o.status === 'cancelled' ? '' : 'tag-info'}`}>{o.status}</span></td>
                     <td>
@@ -958,11 +1066,51 @@ function AdminPage({ user }) {
                     </td>
                     <td>{new Date(o.created_at).toLocaleDateString()}</td>
                     <td>
-                      {canCancel ? (
-                        <button className="btn btn-sm btn-outline" onClick={() => handleAdminCancelOrder(o)}>Cancel</button>
-                      ) : (
-                        <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 700 }}>Locked</span>
-                      )}
+                      <div className="dispatch-action-box">
+                        <select
+                          value={draft.provider}
+                          onChange={e => setDispatchDrafts(prev => ({ ...prev, [o.id]: { ...draft, provider: e.target.value } }))}
+                        >
+                          <option value="">Select provider</option>
+                          <option value="Rapido manual">Rapido manual</option>
+                          <option value="Uber manual">Uber manual</option>
+                          <option value="Own rider">Own rider</option>
+                          <option value="Porter manual">Porter manual</option>
+                          <option value="Other manual">Other manual</option>
+                        </select>
+                        <input
+                          value={draft.reference}
+                          onChange={e => setDispatchDrafts(prev => ({ ...prev, [o.id]: { ...draft, reference: e.target.value } }))}
+                          placeholder="Booking ref / rider phone"
+                        />
+                        <input
+                          value={draft.notes}
+                          onChange={e => setDispatchDrafts(prev => ({ ...prev, [o.id]: { ...draft, notes: e.target.value } }))}
+                          placeholder="Pickup note"
+                        />
+                        <div className="dispatch-btn-grid">
+                          <button className="btn btn-sm btn-outline" type="button" onClick={() => copyDispatchBrief(o)}>
+                            <Copy size={14} /> Copy
+                          </button>
+                          <button className="btn btn-sm btn-outline" type="button" onClick={() => openDispatchMap(o)}>
+                            <ExternalLink size={14} /> Map
+                          </button>
+                          <button className="btn btn-sm btn-outline" type="button" onClick={() => saveManualDispatch(o, 'booked', 'accepted')}>
+                            <Bike size={14} /> Booked
+                          </button>
+                          <button className="btn btn-sm btn-outline" type="button" onClick={() => saveManualDispatch(o, 'out_for_delivery', 'out_for_delivery')}>
+                            <Truck size={14} /> Out
+                          </button>
+                          <button className="btn btn-sm btn-outline" type="button" onClick={() => saveManualDispatch(o, 'delivered', 'delivered')}>
+                            <CheckCircle2 size={14} /> Delivered
+                          </button>
+                          {canCancel ? (
+                            <button className="btn btn-sm btn-outline" type="button" onClick={() => handleAdminCancelOrder(o)}>Cancel</button>
+                          ) : (
+                            <span className="dispatch-locked-label">Locked</span>
+                          )}
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 );
