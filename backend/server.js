@@ -480,6 +480,11 @@ const findCategoryIdForManifest = async (entry) => {
 };
 
 const buildMediaManifest = async () => {
+  const categories = await dbAllAsync(
+    `SELECT id, name, image, sort_order
+     FROM categories
+     ORDER BY sort_order ASC, id ASC`
+  );
   const products = await dbAllAsync(
     `SELECT p.*, c.name as category_name
      FROM products p
@@ -502,7 +507,13 @@ const buildMediaManifest = async () => {
     version: 1,
     type: 'camigo-catalog-backup',
     generated_at: new Date().toISOString(),
-    note: 'Camigo catalog backup. Host this JSON on InfinityFree or any public URL and set MEDIA_MANIFEST_URL on Render to restore products, prices, images, and banners after restarts.',
+    note: 'Camigo catalog backup. Host this JSON on InfinityFree or any public URL and set MEDIA_MANIFEST_URL on Render to restore category tiles, products, prices, images, and banners after restarts.',
+    categories: categories.map(category => ({
+      id: category.id,
+      name: category.name,
+      image: category.image || '',
+      sort_order: Number(category.sort_order || 0)
+    })),
     products: products.map(product => {
       const images = groupedImages[product.id]?.length ? groupedImages[product.id] : normalizeImageList(product.image);
       return {
@@ -538,16 +549,39 @@ const buildMediaManifest = async () => {
 
 const applyMediaManifest = async (manifest, source = 'manual') => {
   if (!manifest || typeof manifest !== 'object') throw new Error('Catalog backup must be a JSON object');
+  const categories = Array.isArray(manifest.categories) ? manifest.categories : [];
   const products = Array.isArray(manifest.products) ? manifest.products : [];
   const banners = Array.isArray(manifest.category_banners)
     ? manifest.category_banners
     : (Array.isArray(manifest.banners) ? manifest.banners : []);
+  let categoryCount = 0;
   let productCount = 0;
   let insertedProductCount = 0;
   let deletedProductCount = 0;
   let bannerCount = 0;
   const incomingProductIds = new Set();
   const incomingProductNames = new Set();
+
+  for (const entry of categories) {
+    const categoryId = Number(entry.id);
+    const fallbackName = String(entry.name || '').trim();
+    if (!Number.isInteger(categoryId) || categoryId <= 0 || !fallbackName) continue;
+    await dbRunAsync(
+      `INSERT INTO categories (id, name, image, sort_order)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         name = excluded.name,
+         image = excluded.image,
+         sort_order = excluded.sort_order`,
+      [
+        categoryId,
+        fallbackName,
+        String(entry.image || '').trim(),
+        Number(entry.sort_order || 0)
+      ]
+    );
+    categoryCount += 1;
+  }
 
   for (const entry of products) {
     let product = await findProductForManifest(entry);
@@ -691,9 +725,9 @@ const applyMediaManifest = async (manifest, source = 'manual') => {
   await dbRunAsync(
     `INSERT OR REPLACE INTO app_settings (setting_key, value, updated_at)
      VALUES (?, ?, CURRENT_TIMESTAMP)`,
-    ['last_media_manifest_restore', JSON.stringify({ source, productCount, insertedProductCount, deletedProductCount, bannerCount, at: new Date().toISOString() })]
+    ['last_media_manifest_restore', JSON.stringify({ source, categoryCount, productCount, insertedProductCount, deletedProductCount, bannerCount, at: new Date().toISOString() })]
   );
-  return { productCount, insertedProductCount, deletedProductCount, bannerCount };
+  return { categoryCount, productCount, insertedProductCount, deletedProductCount, bannerCount };
 };
 
 const restoreMediaManifestFromUrl = async (url, source = 'MEDIA_MANIFEST_URL') => {
@@ -2519,6 +2553,41 @@ app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
   });
 });
 
+app.put('/api/admin/categories/:id', authenticateToken, requireAdmin, async (req, res) => {
+  const categoryId = Number(req.params.id);
+  if (!Number.isInteger(categoryId) || categoryId <= 0) {
+    return res.status(400).json({ error: 'Valid category ID is required' });
+  }
+
+  const name = String(req.body.name || '').trim();
+  const image = String(req.body.image || '').trim();
+  const sortOrder = Number(req.body.sort_order || 0);
+  if (!name) {
+    return res.status(400).json({ error: 'Category name is required' });
+  }
+  if (!image) {
+    return res.status(400).json({ error: 'Category image is required' });
+  }
+
+  try {
+    const result = await dbRunAsync(
+      'UPDATE categories SET name = ?, image = ?, sort_order = ? WHERE id = ?',
+      [name, image, Number.isFinite(sortOrder) ? sortOrder : 0, categoryId]
+    );
+    if (!result.changes) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+    const catalogBackup = await syncCatalogBackupForResponse('category-updated');
+    res.json({
+      message: 'Category updated',
+      catalog_backup: catalogBackup,
+      catalog_warning: catalogBackup.warning
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/delivery/orders', authenticateToken, (req, res) => {
   if (!['delivery_partner', 'admin'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Delivery partner access required' });
@@ -3086,7 +3155,7 @@ app.post('/api/admin/media/manifest/import', authenticateToken, requireAdmin, as
     const catalogBackup = await syncCatalogBackupForResponse('catalog-imported');
     res.json({
       ...result,
-      message: `Catalog restored: ${result.productCount} products (${result.insertedProductCount || 0} new) and ${result.bannerCount} banners.`,
+      message: `Catalog restored: ${result.categoryCount || 0} category tiles, ${result.productCount} products (${result.insertedProductCount || 0} new) and ${result.bannerCount} banners.`,
       catalog_backup: catalogBackup,
       catalog_warning: catalogBackup.warning
     });

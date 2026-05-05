@@ -27,7 +27,7 @@ function CategoryGrid({ categories }) {
         {categories.map(cat => (
           <div key={cat.id} className="category-card" onClick={() => navigate(`/category/${cat.id}`)}>
             <div className="category-img">
-              <img src={categoryImages[cat.name] || '/category-real/accessories.jpg'} alt={cat.name} />
+              <img src={cat.image || categoryImages[cat.name] || '/category-real/accessories.jpg'} alt={cat.name} />
             </div>
             <div className="category-name">{cat.name}</div>
           </div>

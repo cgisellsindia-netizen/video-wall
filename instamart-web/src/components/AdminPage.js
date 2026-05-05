@@ -11,6 +11,8 @@ function AdminPage({ user }) {
   const [hubs, setHubs] = useState([]);
   const [deliveryPartners, setDeliveryPartners] = useState([]);
   const [categoryBanners, setCategoryBanners] = useState([]);
+  const [categoryDrafts, setCategoryDrafts] = useState({});
+  const [categoryBusy, setCategoryBusy] = useState({});
   const [activeTab, setActiveTab] = useState('products');
   const [loading, setLoading] = useState(true);
   const [editProduct, setEditProduct] = useState(null);
@@ -58,6 +60,23 @@ function AdminPage({ user }) {
       return next;
     });
   }, [products]);
+
+  useEffect(() => {
+    setCategoryDrafts(prev => {
+      const next = { ...prev };
+      categories.forEach(category => {
+        next[category.id] = next[category.id] || {
+          name: category.name || '',
+          image: category.image || '',
+          sort_order: String(category.sort_order ?? 0)
+        };
+      });
+      Object.keys(next).forEach(key => {
+        if (!categories.some(category => String(category.id) === String(key))) delete next[key];
+      });
+      return next;
+    });
+  }, [categories]);
 
   const catalogBackupNotice = (data) => data?.catalog_warning ? ` ${data.catalog_warning}` : '';
 
@@ -416,6 +435,18 @@ function AdminPage({ user }) {
       setMessage('InfinityFree image selected as category banner.');
       return;
     }
+    if (String(mediaBrowser.mode || '').startsWith('category:')) {
+      const categoryId = String(mediaBrowser.mode).split(':')[1];
+      setCategoryDrafts(prev => ({
+        ...prev,
+        [categoryId]: {
+          ...(prev[categoryId] || {}),
+          image: imageUrl
+        }
+      }));
+      setMessage('InfinityFree image selected as category tile photo.');
+      return;
+    }
     setForm(prev => {
       const nextImages = [...(prev.images || [])].filter(Boolean);
       if (mediaBrowser.mode === 'cover') {
@@ -503,6 +534,60 @@ function AdminPage({ user }) {
     const data = await res.json().catch(() => ({}));
     setMessage(res.ok ? `Category banner deleted.${catalogBackupNotice(data)}` : (data.error || 'Banner delete failed.'));
     if (res.ok) fetchData();
+  };
+
+  const handleCategoryImageFile = (categoryId, file) => {
+    if (!file) return;
+    if (file.size > 650000) {
+      setMessage('Please choose a smaller category photo under 650 KB for fast homepage loading.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCategoryDrafts(prev => ({
+        ...prev,
+        [categoryId]: {
+          ...(prev[categoryId] || {}),
+          image: reader.result
+        }
+      }));
+      setMessage(`Category photo loaded: ${file.name}`);
+    };
+    reader.onerror = () => setMessage('Could not read that category image. Please try another file.');
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveCategory = async (category) => {
+    const token = localStorage.getItem('token');
+    const draft = categoryDrafts[category.id] || {};
+    const payload = {
+      name: String(draft.name || category.name || '').trim(),
+      image: String(draft.image || category.image || '').trim(),
+      sort_order: parseInt(draft.sort_order ?? category.sort_order ?? 0, 10) || 0
+    };
+    if (!payload.name || !payload.image) {
+      setMessage('Category name and image are required before saving the category tile.');
+      return;
+    }
+    setCategoryBusy(prev => ({ ...prev, [category.id]: true }));
+    try {
+      const res = await fetch(`${API_URL}/admin/categories/${category.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      setMessage(res.ok ? `Category tile updated for ${payload.name}.${catalogBackupNotice(data)}` : (data.error || 'Category update failed.'));
+      if (res.ok) {
+        setCategories(current => current.map(item => (
+          item.id === category.id ? { ...item, ...payload } : item
+        )));
+      }
+    } catch (error) {
+      setMessage(error.message || 'Category update failed.');
+    } finally {
+      setCategoryBusy(prev => ({ ...prev, [category.id]: false }));
+    }
   };
 
   const handleGenerateAiBanner = async (e) => {
@@ -715,6 +800,7 @@ function AdminPage({ user }) {
         <button className={`btn btn-sm ${activeTab === 'users' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('users')}><Users size={16} /> Users ({users.length})</button>
         <button className={`btn btn-sm ${activeTab === 'orders' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('orders')}><ShoppingBag size={16} /> Orders ({orders.length})</button>
         <button className={`btn btn-sm ${activeTab === 'products' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('products')}><Package size={16} /> Products ({products.length})</button>
+        <button className={`btn btn-sm ${activeTab === 'categories' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('categories')}><ImageIcon size={16} /> Category Tiles ({categories.length})</button>
         <button className={`btn btn-sm ${activeTab === 'delivery' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('delivery')}><Truck size={16} /> Delivery Partners ({deliveryPartners.length})</button>
         <button className={`btn btn-sm ${activeTab === 'hubs' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('hubs')}><MapPin size={16} /> Hubs ({hubs.length})</button>
         <button className={`btn btn-sm ${activeTab === 'banners' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('banners')}><Package size={16} /> Category Banners ({categoryBanners.length})</button>
@@ -1161,6 +1247,133 @@ function AdminPage({ user }) {
                 </section>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'categories' && (
+        <div className="card banner-admin-panel">
+          <div className="banner-admin-toolbar">
+            <div>
+              <span className="phone-verify-eyebrow">Homepage category tiles</span>
+              <h3 style={{ margin: '4px 0 6px' }}>Manage shop-by-category photos</h3>
+              <p className="checkout-note" style={{ margin: 0 }}>
+                These are the smaller category cards shown under Shop by Category on the homepage. Update the image here and it will stay in the catalog backup too.
+              </p>
+            </div>
+          </div>
+
+          <div className="category-admin-grid">
+            {categories.map(category => {
+              const draft = categoryDrafts[category.id] || {
+                name: category.name || '',
+                image: category.image || '',
+                sort_order: String(category.sort_order ?? 0)
+              };
+              const previewImage = draft.image || category.image || '/category-real/accessories.jpg';
+              return (
+                <article key={category.id} className="category-admin-card">
+                  <div className="category-admin-preview-wrap">
+                    <img src={previewImage} alt={draft.name || category.name} className="category-admin-preview" />
+                  </div>
+                  <div className="category-admin-body">
+                    <div className="category-admin-topline">
+                      <strong>{category.name}</strong>
+                      <span className="tag tag-info">ID #{category.id}</span>
+                    </div>
+                    <div className="admin-product-form category-admin-form">
+                      <div className="form-group">
+                        <label>Category Name</label>
+                        <input
+                          value={draft.name}
+                          onChange={e => setCategoryDrafts(prev => ({ ...prev, [category.id]: { ...draft, name: e.target.value } }))}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Sort Order</label>
+                        <input
+                          type="number"
+                          value={draft.sort_order}
+                          onChange={e => setCategoryDrafts(prev => ({ ...prev, [category.id]: { ...draft, sort_order: e.target.value } }))}
+                        />
+                      </div>
+                      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                        <label>Image URL / Data</label>
+                        <input
+                          value={draft.image}
+                          onChange={e => setCategoryDrafts(prev => ({ ...prev, [category.id]: { ...draft, image: e.target.value } }))}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Upload category photo</label>
+                        <input type="file" accept="image/*" onChange={e => handleCategoryImageFile(category.id, e.target.files?.[0])} />
+                      </div>
+                      <div className="form-group">
+                        <label>InfinityFree image library</label>
+                        <div className="infinity-picker-actions">
+                          <button type="button" className="btn btn-outline btn-sm" onClick={() => openMediaBrowser(`category:${category.id}`)}>
+                            <ImageIcon size={15} /> Browse from FTP
+                          </button>
+                          <span>Pick a permanent image from InfinityFree for this category tile.</span>
+                        </div>
+                      </div>
+                    </div>
+                    {mediaBrowser.open && mediaBrowser.mode === `category:${category.id}` && (
+                      <div className="infinity-media-browser">
+                        <div className="infinity-media-head">
+                          <div>
+                            <strong>Select category tile photo</strong>
+                            <span>{mediaBrowser.data?.public_base || 'InfinityFree'}{mediaBrowser.data?.dir || mediaBrowser.dir}</span>
+                          </div>
+                          <div className="infinity-media-tools">
+                            {mediaBrowser.data?.parent && (
+                              <button type="button" className="btn btn-sm btn-outline" onClick={() => loadMediaLibrary(mediaBrowser.data.parent, mediaBrowser.mode)}>
+                                <ArrowUp size={14} /> Up
+                              </button>
+                            )}
+                            <button type="button" className="btn btn-sm btn-outline" onClick={() => loadMediaLibrary(mediaBrowser.dir, mediaBrowser.mode)} disabled={mediaBrowser.busy}>
+                              Refresh
+                            </button>
+                            <button type="button" className="btn btn-sm" onClick={() => setMediaBrowser(prev => ({ ...prev, open: false }))}>
+                              Close
+                            </button>
+                          </div>
+                        </div>
+                        {mediaBrowser.busy && <div className="infinity-media-empty">Loading InfinityFree images...</div>}
+                        {!mediaBrowser.busy && mediaBrowser.data?.directories?.length > 0 && (
+                          <div className="infinity-folder-row">
+                            {mediaBrowser.data.directories.map(folder => (
+                              <button type="button" key={folder.dir} onClick={() => loadMediaLibrary(folder.dir, mediaBrowser.mode)}>
+                                <FolderOpen size={16} /> {folder.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {!mediaBrowser.busy && mediaBrowser.data?.images?.length > 0 && (
+                          <div className="infinity-image-grid">
+                            {mediaBrowser.data.images.map(image => (
+                              <button type="button" key={image.url} className="infinity-image-card" onClick={() => chooseInfinityImage(image.url)}>
+                                <img src={image.url} alt={image.name} loading="lazy" />
+                                <span>{image.name}</span>
+                                <small>Use as tile photo</small>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {!mediaBrowser.busy && mediaBrowser.data && !mediaBrowser.data.images?.length && !mediaBrowser.data.directories?.length && (
+                          <div className="infinity-media-empty">No image files found in this folder. Upload JPG, PNG, WEBP, GIF, AVIF, or SVG files to InfinityFree first.</div>
+                        )}
+                      </div>
+                    )}
+                    <div className="category-admin-actions">
+                      <button className="btn btn-primary btn-sm" type="button" onClick={() => handleSaveCategory(category)} disabled={categoryBusy[category.id]}>
+                        {categoryBusy[category.id] ? 'Saving...' : 'Save tile photo'}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </div>
       )}
