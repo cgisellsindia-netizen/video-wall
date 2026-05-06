@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, LayoutGrid, Search, ShoppingCart, User } from 'lucide-react';  
+import { Heart, Home, LayoutGrid, ShoppingCart, User } from 'lucide-react';  
   
 function BottomNav({ cartCount, onCartClick, user }) {  
   const location = useLocation();
@@ -39,7 +39,7 @@ function BottomNav({ cartCount, onCartClick, user }) {
       <div className="bottom-nav-inner">  
         <Link to="/" className={itemClass('/')}><Home size={22} /><span>Home</span></Link>
         <Link to="/shop" className={itemClass('/shop')}><LayoutGrid size={22} /><span>Categories</span></Link>
-        <Link to="/shop" className={itemClass('/shop')}><Search size={22} /><span>Search</span></Link>
+        <Link to="/saved" className={itemClass('/saved')}><Heart size={22} /><span>Saved</span></Link>
         <button className="bottom-nav-item" onClick={onCartClick} style={{ background: 'none', border: 'none' }}>
           <ShoppingCart size={22} /><span>Cart</span>
           {cartCount > 0 && <span className="nav-badge">{cartCount}</span>}

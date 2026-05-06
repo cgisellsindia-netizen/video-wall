@@ -12,6 +12,7 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
   const [searchTerm, setSearchTerm] = useState('');
   const [priceBand, setPriceBand] = useState('all');
   const [availability, setAvailability] = useState('all');
+  const siblingCategories = categories.filter((entry) => entry.id !== categoryId).slice(0, 7);
 
   const categoryProducts = useMemo(() => {
     let result = products.filter((product) => product.category_id === categoryId);
@@ -30,6 +31,71 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
     if (sortBy === 'discount') result.sort((a, b) => Number(b.discount_percent || 0) - Number(a.discount_percent || 0));
     return result;
   }, [products, categoryId, searchTerm, availability, priceBand, sortBy]);
+
+  const topRatedProducts = useMemo(
+    () => [...categoryProducts]
+      .sort((a, b) => {
+        const ratingDelta = Number(b.rating_average || 0) - Number(a.rating_average || 0);
+        if (ratingDelta !== 0) return ratingDelta;
+        return Number(b.rating_count || 0) - Number(a.rating_count || 0);
+      })
+      .slice(0, 3),
+    [categoryProducts]
+  );
+  const budgetProducts = useMemo(
+    () => [...categoryProducts]
+      .sort((a, b) => Number(a.price || 0) - Number(b.price || 0))
+      .slice(0, 3),
+    [categoryProducts]
+  );
+  const installerFavorites = useMemo(
+    () => [...categoryProducts]
+      .sort((a, b) => Number(b.stock || 0) - Number(a.stock || 0))
+      .slice(0, 3),
+    [categoryProducts]
+  );
+
+  const categoryGuide = useMemo(() => {
+    const fallback = {
+      title: `How to choose ${category?.name || 'the right CCTV gear'}`,
+      body: 'Compare image quality, recording compatibility, installation effort, and the exact site use before you buy.'
+    };
+    const guideMap = {
+      'Night Color AHD Cameras': {
+        title: 'Best when you want simple analog upgrades',
+        body: 'AHD cameras are strong for cost-sensitive upgrades where you want better night visibility without moving fully to IP networking.'
+      },
+      'IP Cameras': {
+        title: 'Best when image quality and smart features matter',
+        body: 'IP cameras suit sharper images, PoE setups, remote access and cleaner modern installations across homes, offices and shops.'
+      },
+      'PTZ Cameras': {
+        title: 'Best when you need wide control and zoom',
+        body: 'PTZ models are ideal for campuses, gates, warehouses and roads where tracking movement and zooming into incidents matter.'
+      },
+      'DVR Recorders': {
+        title: 'Choose by channel count and future expansion',
+        body: 'Pick a DVR based on how many analog cameras you need now and whether you want room to expand later without replacing the recorder.'
+      },
+      'NVR Recorders': {
+        title: 'Choose by IP channel load and storage plan',
+        body: 'NVRs work best when you match the recorder with your camera resolution, storage retention window and total site scale.'
+      },
+      'PoE Switches': {
+        title: 'Choose by port count and power budget',
+        body: 'For PoE switches, the important things are total cameras, uplink need, cable distance and whether you need gigabit backhaul.'
+      },
+      'SMPS Power Supplies': {
+        title: 'Choose by camera count and clean power overhead',
+        body: 'A stable SMPS should always leave some headroom instead of running at the exact maximum camera load.'
+      },
+      Accessories: {
+        title: 'Choose by installation quality, not just price',
+        body: 'The right cable, connectors and mounting accessories keep CCTV systems more stable and reduce failure later.'
+      }
+    };
+    return guideMap[category?.name] || fallback;
+  }, [category?.name]);
 
   const stopCardTap = (event) => {
     event.preventDefault();
@@ -65,6 +131,17 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
           <p>{categoryProducts.length} products ready for quick CCTV dispatch and installation support.</p>
         </div>
         <button className="btn btn-primary" onClick={() => navigate('/shop')}>View all products</button>
+      </div>
+
+      <div className="category-chip-row">
+        <button type="button" className="category-chip active">
+          {category?.name || 'Current category'}
+        </button>
+        {siblingCategories.map((entry) => (
+          <button key={entry.id} type="button" className="category-chip" onClick={() => navigate(`/category/${entry.id}`)}>
+            {entry.name}
+          </button>
+        ))}
       </div>
 
       <div className="shop-filter-shell compact">
@@ -103,6 +180,30 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
           </div>
           <div className="shop-result-count">{categoryProducts.length} products</div>
         </div>
+      </div>
+
+      <div className="catalog-strip-grid">
+        {topRatedProducts.length > 0 && (
+          <button type="button" className="catalog-strip-card" onClick={() => setSortBy('rating')}>
+            <span>Top rated in this category</span>
+            <strong>{topRatedProducts[0].name}</strong>
+            <small>Quick shortlist based on buyer ratings.</small>
+          </button>
+        )}
+        {budgetProducts.length > 0 && (
+          <button type="button" className="catalog-strip-card warm" onClick={() => setSortBy('price-low')}>
+            <span>Budget picks</span>
+            <strong>{budgetProducts[0].name}</strong>
+            <small>Open the lower-price side of this category first.</small>
+          </button>
+        )}
+        {installerFavorites.length > 0 && (
+          <button type="button" className="catalog-strip-card cool" onClick={() => setAvailability('in-stock')}>
+            <span>Ready stock picks</span>
+            <strong>{installerFavorites[0].name}</strong>
+            <small>Push in-stock products to the front for faster dispatch.</small>
+          </button>
+        )}
       </div>
 
       <div className="shop-product-grid">
@@ -158,6 +259,14 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
           );
         })}
       </div>
+
+      <section className="category-explainer-block">
+        <div className="category-explainer-card">
+          <span className="eyebrow">Category guide</span>
+          <h3>{categoryGuide.title}</h3>
+          <p>{categoryGuide.body}</p>
+        </div>
+      </section>
     </main>
   );
 }

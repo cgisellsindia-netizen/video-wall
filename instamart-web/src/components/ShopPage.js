@@ -10,6 +10,23 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
   const [minRating, setMinRating] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
+  const spotlightCategories = categories.slice(0, 8);
+  const topRatedProducts = useMemo(
+    () => [...filtered]
+      .sort((a, b) => {
+        const ratingDelta = Number(b.rating_average || 0) - Number(a.rating_average || 0);
+        if (ratingDelta !== 0) return ratingDelta;
+        return Number(b.rating_count || 0) - Number(a.rating_count || 0);
+      })
+      .slice(0, 4),
+    [filtered]
+  );
+  const bestDiscountProducts = useMemo(
+    () => [...filtered]
+      .sort((a, b) => Number(b.discount_percent || 0) - Number(a.discount_percent || 0))
+      .slice(0, 4),
+    [filtered]
+  );
 
   const stopCardTap = (event) => {
     event.preventDefault();
@@ -47,7 +64,33 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
 
   return (
     <div className="container shop-page-shell">
-      <h2 className="section-title" style={{ marginBottom: '20px' }}>Shop All Products</h2>
+      <div className="category-page-hero shop-hero-compact">
+        <div>
+          <span className="eyebrow">Fast category browsing</span>
+          <h1>Shop All Products</h1>
+          <p>Quick scanning, fast add-to-cart, and clear category jumps across the full Camigo catalog.</p>
+        </div>
+      </div>
+
+      <div className="category-chip-row shop-chip-row">
+        <button
+          type="button"
+          className={selectedCat === 'all' ? 'category-chip active' : 'category-chip'}
+          onClick={() => setSelectedCat('all')}
+        >
+          All products
+        </button>
+        {spotlightCategories.map((category) => (
+          <button
+            key={category.id}
+            type="button"
+            className={selectedCat === String(category.id) ? 'category-chip active' : 'category-chip'}
+            onClick={() => setSelectedCat(String(category.id))}
+          >
+            {category.name}
+          </button>
+        ))}
+      </div>
 
       <div className="shop-filter-shell">
         <div className="shop-search-inline">
@@ -102,6 +145,25 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
           <div className="shop-result-count">{filtered.length} products</div>
         </div>
       </div>
+
+      {(topRatedProducts.length > 0 || bestDiscountProducts.length > 0) && (
+        <div className="catalog-strip-grid">
+          {topRatedProducts.length > 0 && (
+            <button type="button" className="catalog-strip-card" onClick={() => setSortBy('rating')}>
+              <span>Top rated picks</span>
+              <strong>{topRatedProducts[0].name}</strong>
+              <small>Sorted by customer rating for fast shortlisting.</small>
+            </button>
+          )}
+          {bestDiscountProducts.length > 0 && (
+            <button type="button" className="catalog-strip-card warm" onClick={() => setSortBy('discount')}>
+              <span>Best offers</span>
+              <strong>{bestDiscountProducts[0].name}</strong>
+              <small>Jump straight to the highest-discount products.</small>
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="shop-product-grid">
         {filtered.map((product) => {
@@ -159,6 +221,17 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
           );
         })}
       </div>
+
+      <section className="category-explainer-block">
+        <div className="category-explainer-card">
+          <span className="eyebrow">Browse faster</span>
+          <h3>Made for scan speed, not slow catalog hunting</h3>
+          <p>
+            This Camigo shop view is tuned for quick CCTV buying: use category chips to jump between product families,
+            filters to narrow price or stock, and the card actions to save or add without opening every product.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }
