@@ -16,6 +16,15 @@ const categoryImages = {
   'Accessories': '/category-real/accessories.jpg',
 };
 
+const categoryDisplayNames = {
+  'Night Color AHD Cameras': 'AHD Cameras',
+  'PTZ Cameras': 'PTZ',
+  'DVR Recorders': 'DVR',
+  'NVR Recorders': 'NVR',
+  'PoE Switches': 'PoE',
+  'SMPS Power Supplies': 'Power',
+};
+
 function CategoryGrid({ categories }) {
   const navigate = useNavigate();
 
@@ -29,7 +38,7 @@ function CategoryGrid({ categories }) {
             <div className="category-img">
               <img src={cat.image || categoryImages[cat.name] || '/category-real/accessories.jpg'} alt={cat.name} />
             </div>
-            <div className="category-name">{cat.name}</div>
+            <div className="category-name">{categoryDisplayNames[cat.name] || cat.name}</div>
           </div>
         ))}
       </div>
