@@ -180,6 +180,41 @@ const DEFAULT_CAMIGO_HUB = {
   lng: 85.82418
 };
 
+const APP_SETTING_KEYS = {
+  homepageSetupPackages: 'homepage_setup_packages'
+};
+
+const OPERATIONAL_APP_SETTING_KEYS = [
+  APP_SETTING_KEYS.homepageSetupPackages
+];
+
+const DEFAULT_SETUP_PACKAGES = [
+  {
+    id: 'ahd-4-camera-setup',
+    title: 'AHD 4 Camera Setup',
+    price: 12500,
+    subtitle: 'Budget-ready 4 camera CCTV kit for homes and small shops.',
+    badge: 'Most popular',
+    image: '/category-real/ahd-cameras.jpg'
+  },
+  {
+    id: 'ip-4-camera-setup',
+    title: 'IP Camera 4 Camera Setup',
+    price: 22500,
+    subtitle: 'Sharper IP surveillance setup for offices, stores, and modern homes.',
+    badge: 'Premium clarity',
+    image: '/category-real/ip-cameras.jpg'
+  },
+  {
+    id: 'ahd-5mp-4-camera-setup',
+    title: 'AHD 5MP 4 Camera Setup',
+    price: 15300,
+    subtitle: 'Higher-resolution AHD combo for customers who want better detail at a practical price.',
+    badge: '5MP upgrade',
+    image: '/category-real/ahd-cameras.jpg'
+  }
+];
+
 // Edit these average transport rates whenever your Uber/Rapido/Delhivery commercial pricing changes.
 const LOCAL_PARTNER_RATE_CARD = [
   { provider: 'Rapido Parcel', baseFee: 52, perKmFee: 10.5, handlingFee: 8 },
@@ -226,6 +261,40 @@ const averageList = (values = []) => {
 const roundCurrency = (value = 0) => Math.round(Number(value || 0));
 const roundToStep = (value = 0, step = 5) => Math.ceil(Number(value || 0) / step) * step;
 const roundOneDecimal = (value = 0) => Math.round(Number(value || 0) * 10) / 10;
+const normalizeSettingKey = (value = '') => String(value || '').trim();
+const normalizeSetupPackageId = (value = '', fallbackIndex = 0) => {
+  const base = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return base || `setup-package-${fallbackIndex + 1}`;
+};
+
+const sanitizeSetupPackage = (entry = {}, index = 0) => {
+  const fallback = DEFAULT_SETUP_PACKAGES[index] || DEFAULT_SETUP_PACKAGES[DEFAULT_SETUP_PACKAGES.length - 1];
+  const title = String(entry?.title || fallback?.title || `Setup Package ${index + 1}`).trim();
+  const subtitle = String(entry?.subtitle || fallback?.subtitle || '').trim();
+  const badge = String(entry?.badge || fallback?.badge || '').trim();
+  const image = String(entry?.image || fallback?.image || '/category-real/accessories.jpg').trim();
+  const price = Math.max(0, Math.round(Number(entry?.price ?? fallback?.price ?? 0)));
+  return {
+    id: normalizeSetupPackageId(entry?.id || title, index),
+    title,
+    subtitle,
+    badge,
+    image,
+    price
+  };
+};
+
+const sanitizeSetupPackages = (entries) => {
+  const source = Array.isArray(entries) && entries.length ? entries : DEFAULT_SETUP_PACKAGES;
+  return source
+    .slice(0, 12)
+    .map((entry, index) => sanitizeSetupPackage(entry, index))
+    .filter((entry) => entry.title && entry.image && entry.price > 0);
+};
 
 const haversineKm = (lat1, lng1, lat2, lng2) => {
   const toRad = (deg) => (Number(deg) * Math.PI) / 180;
@@ -828,6 +897,40 @@ const dbRunAsync = (query, params = []) => new Promise((resolve, reject) => {
   });
 });
 
+const getAppSetting = async (settingKey) => {
+  const key = normalizeSettingKey(settingKey);
+  if (!key) return null;
+  return dbGetAsync(
+    'SELECT setting_key, value, updated_at FROM app_settings WHERE setting_key = ?',
+    [key]
+  );
+};
+
+const getJsonAppSetting = async (settingKey, fallbackValue = null) => {
+  const row = await getAppSetting(settingKey);
+  if (!row?.value) return fallbackValue;
+  try {
+    return JSON.parse(row.value);
+  } catch (error) {
+    return fallbackValue;
+  }
+};
+
+const saveJsonAppSetting = async (settingKey, value) => {
+  const key = normalizeSettingKey(settingKey);
+  if (!key) throw new Error('Setting key is required');
+  await dbRunAsync(
+    `INSERT OR REPLACE INTO app_settings (setting_key, value, updated_at)
+     VALUES (?, ?, CURRENT_TIMESTAMP)`,
+    [key, JSON.stringify(value)]
+  );
+};
+
+const resolveSetupPackages = async () => {
+  const stored = await getJsonAppSetting(APP_SETTING_KEYS.homepageSetupPackages, null);
+  return sanitizeSetupPackages(stored);
+};
+
 const normalizeImageList = (value) => {
   const list = Array.isArray(value) ? value : [value];
   return list
@@ -1355,7 +1458,8 @@ const normalizeOperationalStateRemotePath = () => {
 };
 
 const buildOperationalStateManifest = async () => {
-  const [users, hubs, deliveryPartnerDetails, orders, orderItems, deliveryLocations, notifications, warrantyRegistrations, serviceTickets, userAddresses, savedItems] = await Promise.all([
+  const appSettingPlaceholders = OPERATIONAL_APP_SETTING_KEYS.map(() => '?').join(', ');
+  const [users, hubs, deliveryPartnerDetails, orders, orderItems, deliveryLocations, notifications, warrantyRegistrations, serviceTickets, userAddresses, savedItems, appSettings] = await Promise.all([
     dbAllAsync(
       `SELECT id, email, password, plaintext_password, name, phone, address, role,
               phone_verified, phone_verified_at, created_at
@@ -1411,6 +1515,13 @@ const buildOperationalStateManifest = async () => {
       `SELECT *
        FROM saved_items
        ORDER BY id ASC`
+    ),
+    dbAllAsync(
+      `SELECT setting_key, value, updated_at
+       FROM app_settings
+       WHERE setting_key IN (${appSettingPlaceholders})
+       ORDER BY setting_key ASC`,
+      OPERATIONAL_APP_SETTING_KEYS
     )
   ]);
 
@@ -1428,7 +1539,8 @@ const buildOperationalStateManifest = async () => {
     warranty_registrations: warrantyRegistrations,
     service_tickets: serviceTickets,
     user_addresses: userAddresses,
-    saved_items: savedItems
+    saved_items: savedItems,
+    app_settings: appSettings
   };
 };
 
@@ -1504,6 +1616,7 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
   const serviceTickets = Array.isArray(manifest.service_tickets) ? manifest.service_tickets : [];
   const userAddresses = Array.isArray(manifest.user_addresses) ? manifest.user_addresses : [];
   const savedItems = Array.isArray(manifest.saved_items) ? manifest.saved_items : [];
+  const appSettings = Array.isArray(manifest.app_settings) ? manifest.app_settings : [];
 
   await dbRunAsync('BEGIN IMMEDIATE TRANSACTION');
   try {
@@ -1894,6 +2007,20 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
       );
     }
 
+    for (const setting of appSettings) {
+      const settingKey = normalizeSettingKey(setting?.setting_key);
+      if (!settingKey || !OPERATIONAL_APP_SETTING_KEYS.includes(settingKey)) continue;
+      await dbRunAsync(
+        `INSERT OR REPLACE INTO app_settings (setting_key, value, updated_at)
+         VALUES (?, ?, COALESCE(?, CURRENT_TIMESTAMP))`,
+        [
+          settingKey,
+          String(setting?.value || ''),
+          setting?.updated_at || null
+        ]
+      );
+    }
+
     await dbRunAsync(
       `INSERT OR REPLACE INTO app_settings (setting_key, value, updated_at)
        VALUES (?, ?, CURRENT_TIMESTAMP)`,
@@ -1912,6 +2039,7 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
           serviceTicketCount: serviceTickets.length,
           addressBookCount: userAddresses.length,
           savedItemCount: savedItems.length,
+          appSettingCount: appSettings.length,
           at: new Date().toISOString()
         })
       ]
@@ -1929,7 +2057,8 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
       warrantyRegistrationCount: warrantyRegistrations.length,
       serviceTicketCount: serviceTickets.length,
       addressBookCount: userAddresses.length,
-      savedItemCount: savedItems.length
+      savedItemCount: savedItems.length,
+      appSettingCount: appSettings.length
     };
   } catch (error) {
     await dbRunAsync('ROLLBACK').catch(() => {});
@@ -2769,6 +2898,15 @@ app.post('/api/auth/phone/verify', authenticateToken, verifyPhoneNumber);
 app.post('/auth/phone/verify', authenticateToken, verifyPhoneNumber);
 
 // Categories
+app.get('/api/setup-packages', async (req, res) => {
+  try {
+    const packages = await resolveSetupPackages();
+    res.json(packages);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/categories', (req, res) => {
   db.all('SELECT * FROM categories ORDER BY sort_order', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -3578,6 +3716,38 @@ app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
+});
+
+app.get('/api/admin/setup-packages', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const packages = await resolveSetupPackages();
+    res.json(packages);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/admin/setup-packages', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    if (!Array.isArray(req.body?.packages)) {
+      return res.status(400).json({ error: 'Packages array is required' });
+    }
+    const packages = sanitizeSetupPackages(req.body.packages);
+    if (!packages.length) {
+      return res.status(400).json({ error: 'At least one valid setup package is required' });
+    }
+
+    await saveJsonAppSetting(APP_SETTING_KEYS.homepageSetupPackages, packages);
+    const operationalBackup = await syncOperationalStateForResponse('setup-packages-updated');
+    res.json({
+      message: 'Full setup packages updated.',
+      packages,
+      operational_backup: operationalBackup,
+      operational_warning: operationalBackup.warning
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.put('/api/admin/categories/:id', authenticateToken, requireAdmin, async (req, res) => {

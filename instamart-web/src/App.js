@@ -6,6 +6,7 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import Header from './components/Header';
 import HeroBanner from './components/HeroBanner';
 import CategoryGrid from './components/CategoryGrid';
+import SetupPackagesSection from './components/SetupPackagesSection';
 import ProductSection from './components/ProductSection';
 import ProductDetail from './components/ProductDetail';
 import CartDrawer from './components/CartDrawer';
@@ -152,6 +153,7 @@ function MainPage({
         {!searchQuery && <HeroBanner />}
         {!searchQuery && <LocationDeliveryStrip />}
         {!searchQuery && <CategoryGrid categories={categories} />}
+        {!searchQuery && <SetupPackagesSection />}
         {!searchQuery && recentProducts.length > 0 && (
           <ProductSection
             title="Buy Again"

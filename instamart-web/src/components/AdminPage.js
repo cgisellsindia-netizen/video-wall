@@ -11,12 +11,15 @@ function AdminPage({ user }) {
   const [hubs, setHubs] = useState([]);
   const [deliveryPartners, setDeliveryPartners] = useState([]);
   const [categoryBanners, setCategoryBanners] = useState([]);
+  const [setupPackages, setSetupPackages] = useState([]);
   const [warrantyRegistrations, setWarrantyRegistrations] = useState([]);
   const [serviceTickets, setServiceTickets] = useState([]);
   const [systemStatus, setSystemStatus] = useState(null);
   const [dispatchDrafts, setDispatchDrafts] = useState({});
   const [categoryDrafts, setCategoryDrafts] = useState({});
+  const [setupPackageDrafts, setSetupPackageDrafts] = useState([]);
   const [categoryBusy, setCategoryBusy] = useState({});
+  const [setupPackagesBusy, setSetupPackagesBusy] = useState(false);
   const [warrantyAdminDrafts, setWarrantyAdminDrafts] = useState({});
   const [ticketAdminDrafts, setTicketAdminDrafts] = useState({});
   const [activeTab, setActiveTab] = useState('products');
@@ -100,6 +103,19 @@ function AdminPage({ user }) {
       return next;
     });
   }, [orders]);
+
+  useEffect(() => {
+    setSetupPackageDrafts(
+      setupPackages.map((entry, index) => ({
+        id: entry.id || `setup-package-${index + 1}`,
+        title: entry.title || '',
+        subtitle: entry.subtitle || '',
+        badge: entry.badge || '',
+        image: entry.image || '',
+        price: String(entry.price ?? '')
+      }))
+    );
+  }, [setupPackages]);
 
   useEffect(() => {
     setWarrantyAdminDrafts(prev => {
@@ -204,7 +220,7 @@ function AdminPage({ user }) {
   const fetchData = async () => {
     const token = localStorage.getItem('token');
     try {
-      const [uRes, oRes, pRes, cRes, hRes, dRes, bRes, sRes, wrRes, stRes] = await Promise.all([
+      const [uRes, oRes, pRes, cRes, hRes, dRes, bRes, sRes, wrRes, stRes, spRes] = await Promise.all([
         fetch(`${API_URL}/admin/users`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${API_URL}/admin/orders`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${API_URL}/products`, { headers: { 'Authorization': `Bearer ${token}` } }),
@@ -214,12 +230,13 @@ function AdminPage({ user }) {
         fetch(`${API_URL}/admin/category-banners`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${API_URL}/admin/system-status`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${API_URL}/admin/warranty-registrations`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${API_URL}/admin/service-tickets`, { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch(`${API_URL}/admin/service-tickets`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_URL}/admin/setup-packages`, { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       if (uRes.status === 403 || oRes.status === 403) {
         setMessage('Admin access required. Login with the admin account to manage products.');
       }
-      const [uData, oData, pData, cData, hData, dData, bData, sData, wrData, stData] = await Promise.all([uRes.json(), oRes.json(), pRes.json(), cRes.json(), hRes.json(), dRes.json(), bRes.json(), sRes.json(), wrRes.json(), stRes.json()]);
+      const [uData, oData, pData, cData, hData, dData, bData, sData, wrData, stData, spData] = await Promise.all([uRes.json(), oRes.json(), pRes.json(), cRes.json(), hRes.json(), dRes.json(), bRes.json(), sRes.json(), wrRes.json(), stRes.json(), spRes.json()]);
       setUsers(Array.isArray(uData) ? uData : []);
       setOrders(Array.isArray(oData) ? oData : []);
       setProducts(Array.isArray(pData) ? pData : []);
@@ -227,6 +244,7 @@ function AdminPage({ user }) {
       setHubs(Array.isArray(hData) ? hData : []);
       setDeliveryPartners(Array.isArray(dData) ? dData : []);
       setCategoryBanners(Array.isArray(bData) ? bData : []);
+      setSetupPackages(Array.isArray(spData) ? spData : []);
       setWarrantyRegistrations(Array.isArray(wrData) ? wrData : []);
       setServiceTickets(Array.isArray(stData) ? stData : []);
       setSystemStatus(sRes.ok ? sData : null);
@@ -497,6 +515,16 @@ function AdminPage({ user }) {
       setMessage('InfinityFree image selected as category banner.');
       return;
     }
+    if (String(mediaBrowser.mode || '').startsWith('setup:')) {
+      const packageIndex = Number(String(mediaBrowser.mode).split(':')[1]);
+      if (Number.isInteger(packageIndex) && packageIndex >= 0) {
+        setSetupPackageDrafts(prev => prev.map((entry, index) => (
+          index === packageIndex ? { ...entry, image: imageUrl } : entry
+        )));
+        setMessage('InfinityFree image selected as full setup package photo.');
+      }
+      return;
+    }
     if (String(mediaBrowser.mode || '').startsWith('category:')) {
       const categoryId = String(mediaBrowser.mode).split(':')[1];
       setCategoryDrafts(prev => ({
@@ -617,6 +645,56 @@ function AdminPage({ user }) {
     };
     reader.onerror = () => setMessage('Could not read that category image. Please try another file.');
     reader.readAsDataURL(file);
+  };
+
+  const handleSetupPackageImageFile = (packageIndex, file) => {
+    if (!file) return;
+    if (file.size > 650000) {
+      setMessage('Please choose a smaller setup image under 650 KB for fast homepage loading.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSetupPackageDrafts(prev => prev.map((entry, index) => (
+        index === packageIndex ? { ...entry, image: reader.result } : entry
+      )));
+      setMessage(`Full setup image loaded: ${file.name}`);
+    };
+    reader.onerror = () => setMessage('Could not read that full setup image. Please try another file.');
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveSetupPackages = async () => {
+    const token = localStorage.getItem('token');
+    const payload = setupPackageDrafts.map((entry, index) => ({
+      id: entry.id || `setup-package-${index + 1}`,
+      title: String(entry.title || '').trim(),
+      subtitle: String(entry.subtitle || '').trim(),
+      badge: String(entry.badge || '').trim(),
+      image: String(entry.image || '').trim(),
+      price: Math.max(0, Math.round(Number(entry.price || 0)))
+    }));
+
+    if (payload.some(entry => !entry.title || !entry.image || !Number.isFinite(entry.price) || entry.price <= 0)) {
+      setMessage('Every full setup package needs a name, image, and valid price before saving.');
+      return;
+    }
+
+    setSetupPackagesBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/setup-packages`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ packages: payload })
+      });
+      const data = await res.json().catch(() => ({}));
+      setMessage(res.ok ? (data.message || 'Full setup packages updated.') : (data.error || 'Could not save full setup packages.'));
+      if (res.ok) setSetupPackages(Array.isArray(data.packages) ? data.packages : payload);
+    } catch (error) {
+      setMessage(error.message || 'Could not save full setup packages.');
+    } finally {
+      setSetupPackagesBusy(false);
+    }
   };
 
   const handleSaveCategory = async (category) => {
@@ -963,6 +1041,7 @@ function AdminPage({ user }) {
         <button className={`btn btn-sm ${activeTab === 'support' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('support')}><Headphones size={16} /> Support ({serviceTickets.length})</button>
         <button className={`btn btn-sm ${activeTab === 'products' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('products')}><Package size={16} /> Products ({products.length})</button>
         <button className={`btn btn-sm ${activeTab === 'categories' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('categories')}><ImageIcon size={16} /> Category Tiles ({categories.length})</button>
+        <button className={`btn btn-sm ${activeTab === 'setup-packages' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('setup-packages')}><Package size={16} /> Full Setups ({setupPackages.length})</button>
         <button className={`btn btn-sm ${activeTab === 'integrations' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('integrations')}><Sparkles size={16} /> Integrations</button>
         <button className={`btn btn-sm ${activeTab === 'delivery' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('delivery')}><Truck size={16} /> Delivery Partners ({deliveryPartners.length})</button>
         <button className={`btn btn-sm ${activeTab === 'hubs' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('hubs')}><MapPin size={16} /> Hubs ({hubs.length})</button>
@@ -1064,6 +1143,138 @@ function AdminPage({ user }) {
                 </div>
               </div>
             </article>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'setup-packages' && (
+        <div className="card banner-admin-panel">
+          <div className="banner-admin-toolbar">
+            <div>
+              <span className="phone-verify-eyebrow">Homepage package section</span>
+              <h3 style={{ margin: '4px 0 6px' }}>Manage Full Setup Packages</h3>
+              <p className="checkout-note" style={{ margin: 0 }}>
+                These are the ready-made CCTV combo cards shown near the top of the homepage, just under Shop by Category.
+              </p>
+            </div>
+            <button className="btn btn-primary btn-sm" type="button" onClick={handleSaveSetupPackages} disabled={setupPackagesBusy}>
+              {setupPackagesBusy ? 'Saving...' : 'Save full setups'}
+            </button>
+          </div>
+
+          <div className="setup-package-admin-list">
+            {setupPackageDrafts.map((entry, index) => (
+              <article key={entry.id || index} className="category-admin-card">
+                <div className="category-admin-preview-wrap">
+                  <img src={entry.image || '/category-real/accessories.jpg'} alt={entry.title || `Full setup ${index + 1}`} className="category-admin-preview" />
+                </div>
+                <div className="category-admin-body">
+                  <div className="category-admin-topline">
+                    <strong>{entry.title || `Package ${index + 1}`}</strong>
+                    <span className="tag tag-info">Card {index + 1}</span>
+                  </div>
+                  <div className="admin-product-form category-admin-form">
+                    <div className="form-group">
+                      <label>Package Name</label>
+                      <input
+                        value={entry.title}
+                        onChange={e => setSetupPackageDrafts(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, title: e.target.value } : item))}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Price</label>
+                      <input
+                        type="number"
+                        value={entry.price}
+                        onChange={e => setSetupPackageDrafts(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, price: e.target.value } : item))}
+                      />
+                    </div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label>Subtitle</label>
+                      <input
+                        value={entry.subtitle}
+                        onChange={e => setSetupPackageDrafts(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, subtitle: e.target.value } : item))}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Badge</label>
+                      <input
+                        value={entry.badge}
+                        onChange={e => setSetupPackageDrafts(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, badge: e.target.value } : item))}
+                        placeholder="Most popular"
+                      />
+                    </div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label>Image URL / Data</label>
+                      <input
+                        value={entry.image}
+                        onChange={e => setSetupPackageDrafts(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, image: e.target.value } : item))}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Upload package image</label>
+                      <input type="file" accept="image/*" onChange={e => handleSetupPackageImageFile(index, e.target.files?.[0])} />
+                    </div>
+                    <div className="form-group">
+                      <label>InfinityFree image library</label>
+                      <div className="infinity-picker-actions">
+                        <button type="button" className="btn btn-outline btn-sm" onClick={() => openMediaBrowser(`setup:${index}`)}>
+                          <ImageIcon size={15} /> Browse from FTP
+                        </button>
+                        <span>Pick a permanent image from InfinityFree for this setup card.</span>
+                      </div>
+                    </div>
+                  </div>
+                  {mediaBrowser.open && mediaBrowser.mode === `setup:${index}` && (
+                    <div className="infinity-media-browser">
+                      <div className="infinity-media-head">
+                        <div>
+                          <strong>Select full setup image</strong>
+                          <span>{mediaBrowser.data?.public_base || 'InfinityFree'}{mediaBrowser.data?.dir || mediaBrowser.dir}</span>
+                        </div>
+                        <div className="infinity-media-tools">
+                          {mediaBrowser.data?.parent && (
+                            <button type="button" className="btn btn-sm btn-outline" onClick={() => loadMediaLibrary(mediaBrowser.data.parent, mediaBrowser.mode)}>
+                              <ArrowUp size={14} /> Up
+                            </button>
+                          )}
+                          <button type="button" className="btn btn-sm btn-outline" onClick={() => loadMediaLibrary(mediaBrowser.dir, mediaBrowser.mode)} disabled={mediaBrowser.busy}>
+                            Refresh
+                          </button>
+                          <button type="button" className="btn btn-sm" onClick={() => setMediaBrowser(prev => ({ ...prev, open: false }))}>
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                      {mediaBrowser.busy && <div className="infinity-media-empty">Loading InfinityFree images...</div>}
+                      {!mediaBrowser.busy && mediaBrowser.data?.directories?.length > 0 && (
+                        <div className="infinity-folder-row">
+                          {mediaBrowser.data.directories.map(folder => (
+                            <button type="button" key={folder.dir} onClick={() => loadMediaLibrary(folder.dir, mediaBrowser.mode)}>
+                              <FolderOpen size={16} /> {folder.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {!mediaBrowser.busy && mediaBrowser.data?.images?.length > 0 && (
+                        <div className="infinity-image-grid infinity-banner-grid">
+                          {mediaBrowser.data.images.map(image => (
+                            <button type="button" key={image.url} className="infinity-image-card" onClick={() => chooseInfinityImage(image.url)}>
+                              <img src={image.url} alt={image.name} loading="lazy" />
+                              <span>{image.name}</span>
+                              <small>Use for setup</small>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {!mediaBrowser.busy && mediaBrowser.data && !mediaBrowser.data.images?.length && !mediaBrowser.data.directories?.length && (
+                        <div className="infinity-media-empty">No image files found in this folder. Upload JPG, PNG, WEBP, GIF, AVIF, or SVG files to InfinityFree first.</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </article>
+            ))}
           </div>
         </div>
       )}
