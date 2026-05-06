@@ -153,7 +153,17 @@ function MainPage({
         {!searchQuery && <HeroBanner />}
         {!searchQuery && <LocationDeliveryStrip />}
         {!searchQuery && <CategoryGrid categories={categories} />}
-        {!searchQuery && <SetupPackagesSection products={products} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} user={user} />}
+        {!searchQuery && (
+          <SetupPackagesSection
+            products={products}
+            onAdd={addToCart}
+            onRemove={removeFromCart}
+            cartItems={cartItems}
+            user={user}
+            savedProductIds={savedProductIds}
+            onToggleSaved={onToggleSaved}
+          />
+        )}
         {!searchQuery && recentProducts.length > 0 && (
           <ProductSection
             title="Buy Again"
