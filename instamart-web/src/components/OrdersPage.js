@@ -60,6 +60,17 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
   const [ticketDrafts, setTicketDrafts] = useState({});
   const [warrantyBusy, setWarrantyBusy] = useState({});
   const [ticketBusy, setTicketBusy] = useState({});
+  const [profileName, setProfileName] = useState(user?.name || '');
+  const [profileAddress, setProfileAddress] = useState(user?.address || '');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState('');
+  const [savedAddresses, setSavedAddresses] = useState([]);
+  const [addressForm, setAddressForm] = useState({
+    label: 'Home',
+    address: '',
+    pincode: ''
+  });
+  const [addressBusy, setAddressBusy] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -75,22 +86,30 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    setProfileName(user?.name || '');
+    setProfileAddress(user?.address || '');
+  }, [user?.name, user?.address]);
+
   const fetchOrders = async () => {
     const token = localStorage.getItem('token');
     try {
-      const [ordersRes, warrantyRes, ticketsRes] = await Promise.all([
+      const [ordersRes, warrantyRes, ticketsRes, addressesRes] = await Promise.all([
         fetch(`${API_URL}/orders`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${API_URL}/account/warranty-registrations`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_URL}/account/service-tickets`, { headers: { Authorization: `Bearer ${token}` } })
+        fetch(`${API_URL}/account/service-tickets`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/account/addresses`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
-      const [ordersData, warrantyData, ticketsData] = await Promise.all([
+      const [ordersData, warrantyData, ticketsData, addressesData] = await Promise.all([
         ordersRes.json().catch(() => []),
         warrantyRes.json().catch(() => []),
-        ticketsRes.json().catch(() => [])
+        ticketsRes.json().catch(() => []),
+        addressesRes.json().catch(() => [])
       ]);
       setOrders(Array.isArray(ordersData) ? ordersData : []);
       setWarrantyRegistrations(Array.isArray(warrantyData) ? warrantyData : []);
       setServiceTickets(Array.isArray(ticketsData) ? ticketsData : []);
+      setSavedAddresses(Array.isArray(addressesData) ? addressesData : []);
     } catch (e) {}
     setLoading(false);
   };
@@ -313,6 +332,122 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
     setTicketBusy((current) => ({ ...current, [item.id]: false }));
   };
 
+  const saveProfile = async () => {
+    const token = localStorage.getItem('token');
+    setProfileSaving(true);
+    setProfileMessage('');
+    try {
+      const res = await fetch(`${API_URL}/account/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          name: profileName,
+          address: profileAddress
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Profile could not be updated.');
+      onUserUpdate?.(data.user);
+      setProfileMessage('Profile updated.');
+    } catch (error) {
+      setProfileMessage(error.message);
+    }
+    setProfileSaving(false);
+  };
+
+  const addSavedAddress = async () => {
+    const token = localStorage.getItem('token');
+    if (!addressForm.address.trim()) {
+      setProfileMessage('Enter an address before saving it.');
+      return;
+    }
+    setAddressBusy(true);
+    setProfileMessage('');
+    try {
+      const res = await fetch(`${API_URL}/account/addresses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          label: addressForm.label,
+          address: addressForm.address,
+          pincode: addressForm.pincode,
+          is_default: savedAddresses.length === 0
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Address could not be saved.');
+      const created = data.address;
+      setSavedAddresses((current) => created ? [created, ...current.filter((entry) => Number(entry.id) !== Number(created.id))] : current);
+      if (created?.is_default) {
+        setProfileAddress(created.address || '');
+        onUserUpdate?.({ ...user, address: created.address || '' });
+      }
+      setAddressForm({ label: 'Home', address: '', pincode: '' });
+      setProfileMessage('Address saved.');
+    } catch (error) {
+      setProfileMessage(error.message);
+    }
+    setAddressBusy(false);
+  };
+
+  const setDefaultAddress = async (entry) => {
+    const token = localStorage.getItem('token');
+    setAddressBusy(true);
+    setProfileMessage('');
+    try {
+      const res = await fetch(`${API_URL}/account/addresses/${entry.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          label: entry.label,
+          address: entry.address,
+          pincode: entry.pincode,
+          lat: entry.lat,
+          lng: entry.lng,
+          is_default: true
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Default address could not be updated.');
+      setSavedAddresses((current) => current.map((item) => ({
+        ...item,
+        is_default: Number(item.id) === Number(entry.id) ? 1 : 0
+      })));
+      setProfileAddress(entry.address || '');
+      onUserUpdate?.({ ...user, address: entry.address || '' });
+      setProfileMessage('Default delivery address updated.');
+    } catch (error) {
+      setProfileMessage(error.message);
+    }
+    setAddressBusy(false);
+  };
+
+  const deleteAddress = async (entry) => {
+    const token = localStorage.getItem('token');
+    setAddressBusy(true);
+    setProfileMessage('');
+    try {
+      const res = await fetch(`${API_URL}/account/addresses/${entry.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Address could not be removed.');
+      const nextAddresses = savedAddresses.filter((item) => Number(item.id) !== Number(entry.id));
+      setSavedAddresses(nextAddresses);
+      const nextDefault = nextAddresses.find((item) => Number(item.is_default) === 1) || nextAddresses[0];
+      if (entry.is_default) {
+        const nextAddressValue = nextDefault?.address || '';
+        setProfileAddress(nextAddressValue);
+        onUserUpdate?.({ ...user, address: nextAddressValue });
+      }
+      setProfileMessage('Address removed.');
+    } catch (error) {
+      setProfileMessage(error.message);
+    }
+    setAddressBusy(false);
+  };
+
   if (loading) return <div className="loading">Loading orders...</div>;
 
   return (
@@ -320,6 +455,84 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
       <h2 className="section-title" style={{ marginBottom: '24px' }}>My Orders</h2>
       {user && !['admin', 'delivery_partner', 'installer'].includes(String(user?.role || '')) && (
         <PhoneVerificationCard user={user} onUserUpdate={onUserUpdate} />
+      )}
+      {user && !['admin', 'delivery_partner', 'installer'].includes(String(user?.role || '')) && (
+        <section className="card account-hub-card">
+          <div className="account-hub-head">
+            <div>
+              <span className="eyebrow">Account hub</span>
+              <h3>Profile and saved delivery addresses</h3>
+            </div>
+            {profileMessage && <span className="account-hub-message">{profileMessage}</span>}
+          </div>
+          <div className="account-hub-grid">
+            <div className="account-hub-panel">
+              <h4>Profile details</h4>
+              <div className="aftercare-form-grid account-form-grid">
+                <input
+                  placeholder="Your full name"
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                />
+                <textarea
+                  placeholder="Default delivery address"
+                  value={profileAddress}
+                  onChange={(e) => setProfileAddress(e.target.value)}
+                />
+              </div>
+              <button type="button" className="btn btn-primary" onClick={saveProfile} disabled={profileSaving}>
+                {profileSaving ? 'Saving...' : 'Save profile'}
+              </button>
+            </div>
+            <div className="account-hub-panel">
+              <h4>Address book</h4>
+              <div className="aftercare-form-grid account-form-grid">
+                <select value={addressForm.label} onChange={(e) => setAddressForm((current) => ({ ...current, label: e.target.value }))}>
+                  <option value="Home">Home</option>
+                  <option value="Office">Office</option>
+                  <option value="Site">Site</option>
+                  <option value="Other">Other</option>
+                </select>
+                <input
+                  placeholder="Pincode"
+                  value={addressForm.pincode}
+                  onChange={(e) => setAddressForm((current) => ({ ...current, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                />
+                <textarea
+                  placeholder="Save a delivery address for quick checkout"
+                  value={addressForm.address}
+                  onChange={(e) => setAddressForm((current) => ({ ...current, address: e.target.value }))}
+                />
+              </div>
+              <button type="button" className="btn btn-outline" onClick={addSavedAddress} disabled={addressBusy}>
+                {addressBusy ? 'Saving...' : 'Add address'}
+              </button>
+              <div className="account-address-list">
+                {savedAddresses.length === 0 ? (
+                  <div className="account-address-empty">No saved addresses yet. Add one here and it will show up in checkout.</div>
+                ) : savedAddresses.map((entry) => (
+                  <div key={entry.id} className={`account-address-item ${entry.is_default ? 'default' : ''}`}>
+                    <div>
+                      <strong>{entry.label || 'Saved address'} {entry.is_default ? '• Default' : ''}</strong>
+                      <span>{entry.address}</span>
+                      {entry.pincode && <small>Pincode {entry.pincode}</small>}
+                    </div>
+                    <div className="account-address-actions">
+                      {!entry.is_default && (
+                        <button type="button" className="btn btn-sm btn-outline" onClick={() => setDefaultAddress(entry)} disabled={addressBusy}>
+                          Make default
+                        </button>
+                      )}
+                      <button type="button" className="btn btn-sm btn-secondary" onClick={() => deleteAddress(entry)} disabled={addressBusy}>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
       )}
 
       {orders.length === 0 ? (

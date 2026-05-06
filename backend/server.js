@@ -1355,7 +1355,7 @@ const normalizeOperationalStateRemotePath = () => {
 };
 
 const buildOperationalStateManifest = async () => {
-  const [users, hubs, deliveryPartnerDetails, orders, orderItems, deliveryLocations, notifications, warrantyRegistrations, serviceTickets] = await Promise.all([
+  const [users, hubs, deliveryPartnerDetails, orders, orderItems, deliveryLocations, notifications, warrantyRegistrations, serviceTickets, userAddresses] = await Promise.all([
     dbAllAsync(
       `SELECT id, email, password, plaintext_password, name, phone, address, role,
               phone_verified, phone_verified_at, created_at
@@ -1401,6 +1401,11 @@ const buildOperationalStateManifest = async () => {
       `SELECT *
        FROM service_tickets
        ORDER BY id ASC`
+    ),
+    dbAllAsync(
+      `SELECT *
+       FROM user_addresses
+       ORDER BY id ASC`
     )
   ]);
 
@@ -1416,7 +1421,8 @@ const buildOperationalStateManifest = async () => {
     delivery_locations: deliveryLocations,
     notifications,
     warranty_registrations: warrantyRegistrations,
-    service_tickets: serviceTickets
+    service_tickets: serviceTickets,
+    user_addresses: userAddresses
   };
 };
 
@@ -1490,6 +1496,7 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
   const notifications = Array.isArray(manifest.notifications) ? manifest.notifications : [];
   const warrantyRegistrations = Array.isArray(manifest.warranty_registrations) ? manifest.warranty_registrations : [];
   const serviceTickets = Array.isArray(manifest.service_tickets) ? manifest.service_tickets : [];
+  const userAddresses = Array.isArray(manifest.user_addresses) ? manifest.user_addresses : [];
 
   await dbRunAsync('BEGIN IMMEDIATE TRANSACTION');
   try {
@@ -1832,6 +1839,36 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
       );
     }
 
+    for (const entry of userAddresses) {
+      await dbRunAsync(
+        `INSERT INTO user_addresses (
+           id, user_id, label, address, pincode, lat, lng, is_default, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           user_id = excluded.user_id,
+           label = excluded.label,
+           address = excluded.address,
+           pincode = excluded.pincode,
+           lat = excluded.lat,
+           lng = excluded.lng,
+           is_default = excluded.is_default,
+           created_at = COALESCE(excluded.created_at, user_addresses.created_at),
+           updated_at = COALESCE(excluded.updated_at, user_addresses.updated_at)`,
+        [
+          entry.id,
+          entry.user_id || null,
+          entry.label || 'Home',
+          entry.address || '',
+          entry.pincode || null,
+          entry.lat ?? null,
+          entry.lng ?? null,
+          Number(entry.is_default) ? 1 : 0,
+          entry.created_at || null,
+          entry.updated_at || null
+        ]
+      );
+    }
+
     await dbRunAsync(
       `INSERT OR REPLACE INTO app_settings (setting_key, value, updated_at)
        VALUES (?, ?, CURRENT_TIMESTAMP)`,
@@ -1848,6 +1885,7 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
           notificationCount: notifications.length,
           warrantyRegistrationCount: warrantyRegistrations.length,
           serviceTicketCount: serviceTickets.length,
+          addressBookCount: userAddresses.length,
           at: new Date().toISOString()
         })
       ]
@@ -1863,7 +1901,8 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
       deliveryLocationCount: deliveryLocations.length,
       notificationCount: notifications.length,
       warrantyRegistrationCount: warrantyRegistrations.length,
-      serviceTicketCount: serviceTickets.length
+      serviceTicketCount: serviceTickets.length,
+      addressBookCount: userAddresses.length
     };
   } catch (error) {
     await dbRunAsync('ROLLBACK').catch(() => {});
@@ -2308,6 +2347,20 @@ const normalizeWarrantyStatus = (value = '', fallback = 'registered') => {
   return new Set(['registered', 'verified', 'claimed', 'expired']).has(status)
     ? status
     : fallback;
+};
+
+const syncUserPrimaryAddress = async (userId) => {
+  const primary = await dbGetAsync(
+    `SELECT address
+     FROM user_addresses
+     WHERE user_id = ? AND is_default = 1
+     ORDER BY id DESC
+     LIMIT 1`,
+    [userId]
+  );
+  if (primary?.address) {
+    await dbRunAsync('UPDATE users SET address = ? WHERE id = ?', [primary.address, userId]);
+  }
 };
 
 const attachProductImages = (products, res, single = false) => {
@@ -3129,6 +3182,124 @@ app.get('/api/account/service-tickets', authenticateToken, async (req, res) => {
       [req.user.userId]
     );
     res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/account/profile', authenticateToken, async (req, res) => {
+  try {
+    const safeName = String(req.body?.name || '').trim();
+    const safeAddress = String(req.body?.address || '').trim();
+    if (!safeName) return res.status(400).json({ error: 'Name is required.' });
+
+    await dbRunAsync('UPDATE users SET name = ?, address = ? WHERE id = ?', [safeName, safeAddress, req.user.userId]);
+    queueOperationalStateSync('account-profile-updated');
+    const updated = await dbGetAsync('SELECT * FROM users WHERE id = ?', [req.user.userId]);
+    res.json({ message: 'Profile updated.', user: formatUserForClient(updated) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/account/addresses', authenticateToken, async (req, res) => {
+  try {
+    const rows = await dbAllAsync(
+      `SELECT *
+       FROM user_addresses
+       WHERE user_id = ?
+       ORDER BY is_default DESC, updated_at DESC, id DESC`,
+      [req.user.userId]
+    );
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/account/addresses', authenticateToken, async (req, res) => {
+  try {
+    const label = String(req.body?.label || 'Home').trim() || 'Home';
+    const address = String(req.body?.address || '').trim();
+    const pincode = String(req.body?.pincode || extractPincode(address) || '').trim();
+    const lat = req.body?.lat ?? null;
+    const lng = req.body?.lng ?? null;
+    const isDefault = Boolean(req.body?.is_default);
+    if (!address) return res.status(400).json({ error: 'Address is required.' });
+
+    if (isDefault) {
+      await dbRunAsync('UPDATE user_addresses SET is_default = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?', [req.user.userId]);
+    }
+    const result = await dbRunAsync(
+      `INSERT INTO user_addresses (user_id, label, address, pincode, lat, lng, is_default, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [req.user.userId, label, address, pincode || null, lat, lng, isDefault ? 1 : 0]
+    );
+    if (isDefault) {
+      await dbRunAsync('UPDATE users SET address = ? WHERE id = ?', [address, req.user.userId]);
+    }
+    queueOperationalStateSync('account-address-created');
+    const created = await dbGetAsync('SELECT * FROM user_addresses WHERE id = ?', [result.lastID]);
+    res.json({ message: 'Address saved.', address: created });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/account/addresses/:id', authenticateToken, async (req, res) => {
+  try {
+    const existing = await dbGetAsync('SELECT * FROM user_addresses WHERE id = ? AND user_id = ?', [req.params.id, req.user.userId]);
+    if (!existing) return res.status(404).json({ error: 'Saved address not found.' });
+
+    const label = String(req.body?.label ?? existing.label ?? 'Home').trim() || 'Home';
+    const address = String(req.body?.address ?? existing.address ?? '').trim();
+    const pincode = String(req.body?.pincode ?? extractPincode(address) ?? existing.pincode ?? '').trim();
+    const lat = req.body?.lat ?? existing.lat ?? null;
+    const lng = req.body?.lng ?? existing.lng ?? null;
+    const isDefault = Boolean(req.body?.is_default);
+    if (!address) return res.status(400).json({ error: 'Address is required.' });
+
+    if (isDefault) {
+      await dbRunAsync('UPDATE user_addresses SET is_default = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?', [req.user.userId]);
+    }
+    await dbRunAsync(
+      `UPDATE user_addresses
+       SET label = ?, address = ?, pincode = ?, lat = ?, lng = ?, is_default = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND user_id = ?`,
+      [label, address, pincode || null, lat, lng, isDefault ? 1 : 0, req.params.id, req.user.userId]
+    );
+    if (isDefault) {
+      await dbRunAsync('UPDATE users SET address = ? WHERE id = ?', [address, req.user.userId]);
+    } else if (existing.is_default) {
+      await syncUserPrimaryAddress(req.user.userId);
+    }
+    queueOperationalStateSync('account-address-updated');
+    const updated = await dbGetAsync('SELECT * FROM user_addresses WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Address updated.', address: updated });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/account/addresses/:id', authenticateToken, async (req, res) => {
+  try {
+    const existing = await dbGetAsync('SELECT * FROM user_addresses WHERE id = ? AND user_id = ?', [req.params.id, req.user.userId]);
+    if (!existing) return res.status(404).json({ error: 'Saved address not found.' });
+    await dbRunAsync('DELETE FROM user_addresses WHERE id = ? AND user_id = ?', [req.params.id, req.user.userId]);
+    if (existing.is_default) {
+      const fallback = await dbGetAsync(
+        'SELECT id, address FROM user_addresses WHERE user_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1',
+        [req.user.userId]
+      );
+      if (fallback) {
+        await dbRunAsync('UPDATE user_addresses SET is_default = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [fallback.id]);
+        await dbRunAsync('UPDATE users SET address = ? WHERE id = ?', [fallback.address, req.user.userId]);
+      } else {
+        await dbRunAsync('UPDATE users SET address = ? WHERE id = ?', ['', req.user.userId]);
+      }
+    }
+    queueOperationalStateSync('account-address-deleted');
+    res.json({ message: 'Address removed.' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

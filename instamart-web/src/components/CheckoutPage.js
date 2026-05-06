@@ -35,12 +35,22 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
   const [promoCode, setPromoCode] = useState('');
   const [promoResult, setPromoResult] = useState(null);
   const [promoBusy, setPromoBusy] = useState(false);
+  const [addressBook, setAddressBook] = useState([]);
+  const [addressLabel, setAddressLabel] = useState('Home');
+  const [addressSaving, setAddressSaving] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     setPhone(user?.phone_verified ? user?.phone || '' : '');
     if (user?.phone_verified) setPhoneVerifyOpen(false);
   }, [user?.phone, user?.phone_verified]);
+
+  useEffect(() => {
+    if (user?.address && !address.trim()) {
+      setAddress(user.address);
+      setPincode(extractPincode(user.address));
+    }
+  }, [user?.address]);
 
   useEffect(() => {
     if (!user) onLogin();
@@ -57,13 +67,18 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
     if (!user) return;
     const token = localStorage.getItem('token');
     if (!token) return;
-    fetch(`${API_URL}/cart`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.ok ? res.json() : [])
-      .then(data => {
-        if (Array.isArray(data) && data.length) {
-          setCartItems(data);
-          localStorage.setItem('cart_backup', JSON.stringify(data));
+    Promise.all([
+      fetch(`${API_URL}/cart`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => res.ok ? res.json() : []),
+      fetch(`${API_URL}/account/addresses`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => res.ok ? res.json() : [])
+    ])
+      .then(([cartData, addressData]) => {
+        if (Array.isArray(cartData) && cartData.length) {
+          setCartItems(cartData);
+          localStorage.setItem('cart_backup', JSON.stringify(cartData));
         }
+        setAddressBook(Array.isArray(addressData) ? addressData : []);
       })
       .catch(() => {});
   }, [user]);
@@ -95,18 +110,46 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
     };
   }, []);
 
-  const savedAddresses = useMemo(() => {
+  const savedAddressChoices = useMemo(() => {
     let recent = [];
     try {
       recent = JSON.parse(localStorage.getItem('camigo_saved_addresses') || '[]');
     } catch (e) {
       localStorage.removeItem('camigo_saved_addresses');
     }
-    return [user?.address, ...recent]
-      .filter(Boolean)
-      .filter((value, index, arr) => arr.indexOf(value) === index)
-      .slice(0, 4);
-  }, [user?.address]);
+    const combined = [];
+    const seen = new Set();
+    addressBook.forEach((entry) => {
+      const value = String(entry?.address || '').trim();
+      if (!value || seen.has(value)) return;
+      seen.add(value);
+      combined.push({
+        key: `book-${entry.id}`,
+        address: value,
+        label: entry.label || 'Saved',
+        meta: entry.is_default ? 'Default address' : (entry.pincode || ''),
+        isDefault: Boolean(entry.is_default)
+      });
+    });
+    [user?.address, ...recent].forEach((value, index) => {
+      const safeValue = String(value || '').trim();
+      if (!safeValue || seen.has(safeValue)) return;
+      seen.add(safeValue);
+      combined.push({
+        key: `recent-${index}`,
+        address: safeValue,
+        label: index === 0 && user?.address ? 'Account address' : 'Recent',
+        meta: extractPincode(safeValue) || '',
+        isDefault: false
+      });
+    });
+    return combined.slice(0, 6);
+  }, [addressBook, user?.address]);
+
+  const savedAddresses = useMemo(
+    () => savedAddressChoices.map((entry) => entry.address),
+    [savedAddressChoices]
+  );
 
   const isCameraItem = (item) => {
     const categoryId = Number(item.category_id);
@@ -233,6 +276,43 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
     }
   };
 
+  const saveCurrentAddress = async () => {
+    const token = localStorage.getItem('token');
+    const safeAddress = address.trim();
+    if (!token || !safeAddress) {
+      setError('Enter the delivery address before saving it.');
+      return;
+    }
+    setAddressSaving(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_URL}/account/addresses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          label: addressLabel,
+          address: safeAddress,
+          pincode: pincode.trim() || extractPincode(safeAddress),
+          lat: coords?.lat ?? null,
+          lng: coords?.lng ?? null,
+          is_default: true
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Address could not be saved.');
+      const createdAddress = data.address;
+      setAddressBook((current) => {
+        const withoutDupes = current.filter((entry) => Number(entry.id) !== Number(createdAddress?.id) && entry.address !== createdAddress?.address);
+        return createdAddress ? [createdAddress, ...withoutDupes] : withoutDupes;
+      });
+      onUserUpdate?.({ ...user, address: safeAddress });
+    } catch (saveError) {
+      setError(saveError.message);
+    } finally {
+      setAddressSaving(false);
+    }
+  };
+
   const handlePlaceOrder = async () => {
     setError('');
     if (!user?.phone_verified) { setPhoneVerifyOpen(true); return; }
@@ -356,19 +436,32 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
 
         <section className="checkout-card">
           <h3><MapPin size={18} /> Delivery details</h3>
-          {savedAddresses.length > 0 && (
+          {savedAddressChoices.length > 0 && (
             <div className="saved-address-list">
               <span>Choose saved address</span>
-              {savedAddresses.map(saved => (
-                <button key={saved} type="button" className={address === saved ? 'active' : ''} onClick={() => {
-                  setAddress(saved);
-                  setPincode(extractPincode(saved));
+              {savedAddressChoices.map((saved) => (
+                <button key={saved.key} type="button" className={address === saved.address ? 'active' : ''} onClick={() => {
+                  setAddress(saved.address);
+                  setPincode(extractPincode(saved.address));
                 }}>
-                  {saved}
+                  <strong>{saved.label}</strong>
+                  <span>{saved.address}</span>
+                  {saved.meta && <small>{saved.meta}</small>}
                 </button>
               ))}
             </div>
           )}
+          <div className="checkout-address-save-row">
+            <select value={addressLabel} onChange={(e) => setAddressLabel(e.target.value)}>
+              <option value="Home">Home</option>
+              <option value="Office">Office</option>
+              <option value="Site">Site</option>
+              <option value="Other">Other</option>
+            </select>
+            <button type="button" onClick={saveCurrentAddress} disabled={addressSaving || !address.trim()}>
+              {addressSaving ? 'Saving...' : 'Save to address book'}
+            </button>
+          </div>
           <div className="form-group"><label>Full Address</label><textarea value={address} onChange={e => setAddress(e.target.value)} rows="3" /></div>
           <div className="form-group"><label>Phone Number</label><input type="tel" value={phone} readOnly placeholder="Verify mobile at checkout" /></div>
           {!user?.phone_verified && (

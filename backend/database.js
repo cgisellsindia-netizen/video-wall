@@ -227,6 +227,20 @@ db.serialize(async () => {
       FOREIGN KEY (user_id) REFERENCES users(id)
     )`);
 
+    db.run(`CREATE TABLE IF NOT EXISTS user_addresses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      label TEXT DEFAULT 'Home',
+      address TEXT,
+      pincode TEXT,
+      lat REAL,
+      lng REAL,
+      is_default INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )`);
+
     db.run(`CREATE TABLE IF NOT EXISTS warranty_registrations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
@@ -350,6 +364,14 @@ db.serialize(async () => {
       'status TEXT DEFAULT "open"',
       'priority TEXT DEFAULT "normal"',
       'resolution_notes TEXT',
+      'updated_at DATETIME DEFAULT CURRENT_TIMESTAMP'
+    ]);
+    await ensureColumns('user_addresses', [
+      'label TEXT DEFAULT "Home"',
+      'pincode TEXT',
+      'lat REAL',
+      'lng REAL',
+      'is_default INTEGER DEFAULT 0',
       'updated_at DATETIME DEFAULT CURRENT_TIMESTAMP'
     ]);
   db.run(`UPDATE order_items

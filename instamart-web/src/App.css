@@ -1684,9 +1684,56 @@
   font-weight: 800;
   cursor: pointer;
 }
+.saved-address-list button strong,
+.saved-address-list button span,
+.saved-address-list button small {
+  display: block;
+}
+.saved-address-list button span {
+  margin-top: 4px;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.saved-address-list button small {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
 .saved-address-list button.active {
   border-color: #f6c400;
   background: #fff7d6;
+}
+.checkout-address-save-row {
+  display: grid;
+  grid-template-columns: minmax(0, 160px) auto;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.checkout-address-save-row select,
+.checkout-address-save-row button {
+  min-height: 44px;
+  border-radius: 14px;
+}
+.checkout-address-save-row select {
+  border: 1px solid #dbe3ef;
+  padding: 0 12px;
+  background: #fff;
+  color: #13223a;
+  font: inherit;
+}
+.checkout-address-save-row button {
+  border: 0;
+  padding: 0 14px;
+  background: #0f7a4f;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+}
+.checkout-address-save-row button:disabled {
+  opacity: .6;
+  cursor: not-allowed;
 }
 .location-lock-card {
   margin-top: 14px;
@@ -2484,6 +2531,105 @@
 .orders-page {
   max-width: 850px;
   padding: 24px 16px 120px;
+}
+.account-hub-card {
+  margin-bottom: 18px;
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+}
+.account-hub-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.account-hub-head h3 {
+  margin: 4px 0 0;
+  color: #13223a;
+}
+.account-hub-message {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #edf7ff;
+  color: #0b4ca8;
+  font-size: 12px;
+  font-weight: 900;
+}
+.account-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.account-hub-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid #e5edf6;
+  background: linear-gradient(135deg, #f8fbff, #fffdf7);
+}
+.account-hub-panel h4 {
+  margin: 0;
+  color: #13223a;
+}
+.account-form-grid textarea {
+  grid-column: 1 / -1;
+  min-height: 92px;
+  resize: vertical;
+}
+.account-address-list {
+  display: grid;
+  gap: 10px;
+}
+.account-address-empty {
+  padding: 14px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px dashed #d6e1ee;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+.account-address-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid #e8eef6;
+}
+.account-address-item.default {
+  border-color: rgba(246, 196, 0, .5);
+  background: #fffaf0;
+}
+.account-address-item strong,
+.account-address-item span,
+.account-address-item small {
+  display: block;
+}
+.account-address-item span {
+  margin-top: 4px;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.account-address-item small {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+.account-address-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 .empty-orders {
   padding: 60px 20px;
@@ -3654,6 +3800,7 @@
   .delivery-strip { margin: 12px 12px; flex-direction: column; align-items: stretch; }
   .delivery-strip-badge { border-radius: 16px; }
   .checkout-page { grid-template-columns: 1fr; }
+  .checkout-address-save-row { grid-template-columns: 1fr; }
   .checkout-summary { position: static; }
   .payment-options { grid-template-columns: 1fr; }
   .pincode-search-row { grid-template-columns: 1fr; }
@@ -3686,6 +3833,9 @@
   .track-now { grid-column: 1 / -1; }
   .order-card-top, .order-card-bottom { align-items: flex-start; flex-direction: column; }
   .aftercare-form-grid { grid-template-columns: 1fr; }
+  .account-hub-grid { grid-template-columns: 1fr; }
+  .account-hub-head { flex-direction: column; }
+  .account-address-item { grid-template-columns: 1fr; }
   .shop-filter-grid { grid-template-columns: 1fr; }
   .shop-result-count { justify-self: start; }
   .product-detail-img { min-height: 320px; }
