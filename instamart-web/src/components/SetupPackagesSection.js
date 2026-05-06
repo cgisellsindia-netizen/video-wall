@@ -23,6 +23,19 @@ function SetupPackagesSection({
     [products]
   );
 
+  const fallbackSetupProducts = useMemo(() => (
+    products
+      .filter((product) => {
+        const unit = String(product.unit || '').toLowerCase();
+        const name = String(product.name || '').toLowerCase();
+        const description = String(product.description || '').toLowerCase();
+        return unit.includes('setup')
+          || name.includes('setup')
+          || description.includes('setup package');
+      })
+      .slice(0, 12)
+  ), [products]);
+
   useEffect(() => {
     let cancelled = false;
     const loadPackages = async () => {
@@ -55,10 +68,13 @@ function SetupPackagesSection({
   }, []);
 
   const sectionProducts = useMemo(
-    () => packages
-      .map((entry) => productMap.get(Number(entry.product_id || 0)))
-      .filter(Boolean),
-    [packages, productMap]
+    () => {
+      const resolved = packages
+        .map((entry) => productMap.get(Number(entry.product_id || 0)))
+        .filter(Boolean);
+      return resolved.length ? resolved : fallbackSetupProducts;
+    },
+    [packages, productMap, fallbackSetupProducts]
   );
 
   if (!sectionProducts.length) return null;
