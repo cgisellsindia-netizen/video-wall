@@ -23,6 +23,7 @@ import CategoryPage from './components/CategoryPage';
 import TrackingPage from './components/TrackingPage';
 import DeliveryPartnerPage from './components/DeliveryPartnerPage';
 import InstallerPage from './components/InstallerPage';
+import SavedItemsPage from './components/SavedItemsPage';
 import LocationDeliveryStrip from './components/LocationDeliveryStrip';
 import FloatingTracker from './components/FloatingTracker';
 import FloatingCheckoutBar from './components/FloatingCheckoutBar';
@@ -131,7 +132,10 @@ function MainPage({
   setSearchQuery,
   recentProducts = [],
   recommendedProducts = [],
-  bestsellingProducts = []
+  bestsellingProducts = [],
+  savedProducts = [],
+  savedProductIds = [],
+  onToggleSaved
 }) {
   const filteredProducts = searchQuery
     ? products.filter(p => String(p.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
@@ -156,6 +160,20 @@ function MainPage({
             onRemove={removeFromCart}
             user={user}
             cartItems={cartItems}
+            savedProductIds={savedProductIds}
+            onToggleSaved={onToggleSaved}
+          />
+        )}
+        {!searchQuery && savedProducts.length > 0 && (
+          <ProductSection
+            title="Saved for Later"
+            products={savedProducts}
+            onAdd={addToCart}
+            onRemove={removeFromCart}
+            user={user}
+            cartItems={cartItems}
+            savedProductIds={savedProductIds}
+            onToggleSaved={onToggleSaved}
           />
         )}
         {!searchQuery && recommendedProducts.length > 0 && (
@@ -166,6 +184,8 @@ function MainPage({
             onRemove={removeFromCart}
             user={user}
             cartItems={cartItems}
+            savedProductIds={savedProductIds}
+            onToggleSaved={onToggleSaved}
           />
         )}
         {!searchQuery && bestsellingProducts.length > 0 && (
@@ -176,11 +196,13 @@ function MainPage({
             onRemove={removeFromCart}
             user={user}
             cartItems={cartItems}
+            savedProductIds={savedProductIds}
+            onToggleSaved={onToggleSaved}
           />
         )}
         {searchQuery ? (
           filteredProducts.length ? (
-            <ProductSection title={`Search: "${searchQuery}"`} products={filteredProducts} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} />
+            <ProductSection title={`Search: "${searchQuery}"`} products={filteredProducts} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={onToggleSaved} />
           ) : (
             <section className="category-section">
               <div className="card search-empty-state">
@@ -198,7 +220,7 @@ function MainPage({
           )
         ) : (
           productsByCategory.map(cat => (
-            <ProductSection key={cat.id} title={cat.name} categoryId={cat.id} products={cat.products} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} />
+            <ProductSection key={cat.id} title={cat.name} categoryId={cat.id} products={cat.products} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={onToggleSaved} />
           ))
         )}
       </main>
@@ -219,6 +241,7 @@ function AppContent() {
   const [authReady, setAuthReady] = useState(false);
   const [appNotice, setAppNotice] = useState(null);
   const [customerOrders, setCustomerOrders] = useState([]);
+  const [savedItems, setSavedItems] = useState([]);
   const [notificationPermission, setNotificationPermission] = useState(() => (
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
   ));
@@ -280,6 +303,21 @@ function AppContent() {
       if (res.status === 401 || res.status === 403) return;
       const data = await res.json().catch(() => []);
       setCustomerOrders(Array.isArray(data) ? data : []);
+    } catch (e) {}
+  };
+
+  const fetchSavedItems = async (referenceUser = user) => {
+    if (!referenceUser || ['delivery_partner', 'installer', 'admin'].includes(String(referenceUser.role || ''))) {
+      setSavedItems([]);
+      return;
+    }
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/account/saved-items`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.status === 401 || res.status === 403) return;
+      const data = await res.json().catch(() => []);
+      setSavedItems(Array.isArray(data) ? data : []);
     } catch (e) {}
   };
 
@@ -528,8 +566,10 @@ function AppContent() {
       fetchCart();
       restoreActiveOrder(user);
       fetchCustomerOrders(user);
+      fetchSavedItems(user);
     } else {
       setCustomerOrders([]);
+      setSavedItems([]);
     }
   }, [user]);
 
@@ -746,6 +786,46 @@ function AppContent() {
 
   const handleLogout = () => {
     clearSessionState();
+    setSavedItems([]);
+  };
+
+  const toggleSavedItem = async (product) => {
+    if (APP_MODE === 'delivery' || APP_MODE === 'installer' || user?.role === 'delivery_partner' || user?.role === 'installer') return;
+    const token = localStorage.getItem('token');
+    if (!token || !user) {
+      setLoginOpen(true);
+      return;
+    }
+    const productId = Number(product?.id);
+    if (!Number.isInteger(productId) || productId <= 0) return;
+    const isSaved = savedItems.some((entry) => Number(entry.product_id) === productId);
+    try {
+      const res = await fetch(
+        isSaved ? `${API_URL}/account/saved-items/${productId}` : `${API_URL}/account/saved-items`,
+        {
+          method: isSaved ? 'DELETE' : 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: isSaved ? undefined : JSON.stringify({ product_id: productId })
+        }
+      );
+      if (res.status === 401 || res.status === 403) {
+        handleAuthFailure('Your login timed out. Please login again to manage saved items.');
+        return;
+      }
+      if (!res.ok) throw new Error('Saved items update failed');
+      if (isSaved) {
+        setSavedItems((current) => current.filter((entry) => Number(entry.product_id) !== productId));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setSavedItems((current) => {
+          if (current.some((entry) => Number(entry.product_id) === productId)) return current;
+          return [data.saved_item || { product_id: productId, created_at: new Date().toISOString() }, ...current];
+        });
+      }
+    } catch (e) {}
   };
 
   const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0);
@@ -794,6 +874,17 @@ function AppContent() {
     [products]
   );
   const trendingSearches = ['AHD camera', 'IP camera', 'DVR', 'NVR', 'POE switch', 'SMPS'];
+  const savedProductIds = useMemo(
+    () => savedItems.map((entry) => Number(entry.product_id)).filter((value) => Number.isInteger(value)),
+    [savedItems]
+  );
+  const savedProducts = useMemo(
+    () => savedProductIds
+      .map((productId) => products.find((product) => Number(product.id) === productId))
+      .filter(Boolean)
+      .slice(0, 10),
+    [products, savedProductIds]
+  );
   const searchSuggestions = searchQuery.trim()
     ? Array.from(new Set([
         ...products
@@ -915,12 +1006,16 @@ function AppContent() {
               recentProducts={recentProducts}
               recommendedProducts={recommendedProducts}
               bestsellingProducts={bestsellingProducts}
+              savedProducts={savedProducts}
+              savedProductIds={savedProductIds}
+              onToggleSaved={toggleSavedItem}
             />
           </DeliveryOnlyRoute>
         } />
-        <Route path="/product/:id" element={<DeliveryOnlyRoute user={user}><ProductDetail products={products} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} user={user} onLogin={() => setLoginOpen(true)} priceForRole={priceForRole} /></DeliveryOnlyRoute>} />
-        <Route path="/category/:id" element={<DeliveryOnlyRoute user={user}><CategoryPage categories={categories} products={products} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} /></DeliveryOnlyRoute>} />
+        <Route path="/product/:id" element={<DeliveryOnlyRoute user={user}><ProductDetail products={products} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} user={user} onLogin={() => setLoginOpen(true)} priceForRole={priceForRole} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} /></DeliveryOnlyRoute>} />
+        <Route path="/category/:id" element={<DeliveryOnlyRoute user={user}><CategoryPage categories={categories} products={products} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} /></DeliveryOnlyRoute>} />
         <Route path="/orders" element={<DeliveryOnlyRoute user={user}><OrdersPage user={user} onLogin={() => setLoginOpen(true)} onUserUpdate={updateUserState} /></DeliveryOnlyRoute>} />
+        <Route path="/saved" element={<DeliveryOnlyRoute user={user}><SavedItemsPage user={user} onLogin={() => setLoginOpen(true)} products={products} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} priceForRole={priceForRole} /></DeliveryOnlyRoute>} />
         <Route path="/install" element={<DeliveryOnlyRoute user={user}><InstallationPage user={user} onLogin={() => setLoginOpen(true)} /></DeliveryOnlyRoute>} />
         <Route path="/dealer" element={<DealerDashboard user={user} />} />
         <Route path="/distributor" element={<DealerDashboard user={user} />} />
@@ -928,7 +1023,7 @@ function AppContent() {
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
         <Route path="/admin" element={<AdminPage user={user} />} />
-        <Route path="/shop" element={<DeliveryOnlyRoute user={user}><ShopPage products={products} categories={categories} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} /></DeliveryOnlyRoute>} />
+        <Route path="/shop" element={<DeliveryOnlyRoute user={user}><ShopPage products={products} categories={categories} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} /></DeliveryOnlyRoute>} />
         <Route path="/checkout" element={<DeliveryOnlyRoute user={user}><CheckoutPage user={user} liveCartItems={cartItems} onLogin={() => setLoginOpen(true)} onOrderPlaced={handleOrderPlaced} onUserUpdate={updateUserState} /></DeliveryOnlyRoute>} />
         <Route path="/tracking/:id" element={<TrackingPage />} />
         <Route path="/delivery-partner" element={<DeliveryPartnerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />

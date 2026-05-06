@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Minus, Plus, Star, Truck, ShieldCheck, Clock3, BadgeCheck, Sparkles, Package2, ShoppingCart, Zap } from 'lucide-react';
+import { ArrowLeft, Heart, Minus, Plus, Star, Truck, ShieldCheck, Clock3, BadgeCheck, Sparkles, Package2, ShoppingCart, Zap } from 'lucide-react';
 import { API_URL } from '../api';
 
-function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogin, priceForRole }) {
+function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogin, priceForRole, savedProductIds = [], onToggleSaved = null }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const listProduct = products.find(p => p.id === parseInt(id, 10));
@@ -83,6 +83,7 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
   const ratingAverage = Number(product.rating_average || 4.6).toFixed(1);
   const ratingCount = Number(product.rating_count || 200);
   const reviews = Array.isArray(product.reviews) ? product.reviews.slice(0, 3) : [];
+  const isSaved = savedProductIds.includes(Number(product.id));
 
   const handleAdd = () => {
     if (!user) { onLogin(); return; }
@@ -177,6 +178,15 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
             </div>
 
             <div className="product-action-block">
+              {onToggleSaved && (
+                <button
+                  className={isSaved ? 'product-secondary-action saved-action active' : 'product-secondary-action saved-action'}
+                  type="button"
+                  onClick={() => onToggleSaved(product)}
+                >
+                  <Heart size={18} fill={isSaved ? 'currentColor' : 'none'} /> {isSaved ? 'Saved for later' : 'Save for later'}
+                </button>
+              )}
               {selectedQty > 0 ? (
                 <div className="detail-qty-stepper">
                   <button type="button" onPointerDown={handlePointerAction(() => onRemove(product, cartItem))} onClick={stopActionTap}><Minus size={18} /></button>

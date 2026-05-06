@@ -41,6 +41,7 @@ function Header({
         <nav className="desktop-nav">
           {!isOpsMode && <a href="/#/shop">Shop</a>}
           {!isOpsMode && <a href="/#/orders">Orders</a>}
+          {!isOpsMode && <a href="/#/saved">Saved</a>}
           {(user?.role === 'dealer' || user?.role === 'distributor') && <a href="/#/dealer">Trade Panel</a>}
           {isDeliveryPartner && <a href="/#/delivery-partner">Delivery Panel</a>}
           {isInstaller && <a href="/#/installer">Installer Panel</a>}

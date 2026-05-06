@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Filter, Minus, Plus, Search, SlidersHorizontal, Star } from 'lucide-react';
+import { Filter, Heart, Minus, Plus, Search, SlidersHorizontal, Star } from 'lucide-react';
 
-function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, cartItems = [] }) {
+function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null }) {
   const [selectedCat, setSelectedCat] = useState('all');
   const [sortBy, setSortBy] = useState('default');
   const [priceBand, setPriceBand] = useState('all');
@@ -107,6 +107,7 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
         {filtered.map((product) => {
           const cartItem = cartItems.find((item) => Number(item.product_id || item.id) === Number(product.id));
           const selectedQty = cartItem?.quantity || 0;
+          const isSaved = savedProductIds.includes(Number(product.id));
           const discount = Number(product.discount_percent) > 0 ? Math.round(Number(product.discount_percent)) : Math.round((1 - product.price / product.mrp) * 100);
           return (
             <div key={product.id} className="product-card" onClick={() => navigate(`/product/${product.id}`)}>
@@ -115,6 +116,17 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
                   <img src={product.image} alt={product.name} loading="lazy" />
                 ) : (
                   <div className="emoji">PROD</div>
+                )}
+                {onToggleSaved && (
+                  <button
+                    type="button"
+                    className={isSaved ? 'save-item-btn active' : 'save-item-btn'}
+                    onPointerDown={handlePointerAction(() => onToggleSaved(product))}
+                    onClick={stopCardTap}
+                    aria-label={isSaved ? 'Remove from saved items' : 'Save for later'}
+                  >
+                    <Heart size={16} fill={isSaved ? 'currentColor' : 'none'} />
+                  </button>
                 )}
                 <div className="product-image-action-wrap" onClick={stopCardTap}>
                   {selectedQty > 0 ? (

@@ -594,6 +594,27 @@
   padding: 3px 8px; border-radius: 6px;
   font-size: 10px; font-weight: 600;
 }
+.save-item-btn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 4;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(15, 23, 42, .08);
+  border-radius: 999px;
+  background: rgba(255,255,255,.96);
+  color: #64748b;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 12px 22px rgba(15, 23, 42, .12);
+  cursor: pointer;
+}
+.save-item-btn.active {
+  color: #e11d48;
+  background: #fff1f2;
+  border-color: rgba(225, 29, 72, .18);
+}
 .product-image-action-wrap {
   position: absolute;
   top: 10px;
@@ -4561,6 +4582,16 @@ body.bottom-nav-hidden .floating-tracker {
 .add-btn-large:hover,
 .product-secondary-action:hover {
   transform: translateY(-1px);
+}
+.product-secondary-action.saved-action {
+  background: #fff5f7;
+  color: #be123c;
+  border: 1px solid rgba(190, 18, 60, .12);
+  box-shadow: none;
+}
+.product-secondary-action.saved-action.active {
+  background: #ffe4e6;
+  color: #be123c;
 }
 .add-btn-large,
 .product-secondary-action {

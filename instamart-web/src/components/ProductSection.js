@@ -1,9 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Minus, Plus, Star } from 'lucide-react';
+import { Heart, Minus, Plus, Star } from 'lucide-react';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
 
-function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [], categoryId = null }) {
+function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [], categoryId = null, savedProductIds = [], onToggleSaved = null }) {
   const navigate = useNavigate();
   if (!products || products.length === 0) return null;
   const stopCardTap = (event) => {
@@ -32,6 +32,7 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
         {products.map(product => {
           const cartItem = cartItems.find(item => Number(item.product_id || item.id) === Number(product.id));
           const selectedQty = cartItem?.quantity || 0;
+          const isSaved = savedProductIds.includes(Number(product.id));
           const discount = Number(product.discount_percent) > 0
             ? Math.round(Number(product.discount_percent))
             : product.mrp ? Math.max(0, Math.round((1 - product.price / product.mrp) * 100)) : 0;
@@ -48,6 +49,17 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
                   <img src={product.image} alt={product.name} loading="lazy" />
                 ) : (
                   <div className="emoji">CCTV</div>
+                )}
+                {onToggleSaved && (
+                  <button
+                    type="button"
+                    className={isSaved ? 'save-item-btn active' : 'save-item-btn'}
+                    onPointerDown={handlePointerAction(() => onToggleSaved(product))}
+                    onClick={stopCardTap}
+                    aria-label={isSaved ? 'Remove from saved items' : 'Save for later'}
+                  >
+                    <Heart size={16} fill={isSaved ? 'currentColor' : 'none'} />
+                  </button>
                 )}
                 <span className="delivery-badge">8 min</span>
                 <div className="product-image-action-wrap" onClick={stopCardTap}>

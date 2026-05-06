@@ -1355,7 +1355,7 @@ const normalizeOperationalStateRemotePath = () => {
 };
 
 const buildOperationalStateManifest = async () => {
-  const [users, hubs, deliveryPartnerDetails, orders, orderItems, deliveryLocations, notifications, warrantyRegistrations, serviceTickets, userAddresses] = await Promise.all([
+  const [users, hubs, deliveryPartnerDetails, orders, orderItems, deliveryLocations, notifications, warrantyRegistrations, serviceTickets, userAddresses, savedItems] = await Promise.all([
     dbAllAsync(
       `SELECT id, email, password, plaintext_password, name, phone, address, role,
               phone_verified, phone_verified_at, created_at
@@ -1406,6 +1406,11 @@ const buildOperationalStateManifest = async () => {
       `SELECT *
        FROM user_addresses
        ORDER BY id ASC`
+    ),
+    dbAllAsync(
+      `SELECT *
+       FROM saved_items
+       ORDER BY id ASC`
     )
   ]);
 
@@ -1422,7 +1427,8 @@ const buildOperationalStateManifest = async () => {
     notifications,
     warranty_registrations: warrantyRegistrations,
     service_tickets: serviceTickets,
-    user_addresses: userAddresses
+    user_addresses: userAddresses,
+    saved_items: savedItems
   };
 };
 
@@ -1497,6 +1503,7 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
   const warrantyRegistrations = Array.isArray(manifest.warranty_registrations) ? manifest.warranty_registrations : [];
   const serviceTickets = Array.isArray(manifest.service_tickets) ? manifest.service_tickets : [];
   const userAddresses = Array.isArray(manifest.user_addresses) ? manifest.user_addresses : [];
+  const savedItems = Array.isArray(manifest.saved_items) ? manifest.saved_items : [];
 
   await dbRunAsync('BEGIN IMMEDIATE TRANSACTION');
   try {
@@ -1869,6 +1876,24 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
       );
     }
 
+    for (const entry of savedItems) {
+      await dbRunAsync(
+        `INSERT INTO saved_items (
+           id, user_id, product_id, created_at
+         ) VALUES (?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           user_id = excluded.user_id,
+           product_id = excluded.product_id,
+           created_at = COALESCE(excluded.created_at, saved_items.created_at)`,
+        [
+          entry.id,
+          entry.user_id || null,
+          entry.product_id || null,
+          entry.created_at || null
+        ]
+      );
+    }
+
     await dbRunAsync(
       `INSERT OR REPLACE INTO app_settings (setting_key, value, updated_at)
        VALUES (?, ?, CURRENT_TIMESTAMP)`,
@@ -1886,6 +1911,7 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
           warrantyRegistrationCount: warrantyRegistrations.length,
           serviceTicketCount: serviceTickets.length,
           addressBookCount: userAddresses.length,
+          savedItemCount: savedItems.length,
           at: new Date().toISOString()
         })
       ]
@@ -1902,7 +1928,8 @@ const applyOperationalStateManifest = async (manifest, source = 'operational-sta
       notificationCount: notifications.length,
       warrantyRegistrationCount: warrantyRegistrations.length,
       serviceTicketCount: serviceTickets.length,
-      addressBookCount: userAddresses.length
+      addressBookCount: userAddresses.length,
+      savedItemCount: savedItems.length
     };
   } catch (error) {
     await dbRunAsync('ROLLBACK').catch(() => {});
@@ -3300,6 +3327,65 @@ app.delete('/api/account/addresses/:id', authenticateToken, async (req, res) => 
     }
     queueOperationalStateSync('account-address-deleted');
     res.json({ message: 'Address removed.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/account/saved-items', authenticateToken, async (req, res) => {
+  try {
+    const rows = await dbAllAsync(
+      `SELECT si.id, si.product_id, si.created_at
+       FROM saved_items si
+       WHERE si.user_id = ?
+       ORDER BY si.created_at DESC, si.id DESC`,
+      [req.user.userId]
+    );
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/account/saved-items', authenticateToken, async (req, res) => {
+  try {
+    const productId = Number(req.body?.product_id);
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'A valid product is required.' });
+    }
+    const product = await dbGetAsync('SELECT id FROM products WHERE id = ?', [productId]);
+    if (!product) return res.status(404).json({ error: 'Product not found.' });
+
+    await dbRunAsync(
+      `INSERT OR IGNORE INTO saved_items (user_id, product_id)
+       VALUES (?, ?)`,
+      [req.user.userId, productId]
+    );
+    queueOperationalStateSync('saved-item-created');
+    const savedItem = await dbGetAsync(
+      `SELECT id, product_id, created_at
+       FROM saved_items
+       WHERE user_id = ? AND product_id = ?`,
+      [req.user.userId, productId]
+    );
+    res.json({ message: 'Saved item added.', saved_item: savedItem });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/account/saved-items/:productId', authenticateToken, async (req, res) => {
+  try {
+    const productId = Number(req.params.productId);
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'A valid product is required.' });
+    }
+    await dbRunAsync(
+      'DELETE FROM saved_items WHERE user_id = ? AND product_id = ?',
+      [req.user.userId, productId]
+    );
+    queueOperationalStateSync('saved-item-deleted');
+    res.json({ message: 'Saved item removed.' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

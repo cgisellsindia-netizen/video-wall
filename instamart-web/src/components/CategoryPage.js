@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Minus, Plus, Search, SlidersHorizontal, Star } from 'lucide-react';
+import { ArrowLeft, Heart, Minus, Plus, Search, SlidersHorizontal, Star } from 'lucide-react';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
 
-function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRole, cartItems = [] }) {
+function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const categoryId = parseInt(id, 10);
@@ -109,11 +109,23 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
         {categoryProducts.map((product) => {
           const cartItem = cartItems.find((item) => Number(item.product_id || item.id) === Number(product.id));
           const selectedQty = cartItem?.quantity || 0;
+          const isSaved = savedProductIds.includes(Number(product.id));
           const discount = Number(product.discount_percent) > 0 ? Math.round(Number(product.discount_percent)) : product.mrp ? Math.max(0, Math.round((1 - product.price / product.mrp) * 100)) : 0;
           return (
             <div key={product.id} className="product-card" onClick={() => navigate(`/product/${product.id}`)}>
               <div className="product-img-wrap">
                 {product.image ? <img src={product.image} alt={product.name} loading="lazy" /> : <div className="emoji">CCTV</div>}
+                {onToggleSaved && (
+                  <button
+                    type="button"
+                    className={isSaved ? 'save-item-btn active' : 'save-item-btn'}
+                    onPointerDown={handlePointerAction(() => onToggleSaved(product))}
+                    onClick={stopCardTap}
+                    aria-label={isSaved ? 'Remove from saved items' : 'Save for later'}
+                  >
+                    <Heart size={16} fill={isSaved ? 'currentColor' : 'none'} />
+                  </button>
+                )}
                 <span className="delivery-badge">8 min</span>
                 <div className="product-image-action-wrap" onClick={stopCardTap}>
                   {selectedQty > 0 ? (
