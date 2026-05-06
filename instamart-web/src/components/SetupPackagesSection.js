@@ -5,7 +5,7 @@ import { API_URL } from '../api';
 
 const formatPrice = (value) => `Rs ${new Intl.NumberFormat('en-IN').format(Math.max(0, Number(value || 0)))}`;
 
-function SetupPackagesSection({ products = [], onAdd, onRemove, cartItems = [] }) {
+function SetupPackagesSection({ products = [], onAdd, onRemove, cartItems = [], user = null }) {
   const [packages, setPackages] = useState([]);
   const navigate = useNavigate();
 
@@ -30,6 +30,16 @@ function SetupPackagesSection({ products = [], onAdd, onRemove, cartItems = [] }
   }, []);
 
   if (!packages.length) return null;
+
+  const handleBuyNow = async (product, cartItem) => {
+    if (!product) return;
+    if (Number(cartItem?.quantity || 0) > 0) {
+      navigate('/checkout');
+      return;
+    }
+    await onAdd?.(product);
+    if (user) navigate('/checkout');
+  };
 
   return (
     <section className="category-section setup-packages-section">
@@ -77,8 +87,8 @@ function SetupPackagesSection({ products = [], onAdd, onRemove, cartItems = [] }
                       ADD
                     </button>
                   )}
-                  <button className="btn btn-outline btn-sm" type="button" onClick={() => navigate(`/product/${linkedProduct.id}`)}>
-                    View
+                  <button className="btn btn-outline btn-sm" type="button" onClick={() => handleBuyNow(linkedProduct, cartItem)}>
+                    Buy now
                   </button>
                 </div>
               ) : (
