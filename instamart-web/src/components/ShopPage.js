@@ -179,6 +179,7 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
                 ) : (
                   <div className="emoji">PROD</div>
                 )}
+                {discount > 0 && <span className="product-corner-offer">{discount}% OFF</span>}
                 {onToggleSaved && (
                   <button
                     type="button"
@@ -190,17 +191,7 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
                     <Heart size={16} fill={isSaved ? 'currentColor' : 'none'} />
                   </button>
                 )}
-                <div className="product-image-action-wrap" onClick={stopCardTap}>
-                  {selectedQty > 0 ? (
-                    <div className="card-qty-stepper image-stepper">
-                      <button type="button" onPointerDown={handlePointerAction(() => onRemove(product, cartItem))} onClick={stopCardTap}><Minus size={15} /></button>
-                      <strong>{selectedQty}</strong>
-                      <button type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}><Plus size={15} /></button>
-                    </div>
-                  ) : (
-                    <button className="add-btn image-add-btn" type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}>ADD</button>
-                  )}
-                </div>
+                <span className="delivery-badge">8 min</span>
               </div>
               <div className="product-name">{product.name}</div>
               <div className="product-weight">{product.unit}</div>
@@ -209,9 +200,17 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
                 <strong>{Number(product.rating_average || 4.6).toFixed(1)}</strong>
                 <span>({Number(product.rating_count || 200)})</span>
               </div>
-              {discount > 0 && <div className="product-offer-line">{discount}% OFF</div>}
-              <div className="product-price-row">
-                <span><span className="price-current">Rs {priceForRole ? priceForRole(product, user) : product.price}</span><span className="price-original">Rs {product.mrp}</span></span>
+              <div className="product-price-row blinkit-price-row" onClick={stopCardTap}>
+                <span className="product-price-stack"><span className="price-current">Rs {priceForRole ? priceForRole(product, user) : product.price}</span><span className="price-original">Rs {product.mrp}</span></span>
+                {selectedQty > 0 ? (
+                  <div className="card-qty-stepper inline-stepper">
+                    <button type="button" onPointerDown={handlePointerAction(() => onRemove(product, cartItem))} onClick={stopCardTap}><Minus size={15} /></button>
+                    <strong>{selectedQty}</strong>
+                    <button type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}><Plus size={15} /></button>
+                  </div>
+                ) : (
+                  <button className="add-btn inline-add-btn" type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}>ADD</button>
+                )}
               </div>
               <div className="shop-card-meta-row">
                 <span className={`stock-dot ${Number(product.stock || 0) > 0 ? 'ok' : 'low'}`}>{Number(product.stock || 0) > 0 ? 'In stock' : 'Out of stock'}</span>
