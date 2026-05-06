@@ -153,7 +153,7 @@ function MainPage({
         {!searchQuery && <HeroBanner />}
         {!searchQuery && <LocationDeliveryStrip />}
         {!searchQuery && <CategoryGrid categories={categories} />}
-        {!searchQuery && <SetupPackagesSection />}
+        {!searchQuery && <SetupPackagesSection products={products} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} />}
         {!searchQuery && recentProducts.length > 0 && (
           <ProductSection
             title="Buy Again"

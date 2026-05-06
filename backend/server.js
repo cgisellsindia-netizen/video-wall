@@ -195,7 +195,8 @@ const DEFAULT_SETUP_PACKAGES = [
     price: 12500,
     subtitle: 'Budget-ready 4 camera CCTV kit for homes and small shops.',
     badge: 'Most popular',
-    image: '/category-real/ahd-cameras.jpg'
+    image: '/category-real/ahd-cameras.jpg',
+    linked_product_id: null
   },
   {
     id: 'ip-4-camera-setup',
@@ -203,7 +204,8 @@ const DEFAULT_SETUP_PACKAGES = [
     price: 22500,
     subtitle: 'Sharper IP surveillance setup for offices, stores, and modern homes.',
     badge: 'Premium clarity',
-    image: '/category-real/ip-cameras.jpg'
+    image: '/category-real/ip-cameras.jpg',
+    linked_product_id: null
   },
   {
     id: 'ahd-5mp-4-camera-setup',
@@ -211,7 +213,8 @@ const DEFAULT_SETUP_PACKAGES = [
     price: 15300,
     subtitle: 'Higher-resolution AHD combo for customers who want better detail at a practical price.',
     badge: '5MP upgrade',
-    image: '/category-real/ahd-cameras.jpg'
+    image: '/category-real/ahd-cameras.jpg',
+    linked_product_id: null
   }
 ];
 
@@ -278,13 +281,15 @@ const sanitizeSetupPackage = (entry = {}, index = 0) => {
   const badge = String(entry?.badge || fallback?.badge || '').trim();
   const image = String(entry?.image || fallback?.image || '/category-real/accessories.jpg').trim();
   const price = Math.max(0, Math.round(Number(entry?.price ?? fallback?.price ?? 0)));
+  const linkedProductId = Number(entry?.linked_product_id ?? fallback?.linked_product_id ?? 0);
   return {
     id: normalizeSetupPackageId(entry?.id || title, index),
     title,
     subtitle,
     badge,
     image,
-    price
+    price,
+    linked_product_id: Number.isInteger(linkedProductId) && linkedProductId > 0 ? linkedProductId : null
   };
 };
 

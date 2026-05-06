@@ -112,7 +112,8 @@ function AdminPage({ user }) {
         subtitle: entry.subtitle || '',
         badge: entry.badge || '',
         image: entry.image || '',
-        price: String(entry.price ?? '')
+        price: String(entry.price ?? ''),
+        linked_product_id: String(entry.linked_product_id ?? '')
       }))
     );
   }, [setupPackages]);
@@ -672,7 +673,11 @@ function AdminPage({ user }) {
       subtitle: String(entry.subtitle || '').trim(),
       badge: String(entry.badge || '').trim(),
       image: String(entry.image || '').trim(),
-      price: Math.max(0, Math.round(Number(entry.price || 0)))
+      price: Math.max(0, Math.round(Number(entry.price || 0))),
+      linked_product_id: (() => {
+        const value = Number(entry.linked_product_id || 0);
+        return Number.isInteger(value) && value > 0 ? value : null;
+      })()
     }));
 
     if (payload.some(entry => !entry.title || !entry.image || !Number.isFinite(entry.price) || entry.price <= 0)) {
@@ -1188,6 +1193,20 @@ function AdminPage({ user }) {
                         value={entry.price}
                         onChange={e => setSetupPackageDrafts(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, price: e.target.value } : item))}
                       />
+                    </div>
+                    <div className="form-group">
+                      <label>Linked Product</label>
+                      <select
+                        value={entry.linked_product_id}
+                        onChange={e => setSetupPackageDrafts(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, linked_product_id: e.target.value } : item))}
+                      >
+                        <option value="">Select product for ADD button</option>
+                        {products.map((product) => (
+                          <option key={product.id} value={product.id}>
+                            #{product.id} - {product.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                       <label>Subtitle</label>
