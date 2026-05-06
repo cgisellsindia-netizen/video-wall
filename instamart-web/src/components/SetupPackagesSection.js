@@ -42,7 +42,7 @@ function SetupPackagesSection({ products = [], onAdd, onRemove, cartItems = [] }
       </div>
       <div className="setup-package-grid">
         {packages.map((entry) => {
-          const linkedProduct = productMap.get(Number(entry.linked_product_id || 0)) || null;
+          const linkedProduct = productMap.get(Number(entry.product_id || 0)) || null;
           const cartItem = linkedProduct
             ? cartItems.find((item) => Number(item.product_id || item.id) === Number(linkedProduct.id))
             : null;
@@ -82,7 +82,7 @@ function SetupPackagesSection({ products = [], onAdd, onRemove, cartItems = [] }
                   </button>
                 </div>
               ) : (
-                <div className="setup-package-unlinked-note">Link a product from Admin to enable buying this setup.</div>
+                <div className="setup-package-unlinked-note">This full setup product is being prepared. Refresh after the latest deploy if it does not appear yet.</div>
               )}
             </div>
           </article>

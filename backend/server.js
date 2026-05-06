@@ -196,7 +196,8 @@ const DEFAULT_SETUP_PACKAGES = [
     subtitle: 'Budget-ready 4 camera CCTV kit for homes and small shops.',
     badge: 'Most popular',
     image: '/category-real/ahd-cameras.jpg',
-    linked_product_id: null
+    product_id: null,
+    category_id: 1
   },
   {
     id: 'ip-4-camera-setup',
@@ -205,7 +206,8 @@ const DEFAULT_SETUP_PACKAGES = [
     subtitle: 'Sharper IP surveillance setup for offices, stores, and modern homes.',
     badge: 'Premium clarity',
     image: '/category-real/ip-cameras.jpg',
-    linked_product_id: null
+    product_id: null,
+    category_id: 2
   },
   {
     id: 'ahd-5mp-4-camera-setup',
@@ -214,7 +216,8 @@ const DEFAULT_SETUP_PACKAGES = [
     subtitle: 'Higher-resolution AHD combo for customers who want better detail at a practical price.',
     badge: '5MP upgrade',
     image: '/category-real/ahd-cameras.jpg',
-    linked_product_id: null
+    product_id: null,
+    category_id: 1
   }
 ];
 
@@ -281,7 +284,8 @@ const sanitizeSetupPackage = (entry = {}, index = 0) => {
   const badge = String(entry?.badge || fallback?.badge || '').trim();
   const image = String(entry?.image || fallback?.image || '/category-real/accessories.jpg').trim();
   const price = Math.max(0, Math.round(Number(entry?.price ?? fallback?.price ?? 0)));
-  const linkedProductId = Number(entry?.linked_product_id ?? fallback?.linked_product_id ?? 0);
+  const productId = Number(entry?.product_id ?? entry?.linked_product_id ?? fallback?.product_id ?? 0);
+  const categoryId = Number(entry?.category_id ?? fallback?.category_id ?? 1);
   return {
     id: normalizeSetupPackageId(entry?.id || title, index),
     title,
@@ -289,7 +293,8 @@ const sanitizeSetupPackage = (entry = {}, index = 0) => {
     badge,
     image,
     price,
-    linked_product_id: Number.isInteger(linkedProductId) && linkedProductId > 0 ? linkedProductId : null
+    product_id: Number.isInteger(productId) && productId > 0 ? productId : null,
+    category_id: Number.isInteger(categoryId) && categoryId > 0 ? categoryId : 1
   };
 };
 
@@ -934,6 +939,99 @@ const saveJsonAppSetting = async (settingKey, value) => {
 const resolveSetupPackages = async () => {
   const stored = await getJsonAppSetting(APP_SETTING_KEYS.homepageSetupPackages, null);
   return sanitizeSetupPackages(stored);
+};
+
+const buildSetupPackageProductDraft = (entry = {}) => {
+  const title = String(entry.title || '').trim();
+  const subtitle = String(entry.subtitle || '').trim();
+  return {
+    name: title,
+    description: subtitle || `${title} full setup package from Camigo.`,
+    price: Math.max(0, Math.round(Number(entry.price || 0))),
+    mrp: Math.max(0, Math.round(Number(entry.price || 0))),
+    image: String(entry.image || '/category-real/accessories.jpg').trim(),
+    category_id: Number(entry.category_id || 1),
+    stock: 25,
+    unit: '1 Setup',
+    discount_percent: 0,
+    dealer_price: null,
+    distributor_price: null,
+    warranty_years: 5
+  };
+};
+
+const syncSetupPackageProducts = async (entries = []) => {
+  const nextPackages = [];
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = sanitizeSetupPackage(entries[index], index);
+    const draft = buildSetupPackageProductDraft(entry);
+    let productId = Number(entry.product_id || 0);
+    let existingProduct = null;
+
+    if (productId > 0) {
+      existingProduct = await dbGetAsync('SELECT id FROM products WHERE id = ?', [productId]);
+    }
+    if (!existingProduct) {
+      existingProduct = await dbGetAsync(
+        'SELECT id FROM products WHERE lower(name) = lower(?) ORDER BY id ASC LIMIT 1',
+        [draft.name]
+      );
+    }
+
+    if (existingProduct?.id) {
+      productId = Number(existingProduct.id);
+      await dbRunAsync(
+        `UPDATE products
+         SET name = ?, description = ?, price = ?, mrp = ?, image = ?, category_id = ?, stock = ?, unit = ?,
+             discount_percent = ?, dealer_price = ?, distributor_price = ?, warranty_years = ?
+         WHERE id = ?`,
+        [
+          draft.name,
+          draft.description,
+          draft.price,
+          draft.mrp,
+          draft.image,
+          draft.category_id,
+          draft.stock,
+          draft.unit,
+          draft.discount_percent,
+          draft.dealer_price,
+          draft.distributor_price,
+          draft.warranty_years,
+          productId
+        ]
+      );
+    } else {
+      const created = await dbRunAsync(
+        `INSERT INTO products (
+           name, description, price, mrp, image, category_id, stock, unit,
+           discount_percent, dealer_price, distributor_price, warranty_years
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          draft.name,
+          draft.description,
+          draft.price,
+          draft.mrp,
+          draft.image,
+          draft.category_id,
+          draft.stock,
+          draft.unit,
+          draft.discount_percent,
+          draft.dealer_price,
+          draft.distributor_price,
+          draft.warranty_years
+        ]
+      );
+      productId = Number(created.lastID);
+    }
+
+    nextPackages.push({
+      ...entry,
+      product_id: productId,
+      category_id: draft.category_id
+    });
+  }
+  return nextPackages;
 };
 
 const normalizeImageList = (value) => {
@@ -2905,7 +3003,8 @@ app.post('/auth/phone/verify', authenticateToken, verifyPhoneNumber);
 // Categories
 app.get('/api/setup-packages', async (req, res) => {
   try {
-    const packages = await resolveSetupPackages();
+    const packages = await syncSetupPackageProducts(await resolveSetupPackages());
+    await saveJsonAppSetting(APP_SETTING_KEYS.homepageSetupPackages, packages);
     res.json(packages);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -3725,7 +3824,8 @@ app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
 
 app.get('/api/admin/setup-packages', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const packages = await resolveSetupPackages();
+    const packages = await syncSetupPackageProducts(await resolveSetupPackages());
+    await saveJsonAppSetting(APP_SETTING_KEYS.homepageSetupPackages, packages);
     res.json(packages);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -3737,7 +3837,7 @@ app.put('/api/admin/setup-packages', authenticateToken, requireAdmin, async (req
     if (!Array.isArray(req.body?.packages)) {
       return res.status(400).json({ error: 'Packages array is required' });
     }
-    const packages = sanitizeSetupPackages(req.body.packages);
+    const packages = await syncSetupPackageProducts(sanitizeSetupPackages(req.body.packages));
     if (!packages.length) {
       return res.status(400).json({ error: 'At least one valid setup package is required' });
     }

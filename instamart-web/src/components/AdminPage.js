@@ -113,7 +113,8 @@ function AdminPage({ user }) {
         badge: entry.badge || '',
         image: entry.image || '',
         price: String(entry.price ?? ''),
-        linked_product_id: String(entry.linked_product_id ?? '')
+        product_id: String(entry.product_id ?? ''),
+        category_id: String(entry.category_id ?? 1)
       }))
     );
   }, [setupPackages]);
@@ -674,9 +675,13 @@ function AdminPage({ user }) {
       badge: String(entry.badge || '').trim(),
       image: String(entry.image || '').trim(),
       price: Math.max(0, Math.round(Number(entry.price || 0))),
-      linked_product_id: (() => {
-        const value = Number(entry.linked_product_id || 0);
+      product_id: (() => {
+        const value = Number(entry.product_id || 0);
         return Number.isInteger(value) && value > 0 ? value : null;
+      })(),
+      category_id: (() => {
+        const value = Number(entry.category_id || 1);
+        return Number.isInteger(value) && value > 0 ? value : 1;
       })()
     }));
 
@@ -1159,7 +1164,7 @@ function AdminPage({ user }) {
               <span className="phone-verify-eyebrow">Homepage package section</span>
               <h3 style={{ margin: '4px 0 6px' }}>Manage Full Setup Packages</h3>
               <p className="checkout-note" style={{ margin: 0 }}>
-                These are the ready-made CCTV combo cards shown near the top of the homepage, just under Shop by Category.
+                These are real Camigo products shown near the top of the homepage, just under Shop by Category. Saving here updates the package card and the underlying product.
               </p>
             </div>
             <button className="btn btn-primary btn-sm" type="button" onClick={handleSaveSetupPackages} disabled={setupPackagesBusy}>
@@ -1176,7 +1181,7 @@ function AdminPage({ user }) {
                 <div className="category-admin-body">
                   <div className="category-admin-topline">
                     <strong>{entry.title || `Package ${index + 1}`}</strong>
-                    <span className="tag tag-info">Card {index + 1}</span>
+                    <span className="tag tag-info">Product #{entry.product_id || 'New'}</span>
                   </div>
                   <div className="admin-product-form category-admin-form">
                     <div className="form-group">
@@ -1195,15 +1200,14 @@ function AdminPage({ user }) {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Linked Product</label>
+                      <label>Product Category</label>
                       <select
-                        value={entry.linked_product_id}
-                        onChange={e => setSetupPackageDrafts(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, linked_product_id: e.target.value } : item))}
+                        value={entry.category_id}
+                        onChange={e => setSetupPackageDrafts(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, category_id: e.target.value } : item))}
                       >
-                        <option value="">Select product for ADD button</option>
-                        {products.map((product) => (
-                          <option key={product.id} value={product.id}>
-                            #{product.id} - {product.name}
+                        {categories.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
                           </option>
                         ))}
                       </select>
