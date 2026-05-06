@@ -1,11 +1,37 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Heart, Minus, Plus, Star } from 'lucide-react';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
 
 function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [], categoryId = null, savedProductIds = [], onToggleSaved = null }) {
   const navigate = useNavigate();
+  const sectionRef = useRef(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const [activeProductId, setActiveProductId] = useState(null);
   if (!products || products.length === 0) return null;
+
+  useEffect(() => {
+    const node = sectionRef.current;
+    if (!node) return undefined;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.14 }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const pulseProduct = (productId) => {
+    setActiveProductId(Number(productId));
+    window.clearTimeout(pulseProduct.timeoutId);
+    pulseProduct.timeoutId = window.setTimeout(() => setActiveProductId(null), 320);
+  };
+
   const stopCardTap = (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -16,7 +42,7 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
   };
 
   return (
-    <div className="product-section">
+    <div ref={sectionRef} className={`product-section motion-section ${isVisible ? 'section-in-view' : ''}`}>
       {categoryId !== null && categoryId !== undefined && <CategoryBannerCarousel placementId={categoryId} />}
       <div className="section-header">
         <h2 className="section-title">{title}</h2>
@@ -29,10 +55,11 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
         </button>
       </div>
       <div className="product-scroll">
-        {products.map(product => {
+        {products.map((product, index) => {
           const cartItem = cartItems.find(item => Number(item.product_id || item.id) === Number(product.id));
           const selectedQty = cartItem?.quantity || 0;
           const isSaved = savedProductIds.includes(Number(product.id));
+          const isAnimating = activeProductId === Number(product.id);
           const discount = Number(product.discount_percent) > 0
             ? Math.round(Number(product.discount_percent))
             : product.mrp ? Math.max(0, Math.round((1 - product.price / product.mrp) * 100)) : 0;
@@ -43,7 +70,12 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
               : user?.role === 'dealer' ? Math.round(product.price * 0.90) : user?.role === 'distributor' ? Math.round(product.price * 0.85) : product.price;
 
           return (
-            <div key={product.id} className="product-card" onClick={() => navigate(`/product/${product.id}`)}>
+            <div
+              key={product.id}
+              className={`product-card motion-card ${isAnimating ? 'cart-bump' : ''}`}
+              style={{ '--card-stagger': index }}
+              onClick={() => navigate(`/product/${product.id}`)}
+            >
               <div className="product-img-wrap">
                 {product.image ? (
                   <img src={product.image} alt={product.name} loading="lazy" />
@@ -77,13 +109,13 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
                   <span className="price-original">Rs {product.mrp}</span>
                 </span>
                 {selectedQty > 0 ? (
-                  <div className="card-qty-stepper inline-stepper">
-                    <button type="button" onPointerDown={handlePointerAction(() => onRemove(product, cartItem))} onClick={stopCardTap}><Minus size={15} /></button>
+                  <div className={`card-qty-stepper inline-stepper ${isAnimating ? 'stepper-bump' : ''}`}>
+                    <button type="button" onPointerDown={handlePointerAction(() => { pulseProduct(product.id); onRemove(product, cartItem); })} onClick={stopCardTap}><Minus size={15} /></button>
                     <strong>{selectedQty}</strong>
-                    <button type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}><Plus size={15} /></button>
+                    <button type="button" onPointerDown={handlePointerAction(() => { pulseProduct(product.id); onAdd(product); })} onClick={stopCardTap}><Plus size={15} /></button>
                   </div>
                 ) : (
-                  <button className="add-btn inline-add-btn" type="button" onPointerDown={handlePointerAction(() => onAdd(product))} onClick={stopCardTap}>
+                  <button className={`add-btn inline-add-btn ${isAnimating ? 'add-pressed' : ''}`} type="button" onPointerDown={handlePointerAction(() => { pulseProduct(product.id); onAdd(product); })} onClick={stopCardTap}>
                     ADD
                   </button>
                 )}

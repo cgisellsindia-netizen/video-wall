@@ -16,6 +16,41 @@
   --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
 }
 
+@keyframes cardReveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes addButtonPop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+@keyframes stepperPop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+@keyframes productCardBump {
+  0% { transform: translateY(0) scale(1); }
+  45% { transform: translateY(-3px) scale(1.02); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes cartBadgePulse {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
 .app { min-height: 100vh; background: rgba(255,255,255,.12); color: #fff; }
 .main-content { padding-bottom: 80px; }
 
@@ -24,11 +59,22 @@
   position: sticky; top: 0; z-index: 100;
   background: rgba(8,42,99,.96); backdrop-filter: blur(10px); color: #fff;
   border-bottom: 1px solid rgba(255,255,255,.08);
+  transition: background .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+.header.header-scrolled {
+  background: rgba(8,42,99,.985);
+  box-shadow: 0 12px 26px rgba(2, 6, 23, .16);
+  border-bottom-color: rgba(255,255,255,.12);
 }
 .header-top {
   display: flex; align-items: center; justify-content: space-between;
   max-width: 1200px; margin: 0 auto;
   padding: 12px 16px; gap: 16px;
+  transition: padding .22s ease;
+}
+.header.header-scrolled .header-top {
+  padding-top: 9px;
+  padding-bottom: 9px;
 }
 .logo-area { display: flex; align-items: center; gap: 24px; flex-shrink: 0; }
 .logo {
@@ -162,6 +208,9 @@
   font-size: 10px; font-weight: 700;
   width: 18px; height: 18px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
+}
+.cart-badge-pulse {
+  animation: cartBadgePulse .42s ease;
 }
 
 /* ===== HERO BANNER ===== */
@@ -408,6 +457,15 @@
 .product-section {
   max-width: 1200px; margin: 32px auto;
   padding: 0 16px;
+}
+.motion-section {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity .45s ease, transform .45s ease;
+}
+.motion-section.section-in-view {
+  opacity: 1;
+  transform: translateY(0);
 }
 .product-scroll {
   display: grid;
@@ -748,10 +806,23 @@
   background: var(--white); border-radius: 16px;
   padding: 12px; position: relative;
   box-shadow: var(--shadow-sm);
-  transition: all 0.2s; cursor: pointer;
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+  transform-origin: center bottom;
   border: 1px solid #eee;
 }
-.product-card:hover { box-shadow: var(--shadow-md); }
+.motion-card {
+  opacity: 0;
+  transform: translateY(18px) scale(.985);
+}
+.section-in-view .motion-card {
+  animation: cardReveal .42s cubic-bezier(.2,.8,.2,1) forwards;
+  animation-delay: calc(var(--card-stagger, 0) * 42ms);
+}
+.product-card:hover { box-shadow: var(--shadow-md); transform: translateY(-3px); }
+.product-card:active { transform: scale(.986); }
+.product-card.cart-bump {
+  animation: productCardBump .32s ease;
+}
 .product-img-wrap {
   width: 100%; aspect-ratio: 1;
   border-radius: 14px; background: #f4f7fb;
@@ -883,11 +954,12 @@
   border: 1.5px solid var(--green); border-radius: 10px;
   background: var(--green); color: white;
   font-size: 14px; font-weight: 700; cursor: pointer;
-  transition: all 0.2s; display: flex;
+  transition: transform .16s ease, background .2s ease, border-color .2s ease, box-shadow .18s ease; display: flex;
   align-items: center; justify-content: center; gap: 6px;
 }
 .add-btn:hover { background: #158a5c; border-color: #158a5c; }
 .add-btn.added { background: var(--swiggy-orange); border-color: #f6c400; }
+.add-btn:active { transform: scale(.97); }
 .image-add-btn {
   min-width: 76px;
   height: 36px;
@@ -925,6 +997,9 @@
   border-color: #5f9d2b;
   color: #256308;
 }
+.inline-add-btn.add-pressed {
+  animation: addButtonPop .3s ease;
+}
 .selected-qty-pill {
   display: inline-flex;
   align-items: center;
@@ -949,6 +1024,7 @@
   background: #f8fbff;
   color: #0b64ff;
   box-shadow: 0 6px 16px rgba(11, 100, 255, .12);
+  transition: transform .18s ease, box-shadow .18s ease;
 }
 .card-qty-stepper.image-stepper {
   width: 108px;
@@ -969,6 +1045,9 @@
   place-items: center;
   font-size: 18px;
   font-weight: 900;
+}
+.card-qty-stepper.stepper-bump {
+  animation: stepperPop .3s ease;
 }
 .card-qty-stepper strong {
   text-align: center;

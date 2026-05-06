@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { MapPin, ChevronDown, Search, ShoppingCart, User, LogOut, Shield } from 'lucide-react';
 
 function Header({
@@ -19,13 +19,29 @@ function Header({
   const isOpsMode = isDeliveryPartner || isInstaller;
   const homeLink = isDeliveryPartner ? '/#/delivery-partner' : isInstaller ? '/#/installer' : '/#/';
   const [searchFocused, setSearchFocused] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [cartPulse, setCartPulse] = useState(false);
   const visibleSuggestions = useMemo(() => {
     if (searchQuery?.trim()) return searchSuggestions.slice(0, 6);
     return trendingSearches.slice(0, 6);
   }, [searchQuery, searchSuggestions, trendingSearches]);
 
+  useEffect(() => {
+    const onScroll = () => setIsScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    if (!cartCount) return undefined;
+    setCartPulse(true);
+    const timeoutId = window.setTimeout(() => setCartPulse(false), 420);
+    return () => window.clearTimeout(timeoutId);
+  }, [cartCount]);
+
   return (
-    <header className="header">
+    <header className={`header ${isScrolled ? 'header-scrolled' : ''}`}>
       <div className="header-top">
         <div className="logo-area">
           <a href={homeLink} className="logo">
@@ -86,7 +102,7 @@ function Header({
           )}
           {!isOpsMode && <button className="header-btn cart-btn" onClick={onCartClick}>
             <ShoppingCart size={18} /><span>Cart</span>
-            {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+            {cartCount > 0 && <span className={`cart-badge ${cartPulse ? 'cart-badge-pulse' : ''}`}>{cartCount}</span>}
           </button>}
         </div>
       </div>
