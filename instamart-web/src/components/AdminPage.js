@@ -30,6 +30,8 @@ function AdminPage({ user }) {
   const [partnerPasswords, setPartnerPasswords] = useState({});
   const [stockDrafts, setStockDrafts] = useState({});
   const [stockBusy, setStockBusy] = useState({});
+  const [priceDrafts, setPriceDrafts] = useState({});
+  const [priceBusy, setPriceBusy] = useState({});
   const [notificationForm, setNotificationForm] = useState({ title: '', message: '', target: 'customer', personalize: true, product_id: '', image_url: '' });
   const navigate = useNavigate();
 
@@ -62,6 +64,26 @@ function AdminPage({ user }) {
       const next = { ...prev };
       products.forEach(product => {
         if (!Object.prototype.hasOwnProperty.call(next, product.id)) next[product.id] = String(product.stock ?? 0);
+      });
+      Object.keys(next).forEach(key => {
+        if (!products.some(product => String(product.id) === String(key))) delete next[key];
+      });
+      return next;
+    });
+  }, [products]);
+
+  useEffect(() => {
+    setPriceDrafts(prev => {
+      const next = { ...prev };
+      products.forEach(product => {
+        if (!Object.prototype.hasOwnProperty.call(next, product.id)) {
+          next[product.id] = {
+            price: String(product.price ?? ''),
+            dealer_price: product.dealer_price === null || product.dealer_price === undefined ? '' : String(product.dealer_price),
+            distributor_price: product.distributor_price === null || product.distributor_price === undefined ? '' : String(product.distributor_price),
+            mrp: String(product.mrp ?? '')
+          };
+        }
       });
       Object.keys(next).forEach(key => {
         if (!products.some(product => String(product.id) === String(key))) delete next[key];
@@ -384,6 +406,85 @@ function AdminPage({ user }) {
       const nextValue = Math.max(0, (Number.isInteger(currentValue) ? currentValue : 0) + delta);
       return { ...prev, [productId]: String(nextValue) };
     });
+  };
+
+  const updateInlinePriceDraft = (productId, field, value) => {
+    setPriceDrafts(prev => ({
+      ...prev,
+      [productId]: {
+        price: prev[productId]?.price ?? '',
+        dealer_price: prev[productId]?.dealer_price ?? '',
+        distributor_price: prev[productId]?.distributor_price ?? '',
+        mrp: prev[productId]?.mrp ?? '',
+        [field]: value
+      }
+    }));
+  };
+
+  const handleInlinePriceSave = async (product) => {
+    const token = localStorage.getItem('token');
+    const draft = priceDrafts[product.id] || {};
+    const price = parseFloat(draft.price);
+    const mrp = parseFloat(draft.mrp);
+    const dealerPrice = draft.dealer_price === '' ? null : parseFloat(draft.dealer_price);
+    const distributorPrice = draft.distributor_price === '' ? null : parseFloat(draft.distributor_price);
+
+    if (!Number.isFinite(price) || price < 0 || !Number.isFinite(mrp) || mrp < 0) {
+      setMessage('Price and MRP must be valid numbers 0 or more.');
+      return;
+    }
+    if (dealerPrice !== null && (!Number.isFinite(dealerPrice) || dealerPrice < 0)) {
+      setMessage('Dealer price must be blank or a valid number 0 or more.');
+      return;
+    }
+    if (distributorPrice !== null && (!Number.isFinite(distributorPrice) || distributorPrice < 0)) {
+      setMessage('Distributor price must be blank or a valid number 0 or more.');
+      return;
+    }
+
+    setPriceBusy(prev => ({ ...prev, [product.id]: true }));
+    try {
+      const body = buildProductPayload({
+        ...product,
+        price,
+        mrp,
+        dealer_price: dealerPrice,
+        distributor_price: distributorPrice
+      });
+      const res = await fetch(`${API_URL}/admin/products/${product.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => ({}));
+      setMessage(res.ok ? `Prices updated for ${product.name}.${catalogBackupNotice(data)}` : (data.error || 'Price update failed.'));
+      if (res.ok) {
+        setProducts(current => current.map(item => (
+          item.id === product.id
+            ? {
+                ...item,
+                price,
+                mrp,
+                dealer_price: dealerPrice,
+                distributor_price: distributorPrice
+              }
+            : item
+        )));
+        setPriceDrafts(prev => ({
+          ...prev,
+          [product.id]: {
+            price: String(price),
+            dealer_price: dealerPrice === null ? '' : String(dealerPrice),
+            distributor_price: distributorPrice === null ? '' : String(distributorPrice),
+            mrp: String(mrp)
+          }
+        }));
+      }
+    } catch (error) {
+      setMessage(error.message || 'Price update failed.');
+    } finally {
+      setPriceBusy(prev => ({ ...prev, [product.id]: false }));
+    }
   };
 
   const startEdit = (p) => {
@@ -2198,19 +2299,65 @@ function AdminPage({ user }) {
 
           <div className="card" style={{ overflow: 'hidden' }}>
             <div style={{ overflowX: 'auto' }}>
-              <table className="admin-table">
-                <thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Dealer</th><th>Distributor</th><th>Warranty</th><th>MRP</th><th>Stock</th><th>Category</th><th>Actions</th></tr></thead>
-                <tbody>{products.map(p => (
-                  <tr key={p.id}>
-                    <td>{p.id}</td>
-                    <td>{p.name}</td>
-                    <td>Rs {p.price}</td>
-                    <td>{p.dealer_price ? `Rs ${p.dealer_price}` : '-'}</td>
-                    <td>{p.distributor_price ? `Rs ${p.distributor_price}` : '-'}</td>
-                    <td>{p.warranty_years || 5} years</td>
-                    <td>Rs {p.mrp}</td>
-                    <td>
-                      <div className="inline-stock-editor">
+                <table className="admin-table">
+                  <thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Dealer</th><th>Distributor</th><th>Warranty</th><th>MRP</th><th>Stock</th><th>Category</th><th>Actions</th></tr></thead>
+                  <tbody>{products.map(p => (
+                    <tr key={p.id}>
+                      <td>{p.id}</td>
+                      <td>{p.name}</td>
+                      <td>
+                        <div className="inline-price-field">
+                          <span className="inline-price-prefix">Rs</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={priceDrafts[p.id]?.price ?? String(p.price ?? '')}
+                            onChange={e => updateInlinePriceDraft(p.id, 'price', e.target.value)}
+                            disabled={priceBusy[p.id]}
+                          />
+                        </div>
+                      </td>
+                      <td>
+                        <div className="inline-price-field">
+                          <span className="inline-price-prefix">Rs</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={priceDrafts[p.id]?.dealer_price ?? (p.dealer_price ?? '')}
+                            onChange={e => updateInlinePriceDraft(p.id, 'dealer_price', e.target.value)}
+                            placeholder="-"
+                            disabled={priceBusy[p.id]}
+                          />
+                        </div>
+                      </td>
+                      <td>
+                        <div className="inline-price-field">
+                          <span className="inline-price-prefix">Rs</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={priceDrafts[p.id]?.distributor_price ?? (p.distributor_price ?? '')}
+                            onChange={e => updateInlinePriceDraft(p.id, 'distributor_price', e.target.value)}
+                            placeholder="-"
+                            disabled={priceBusy[p.id]}
+                          />
+                        </div>
+                      </td>
+                      <td>{p.warranty_years || 5} years</td>
+                      <td>
+                        <div className="inline-price-field">
+                          <span className="inline-price-prefix">Rs</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={priceDrafts[p.id]?.mrp ?? String(p.mrp ?? '')}
+                            onChange={e => updateInlinePriceDraft(p.id, 'mrp', e.target.value)}
+                            disabled={priceBusy[p.id]}
+                          />
+                        </div>
+                      </td>
+                      <td>
+                        <div className="inline-stock-editor">
                         <div className={`inline-stock-pill ${Number(p.stock || 0) > 0 ? 'ok' : 'low'}`}>
                           {Number(p.stock || 0) > 0 ? `${p.stock} in stock` : 'Out of stock'}
                         </div>
@@ -2233,12 +2380,15 @@ function AdminPage({ user }) {
                           {stockBusy[p.id] ? 'Saving...' : 'Save stock'}
                         </button>
                       </div>
-                    </td>
-                    <td>{p.category_name || categories.find(c => c.id === p.category_id)?.name}</td>
-                    <td>
-                      <button className="btn btn-sm btn-outline" style={{ marginRight: '8px' }} onClick={() => startEdit(p)}><Edit size={14} /></button>
-                      <button className="btn btn-sm" style={{ background: '#ef4444', color: 'white' }} onClick={() => handleDeleteProduct(p.id)}><Trash2 size={14} /></button>
-                    </td>
+                      </td>
+                      <td>{p.category_name || categories.find(c => c.id === p.category_id)?.name}</td>
+                      <td>
+                        <button className="btn btn-sm btn-primary" style={{ marginRight: '8px' }} onClick={() => handleInlinePriceSave(p)} disabled={priceBusy[p.id]}>
+                          {priceBusy[p.id] ? 'Saving...' : 'Save prices'}
+                        </button>
+                        <button className="btn btn-sm btn-outline" style={{ marginRight: '8px' }} onClick={() => startEdit(p)}><Edit size={14} /></button>
+                        <button className="btn btn-sm" style={{ background: '#ef4444', color: 'white' }} onClick={() => handleDeleteProduct(p.id)}><Trash2 size={14} /></button>
+                      </td>
                   </tr>
                 ))}</tbody>
               </table>

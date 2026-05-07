@@ -1814,6 +1814,32 @@
   color: #182235;
 }
 
+.inline-price-field {
+  min-width: 120px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.inline-price-prefix {
+  font-size: 12px;
+  font-weight: 800;
+  color: #64748b;
+}
+
+.inline-price-field input {
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid #dbe3ef;
+  font-weight: 800;
+  color: #182235;
+  background: #fff;
+}
+
 .inline-stock-save {
   width: 100%;
   justify-content: center;
