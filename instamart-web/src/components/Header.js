@@ -16,7 +16,6 @@ function Header({
   const isDeliveryPartner = appMode === 'delivery' || user?.role === 'delivery_partner';
   const isInstaller = appMode === 'installer' || user?.role === 'installer';
   const isOpsMode = isDeliveryPartner || isInstaller;
-  const homeLink = isDeliveryPartner ? '/#/delivery-partner' : isInstaller ? '/#/installer' : '/#/';
   const [searchFocused, setSearchFocused] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -46,12 +45,14 @@ function Header({
     <header className={`header ${isScrolled ? 'header-scrolled' : ''}`}>
       <div className="header-top">
         <div className="header-row">
-          <div className="logo-area">
-            <a href={homeLink} className="logo">
-              <img className="logo-icon logo-img" src="/camigo-logo.svg" alt="Camigo" />
-              <div className="logo-text" style={{color:"#fff",fontWeight:900,letterSpacing:"-1px",fontSize:"28px"}}>Cam<span style={{color:"#f6c400"}}>igo</span></div>
-            </a>
-          </div>
+          {!isOpsMode && <a className="location-bar header-location-bar" href="/#/shop">
+            <MapPin size={16} className="loc-icon" />
+            <span className="loc-copy">
+              <small>Delivery to</small>
+              <span className="loc-text">{locationLabel}</span>
+            </span>
+            <ChevronDown size={14} className="loc-chevron" />
+          </a>}
           <div className="header-actions">
             {user ? (
               <>
@@ -78,14 +79,6 @@ function Header({
             )}
           </div>
         </div>
-        {!isOpsMode && <a className="location-bar" href="/#/shop">
-          <MapPin size={16} className="loc-icon" />
-          <span className="loc-copy">
-            <small>Delivery to</small>
-            <span className="loc-text">{locationLabel}</span>
-          </span>
-          <ChevronDown size={14} className="loc-chevron" />
-        </a>}
         <nav className="desktop-nav">
           {!isOpsMode && <a href="/#/shop">Shop</a>}
           {!isOpsMode && <a href="/#/orders">Orders</a>}

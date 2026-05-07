@@ -134,26 +134,6 @@
   justify-content: space-between;
   gap: 14px;
 }
-.logo-area { display: flex; align-items: center; gap: 24px; flex-shrink: 0; }
-.logo {
-  display: flex; align-items: center; gap: 8px;
-  text-decoration: none;
-}
-.logo-icon {
-  width: 40px; height: 40px; border-radius: 12px;
-  background: var(--swiggy-orange);
-  display: flex; align-items: center; justify-content: center;
-  color: white; font-weight: 800; font-size: 14px;
-}
-.logo-img {
-  object-fit: contain;
-  padding: 6px;
-  background: #f6c400;
-  box-shadow: 0 8px 18px rgba(246, 196, 0, .18);
-}
-.logo-text { font-size: 20px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
-.logo-text span { color: var(--dark); }
-
 .location-bar {
   display: flex; align-items: center; gap: 6px;
   padding: 8px 14px; border-radius: 12px;
@@ -161,6 +141,11 @@
   transition: background 0.2s; max-width: 340px;
   text-decoration: none;
   width: fit-content;
+}
+.header-location-bar {
+  flex: 1;
+  max-width: none;
+  min-width: 0;
 }
 .location-bar:hover { background: rgba(255,255,255,.18); }
 .location-bar .loc-icon { color: #f6c400; flex-shrink: 0; }
@@ -4441,22 +4426,18 @@
 @media (max-width: 768px) {
   .header-top { padding: 10px 12px; gap: 10px; }
   .header-row { gap: 10px; }
-  .logo-area { min-width: 0; }
-  .logo-text { display: none; }
   .desktop-nav { display: none; }
   .search-bar {
     max-width: none;
     width: 100%;
     margin-top: 0;
   }
-  .location-bar {
-    max-width: none;
-    width: 100%;
-    padding: 6px 0 0;
+  .header-location-bar {
+    padding: 0;
     border-radius: 0;
     background: transparent;
   }
-  .location-bar:hover { background: transparent; }
+  .header-location-bar:hover { background: transparent; }
   .location-bar .loc-copy small { font-size: 9px; }
   .location-bar .loc-text { font-size: 14px; }
   .header-actions { gap: 6px; }
@@ -4637,6 +4618,7 @@ body.bottom-nav-hidden .floating-tracker {
 
 @media (max-width: 480px) {
   .header-top { padding: 8px 10px; gap: 8px; }
+  .header-row { align-items: flex-start; }
   .location-bar .loc-text { font-size: 13px; }
   .search-bar input { padding: 10px 14px 10px 38px; border-radius: 14px; }
   .profile-dropdown { right: 0; min-width: 160px; }
