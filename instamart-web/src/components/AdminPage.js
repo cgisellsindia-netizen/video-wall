@@ -2384,11 +2384,13 @@ function AdminPage({ user }) {
                       <td>{p.category_name || categories.find(c => c.id === p.category_id)?.name}</td>
                       <td className="admin-product-actions-cell">
                         <div className="admin-product-actions">
-                        <button className="btn btn-sm btn-primary" style={{ marginRight: '8px' }} onClick={() => handleInlinePriceSave(p)} disabled={priceBusy[p.id]}>
-                          {priceBusy[p.id] ? 'Saving...' : 'Save prices'}
-                        </button>
-                        <button className="btn btn-sm btn-outline" style={{ marginRight: '8px' }} onClick={() => startEdit(p)}><Edit size={14} /></button>
-                        <button className="btn btn-sm" style={{ background: '#ef4444', color: 'white' }} onClick={() => handleDeleteProduct(p.id)}><Trash2 size={14} /></button>
+                          <button className="btn btn-sm btn-primary admin-product-save-btn" onClick={() => handleInlinePriceSave(p)} disabled={priceBusy[p.id]}>
+                            {priceBusy[p.id] ? 'Saving...' : 'Save prices'}
+                          </button>
+                          <div className="admin-product-icon-actions">
+                            <button className="btn btn-sm btn-outline" onClick={() => startEdit(p)}><Edit size={14} /></button>
+                            <button className="btn btn-sm" style={{ background: '#ef4444', color: 'white' }} onClick={() => handleDeleteProduct(p.id)}><Trash2 size={14} /></button>
+                          </div>
                         </div>
                       </td>
                   </tr>

@@ -1448,23 +1448,69 @@
 }
 
 .admin-product-table {
-  min-width: 1280px;
+  min-width: 1560px;
 }
 
 .admin-product-actions-cell {
-  min-width: 180px;
+  min-width: 132px;
+  vertical-align: top;
 }
 
 .admin-product-actions {
-  display: flex;
-  align-items: center;
+  display: grid;
   gap: 8px;
-  flex-wrap: nowrap;
+  justify-items: start;
 }
 
 .admin-product-actions .btn {
   margin-right: 0 !important;
   white-space: nowrap;
+}
+
+.admin-product-save-btn {
+  min-width: 100%;
+}
+
+.admin-product-icon-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-product-table th:nth-child(2),
+.admin-product-table td:nth-child(2) {
+  min-width: 180px;
+}
+
+.admin-product-table th:nth-child(3),
+.admin-product-table th:nth-child(4),
+.admin-product-table th:nth-child(5),
+.admin-product-table th:nth-child(7),
+.admin-product-table td:nth-child(3),
+.admin-product-table td:nth-child(4),
+.admin-product-table td:nth-child(5),
+.admin-product-table td:nth-child(7) {
+  min-width: 132px;
+}
+
+.admin-product-table th:nth-child(6),
+.admin-product-table td:nth-child(6) {
+  min-width: 88px;
+}
+
+.admin-product-table th:nth-child(8),
+.admin-product-table td:nth-child(8) {
+  min-width: 196px;
+}
+
+.admin-product-table th:nth-child(9),
+.admin-product-table td:nth-child(9) {
+  min-width: 126px;
+}
+
+.admin-product-table th:nth-child(10),
+.admin-product-table td:nth-child(10) {
+  min-width: 132px;
 }
 .support-admin-stack {
   display: grid;
