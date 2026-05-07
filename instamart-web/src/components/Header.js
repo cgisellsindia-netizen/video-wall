@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { MapPin, ChevronDown, Search, User, LogOut, Shield } from 'lucide-react';
+import { MapPin, ChevronDown, Search, User, LogOut, Shield, X, LocateFixed } from 'lucide-react';
+import { captureCustomerLocation, resolveCustomerAreaName, searchCustomerLocations } from '../locationLock';
 
 function Header({
   user,
@@ -10,6 +11,7 @@ function Header({
   appMode = 'web',
   locationLabel = 'Bhubaneswar, Odisha',
   deliveryEtaLabel = '16 mins',
+  onLocationChange,
   searchSuggestions = [],
   trendingSearches = []
 }) {
@@ -20,6 +22,10 @@ function Header({
   const [searchFocused, setSearchFocused] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [locationSheetOpen, setLocationSheetOpen] = useState(false);
+  const [locationQuery, setLocationQuery] = useState('');
+  const [locationResults, setLocationResults] = useState([]);
+  const [locationBusy, setLocationBusy] = useState(false);
   const profileMenuRef = useRef(null);
   const visibleSuggestions = useMemo(() => {
     if (searchQuery?.trim()) return searchSuggestions.slice(0, 6);
@@ -42,18 +48,73 @@ function Header({
     return () => window.removeEventListener('pointerdown', handlePointerDown);
   }, [profileOpen]);
 
+  useEffect(() => {
+    if (!locationSheetOpen) return undefined;
+    let active = true;
+    const loadResults = async () => {
+      if (locationQuery.trim().length < 2) {
+        if (active) setLocationResults([]);
+        return;
+      }
+      setLocationBusy(true);
+      const results = await searchCustomerLocations(locationQuery);
+      if (active) {
+        setLocationResults(results);
+        setLocationBusy(false);
+      }
+    };
+    const timeoutId = window.setTimeout(loadResults, 220);
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [locationQuery, locationSheetOpen]);
+
+  const handleUseCurrentLocation = async () => {
+    setLocationBusy(true);
+    const detectedLocation = await captureCustomerLocation({ source: 'location-sheet', timeout: 10000, maximumAge: 120000 });
+    if (detectedLocation?.lat && detectedLocation?.lng) {
+      const resolvedArea = await resolveCustomerAreaName(detectedLocation);
+      await onLocationChange?.({
+        lat: detectedLocation.lat,
+        lng: detectedLocation.lng,
+        areaName: resolvedArea,
+        source: 'location-sheet'
+      });
+      setLocationSheetOpen(false);
+      setLocationQuery('');
+      setLocationResults([]);
+    }
+    setLocationBusy(false);
+  };
+
+  const handlePickLocation = async (result) => {
+    if (!result?.lat || !result?.lng) return;
+    setLocationBusy(true);
+    await onLocationChange?.({
+      lat: result.lat,
+      lng: result.lng,
+      areaName: result.label,
+      source: 'location-search'
+    });
+    setLocationBusy(false);
+    setLocationSheetOpen(false);
+    setLocationQuery('');
+    setLocationResults([]);
+  };
+
   return (
     <header className={`header ${isScrolled ? 'header-scrolled' : ''}`}>
       <div className="header-top">
         <div className="header-row">
-          {!isOpsMode && <a className="location-bar header-location-bar" href="/#/shop">
+          {!isOpsMode && <button className="location-bar header-location-bar" type="button" onClick={() => setLocationSheetOpen(true)}>
             <MapPin size={16} className="loc-icon" />
-          <span className="loc-copy">
-            <small>Delivery in {deliveryEtaLabel}</small>
-            <span className="loc-text">{locationLabel}</span>
-          </span>
+            <span className="loc-copy">
+              <small>Delivery in {deliveryEtaLabel}</small>
+              <span className="loc-text">{locationLabel}</span>
+            </span>
             <ChevronDown size={14} className="loc-chevron" />
-          </a>}
+          </button>}
           <div className="header-actions">
             {user ? (
               <>
@@ -121,6 +182,39 @@ function Header({
           )}
         </div>}
       </div>
+      {!isOpsMode && (
+        <div className={`location-sheet-overlay ${locationSheetOpen ? 'open' : ''}`} onClick={() => setLocationSheetOpen(false)}>
+          <div className="location-sheet" onClick={(event) => event.stopPropagation()}>
+            <button className="location-sheet-close" type="button" onClick={() => setLocationSheetOpen(false)} aria-label="Close location selector">
+              <X size={20} />
+            </button>
+            <h3>Select your location</h3>
+            <div className="location-sheet-search">
+              <Search size={18} />
+              <input
+                type="text"
+                placeholder="search delivery location"
+                value={locationQuery}
+                onChange={(event) => setLocationQuery(event.target.value)}
+              />
+            </div>
+            <button className="location-sheet-current" type="button" onClick={handleUseCurrentLocation} disabled={locationBusy}>
+              <LocateFixed size={19} />
+              <span>{locationBusy ? 'Detecting location...' : 'Use current location'}</span>
+            </button>
+            {locationResults.length > 0 && (
+              <div className="location-sheet-results">
+                {locationResults.map((result) => (
+                  <button key={`${result.lat}-${result.lng}-${result.label}`} type="button" onClick={() => handlePickLocation(result)}>
+                    <MapPin size={16} />
+                    <span>{result.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 }

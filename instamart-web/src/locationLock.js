@@ -28,6 +28,12 @@ export const getSavedCustomerLocation = () => readJson(LOCK_KEY) || readJson(LOC
 
 export const getSavedCustomerAreaName = () => localStorage.getItem(AREA_KEY) || '';
 
+export const saveCustomerAreaName = (value = '') => {
+  const areaName = String(value || '').trim();
+  if (areaName) localStorage.setItem(AREA_KEY, areaName);
+  return areaName;
+};
+
 export const saveCustomerLocation = (location, locked = false) => {
   const payload = { ...location, locked, savedAt: location.savedAt || Date.now() };
   localStorage.setItem(locked ? LOCK_KEY : LOCATION_KEY, JSON.stringify(payload));
@@ -107,3 +113,36 @@ export const captureCustomerLocation = ({ lock = false, timeout = 10000, maximum
     );
   })
 );
+
+export const searchCustomerLocations = async (query = '') => {
+  const term = String(query || '').trim();
+  if (term.length < 2) return [];
+  try {
+    if (GOOGLE_MAPS_API_KEY) {
+      const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(term)}&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`);
+      if (response.ok) {
+        const data = await response.json();
+        return (Array.isArray(data?.results) ? data.results : []).slice(0, 5).map((result) => ({
+          label: result.formatted_address,
+          lat: result.geometry?.location?.lat,
+          lng: result.geometry?.location?.lng
+        })).filter((item) => item.label && item.lat && item.lng);
+      }
+    }
+    const fallbackResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(term)}`, {
+      headers: {
+        Accept: 'application/json',
+        'Accept-Language': 'en'
+      }
+    });
+    if (!fallbackResponse.ok) return [];
+    const data = await fallbackResponse.json();
+    return (Array.isArray(data) ? data : []).map((item) => ({
+      label: item.display_name,
+      lat: Number(item.lat),
+      lng: Number(item.lon)
+    })).filter((item) => item.label && Number.isFinite(item.lat) && Number.isFinite(item.lng));
+  } catch (error) {
+    return [];
+  }
+};

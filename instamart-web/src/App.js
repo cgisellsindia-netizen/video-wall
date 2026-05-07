@@ -30,7 +30,7 @@ import FloatingCheckoutBar from './components/FloatingCheckoutBar';
 import Footer from './components/Footer';
 import BottomNav from './components/BottomNav';
 import { API_URL } from './api';
-import { captureCustomerLocation, getSavedCustomerAreaName, getSavedCustomerLocation, resolveCustomerAreaName } from './locationLock';
+import { captureCustomerLocation, getSavedCustomerAreaName, getSavedCustomerLocation, resolveCustomerAreaName, saveCustomerAreaName, saveCustomerLocation } from './locationLock';
 import { isTrackableOrder } from './orderTracking';
 import { getDeliveryEstimate } from './deliveryZone';
 import './App.css';
@@ -373,6 +373,26 @@ function AppContent() {
     if (!nextUser) return;
     localStorage.setItem('user', JSON.stringify(nextUser));
     setUser(nextUser);
+  };
+
+  const handleLocationChange = async ({ lat, lng, areaName, source = 'manual' } = {}) => {
+    if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) return;
+    const savedLocation = saveCustomerLocation({
+      lat: Number(lat),
+      lng: Number(lng),
+      accuracy: 0,
+      altitudeAccuracy: null,
+      heading: null,
+      speed: null,
+      source,
+      savedAt: Date.now()
+    });
+    const resolvedArea = areaName || await resolveCustomerAreaName(savedLocation);
+    if (resolvedArea) {
+      saveCustomerAreaName(resolvedArea);
+      setLocationLabel(resolvedArea);
+    }
+    setDeliveryEtaLabel(getDeliveryEstimate(savedLocation).label);
   };
 
   const clearSessionState = () => {
@@ -1114,6 +1134,7 @@ function AppContent() {
           appMode={APP_MODE}
           locationLabel={locationLabel}
           deliveryEtaLabel={deliveryEtaLabel}
+          onLocationChange={handleLocationChange}
         />
         <Routes>
           <Route path="*" element={<DeliveryPartnerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
@@ -1138,6 +1159,7 @@ function AppContent() {
           appMode={APP_MODE}
           locationLabel={locationLabel}
           deliveryEtaLabel={deliveryEtaLabel}
+          onLocationChange={handleLocationChange}
         />
         <Routes>
           <Route path="*" element={<InstallerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
@@ -1161,6 +1183,7 @@ function AppContent() {
         appMode={APP_MODE}
         locationLabel={locationLabel}
         deliveryEtaLabel={deliveryEtaLabel}
+        onLocationChange={handleLocationChange}
         searchSuggestions={searchSuggestions}
         trendingSearches={trendingSearches}
       />
