@@ -615,9 +615,9 @@
 .setup-package-card {
   overflow: hidden;
   border-radius: 20px;
-  border: 0.5px solid rgba(148, 163, 184, 0.14);
-  background: rgba(252,253,255,.88);
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.02);
+  border: 0.5px solid rgba(148, 163, 184, 0.08);
+  background: rgba(255,255,255,.96);
+  box-shadow: none;
 }
 .setup-package-card.clickable {
   cursor: pointer;
@@ -625,8 +625,8 @@
 .setup-package-visual {
   position: relative;
   aspect-ratio: 16 / 9;
-  background: #eef6ff;
-  border-bottom: 0.5px solid rgba(148, 163, 184, 0.08);
+  background: #f8fbff;
+  border-bottom: 0;
 }
 .setup-package-visual img {
   width: 100%;
@@ -647,8 +647,8 @@
 }
 .setup-package-body {
   display: grid;
-  gap: 8px;
-  padding: 12px;
+  gap: 7px;
+  padding: 10px 10px 11px;
 }
 .setup-package-price-row {
   display: flex;
@@ -1084,12 +1084,12 @@
 
 /* Product Card */
 .product-card {
-  background: rgba(255,255,255,.9); border-radius: 16px;
+  background: rgba(255,255,255,.98); border-radius: 16px;
   padding: 10px; position: relative;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.018);
+  box-shadow: none;
   transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
   transform-origin: center bottom;
-  border: 0.5px solid rgba(148, 163, 184, 0.12);
+  border: 0.5px solid rgba(148, 163, 184, 0.08);
 }
 .motion-card {
   opacity: 0;
@@ -1099,17 +1099,17 @@
   animation: cardReveal .42s cubic-bezier(.2,.8,.2,1) forwards;
   animation-delay: calc(var(--card-stagger, 0) * 42ms);
 }
-.product-card:hover { box-shadow: 0 8px 18px rgba(15, 23, 42, 0.03); transform: translateY(-3px); border-color: rgba(148, 163, 184, 0.18); }
+.product-card:hover { box-shadow: 0 6px 14px rgba(15, 23, 42, 0.025); transform: translateY(-2px); border-color: rgba(148, 163, 184, 0.14); }
 .product-card:active { transform: scale(.986); }
 .product-card.cart-bump {
   animation: productCardBump .32s ease;
 }
 .product-img-wrap {
   width: 100%; aspect-ratio: 1.18;
-  border-radius: 14px; background: #f4f7fb;
-  border: 0.5px solid rgba(148, 163, 184, 0.05);
+  border-radius: 14px; background: #ffffff;
+  border: 0;
   display: flex; align-items: center; justify-content: center;
-  margin-bottom: 9px; position: relative; overflow: visible;
+  margin-bottom: 8px; position: relative; overflow: visible;
 }
 .product-img-wrap img, .product-img-wrap .emoji {
   width: 100%; height: 100%; object-fit: cover;
