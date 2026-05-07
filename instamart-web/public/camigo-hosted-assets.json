@@ -1,0 +1,83 @@
+{
+  "generated_for": "Camigo hosted app assets",
+  "purpose": "Stable app-owned media that should not depend on one PC",
+  "base_url_example": "https://camigo-store.onrender.com",
+  "notes": [
+    "These files are committed to the repo and served by the deployed frontend.",
+    "Admin-managed product, category, banner, and package photos can still point to external hosted URLs.",
+    "Use these paths when you want Codex or the app to rely on stable built-in assets."
+  ],
+  "hero": {
+    "delivery_partner": "/images/camigo-delivery-hero.png"
+  },
+  "discount_badges": {
+    "banner_avif": "/images/product-discount-banner.avif",
+    "banner_png": "/images/product-discount-banner.png",
+    "burst_png": "/images/product-discount-burst.png"
+  },
+  "product_reference_sheet": {
+    "preview": "/images/product-preview-sheet.jpg"
+  },
+  "core_product_images": {
+    "dvr": [
+      "/images/cgi-dvr4.jpg",
+      "/images/cgi-dvr8.jpg",
+      "/images/cgi-dvr16.jpg",
+      "/images/cgi-dvr32.jpg",
+      "/images/cgi-dvr64.jpg"
+    ],
+    "nvr": [
+      "/images/cgi-nvr4.jpg",
+      "/images/cgi-nvr8.jpg",
+      "/images/cgi-nvr16.jpg",
+      "/images/cgi-nvr32.jpg",
+      "/images/cgi-nvr64.jpg",
+      "/images/cgi-nvr128.jpg"
+    ],
+    "ahd_cameras": [
+      "/images/cgi-hb3e.jpg",
+      "/images/cgi-hb3h.jpg",
+      "/images/cgi-hb5.jpg",
+      "/images/cgi-hd3e.jpg",
+      "/images/cgi-hd5.jpg"
+    ],
+    "ip_cameras": [
+      "/images/cgi-ipb3.jpg",
+      "/images/cgi-ipb5.jpg",
+      "/images/cgi-ipb8.jpg",
+      "/images/cgi-ipbb8.jpg",
+      "/images/cgi-ipbvf5.jpg",
+      "/images/cgi-ipd3.jpg",
+      "/images/cgi-ipd5.jpg",
+      "/images/cgi-ipd8.jpg",
+      "/images/cgi-ipfed5.jpg"
+    ],
+    "ptz": [
+      "/images/cgi-ptz4g.jpg",
+      "/images/cgi-ptz36x4.jpg",
+      "/images/cgi-ptz36x4p.jpg",
+      "/images/cgi-ptz36x5.jpg",
+      "/images/cgi-ptz36x5p.jpg"
+    ],
+    "poe_switches": [
+      "/images/cgi-poe4.jpg",
+      "/images/cgi-poe4g.jpg",
+      "/images/cgi-poe8.jpg",
+      "/images/cgi-poe8g.jpg",
+      "/images/cgi-poe16.jpg",
+      "/images/cgi-poe16g.jpg"
+    ],
+    "smps_and_accessories": [
+      "/images/cgi-smps4.jpg",
+      "/images/cgi-smps8.jpg",
+      "/images/cgi-smps16.jpg",
+      "/images/cgi-accessory-bnc.jpg",
+      "/images/cgi-accessory-box.jpg",
+      "/images/cgi-accessory-cable.jpg",
+      "/images/cgi-accessory-dc.jpg"
+    ],
+    "solar_camera": [
+      "/images/cgi-solcam18.jpg"
+    ]
+  }
+}
