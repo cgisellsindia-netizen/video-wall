@@ -277,6 +277,7 @@ function MainPage({
             cartItems={cartItems}
             savedProductIds={savedProductIds}
             onToggleSaved={onToggleSaved}
+            sectionTone="warm"
           />
         )}
         {!searchQuery && savedProducts.filter((product) => !isSetupProduct(product)).length > 0 && (
@@ -289,6 +290,7 @@ function MainPage({
             cartItems={cartItems}
             savedProductIds={savedProductIds}
             onToggleSaved={onToggleSaved}
+            sectionTone="soft"
           />
         )}
         {!searchQuery && recommendedProducts.filter((product) => !isSetupProduct(product)).length > 0 && (
@@ -301,6 +303,7 @@ function MainPage({
             cartItems={cartItems}
             savedProductIds={savedProductIds}
             onToggleSaved={onToggleSaved}
+            sectionTone="sky"
           />
         )}
         {!searchQuery && bestsellingProducts.filter((product) => !isSetupProduct(product)).length > 0 && (
@@ -313,11 +316,12 @@ function MainPage({
             cartItems={cartItems}
             savedProductIds={savedProductIds}
             onToggleSaved={onToggleSaved}
+            sectionTone="contrast"
           />
         )}
         {searchQuery ? (
           filteredProducts.length ? (
-            <ProductSection title={`Search: "${searchQuery}"`} products={filteredProducts} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={onToggleSaved} />
+            <ProductSection title={`Search: "${searchQuery}"`} products={filteredProducts} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={onToggleSaved} sectionTone="soft" />
           ) : (
             <section className="category-section">
               <div className="card search-empty-state">
@@ -335,7 +339,7 @@ function MainPage({
           )
         ) : (
           productsByCategory.map(cat => (
-            <ProductSection key={cat.id} title={cat.name} categoryId={cat.id} products={cat.products} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={onToggleSaved} />
+            <ProductSection key={cat.id} title={cat.name} categoryId={cat.id} products={cat.products} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={onToggleSaved} sectionTone="neutral" />
           ))
         )}
       </main>

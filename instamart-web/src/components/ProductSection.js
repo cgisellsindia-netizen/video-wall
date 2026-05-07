@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Heart, Minus, Plus, Star } from 'lucide-react';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
 
-function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [], categoryId = null, savedProductIds = [], onToggleSaved = null }) {
+function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [], categoryId = null, savedProductIds = [], onToggleSaved = null, sectionTone = 'neutral' }) {
   const navigate = useNavigate();
   const sectionRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -42,7 +42,7 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
   };
 
   return (
-    <div ref={sectionRef} className={`product-section motion-section ${isVisible ? 'section-in-view' : ''}`}>
+    <div ref={sectionRef} className={`product-section home-band home-band-${sectionTone} motion-section ${isVisible ? 'section-in-view' : ''}`}>
       {categoryId !== null && categoryId !== undefined && <CategoryBannerCarousel placementId={categoryId} />}
       <div className="section-header">
         <h2 className="section-title">{title}</h2>

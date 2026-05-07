@@ -68,6 +68,44 @@
 
 .app { min-height: 100vh; background: rgba(255,255,255,.12); color: #fff; }
 .main-content { padding-bottom: 80px; }
+.home-band {
+  position: relative;
+  border-radius: 34px;
+  padding: 22px 18px 24px;
+  border: 1px solid rgba(9, 36, 82, 0.06);
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.06);
+}
+.home-band-categories {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.96), rgba(248,251,255,.94)),
+    #ffffff;
+}
+.home-band-setup {
+  background:
+    radial-gradient(circle at top right, rgba(246, 196, 0, .18), transparent 24%),
+    linear-gradient(180deg, rgba(255, 250, 232, .98), rgba(255,255,255,.95));
+}
+.home-band-warm {
+  background:
+    linear-gradient(180deg, rgba(255, 245, 228, .96), rgba(255,255,255,.95));
+}
+.home-band-soft {
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, .98), rgba(255,255,255,.95));
+}
+.home-band-sky {
+  background:
+    radial-gradient(circle at top left, rgba(11, 100, 255, .12), transparent 24%),
+    linear-gradient(180deg, rgba(241, 247, 255, .98), rgba(255,255,255,.95));
+}
+.home-band-contrast {
+  background:
+    linear-gradient(180deg, rgba(236, 244, 255, .98), rgba(255,255,255,.95));
+}
+.home-band-neutral {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.97), rgba(249,251,254,.94));
+}
 
 /* ===== HEADER ===== */
 .header {
@@ -4506,6 +4544,7 @@
   .hero-delivery-card strong { font-size: 14px; }
   .hero-delivery-card small { font-size: 10px; }
   .category-section { margin: 18px auto; padding: 0 12px; }
+  .home-band { border-radius: 24px; padding: 16px 12px 18px; }
   .section-header { margin-bottom: 10px; }
   .section-title { font-size: 20px; }
   .category-grid { grid-template-columns: repeat(4, 1fr); gap: 8px; }
@@ -4669,6 +4708,7 @@ body.bottom-nav-hidden .floating-tracker {
   .hero-delivery-card strong { font-size: 13px; }
   .hero-delivery-card small { font-size: 10px; }
   .category-section { padding: 0 10px; }
+  .home-band { border-radius: 20px; padding: 14px 10px 16px; }
   .category-grid { grid-template-columns: repeat(4, 1fr); gap: 7px; }
   .setup-package-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .setup-package-visual { aspect-ratio: 1 / 1; }

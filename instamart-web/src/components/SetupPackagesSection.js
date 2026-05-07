@@ -92,7 +92,7 @@ function SetupPackagesSection({
   };
 
   return (
-    <div ref={sectionRef} className={`product-section setup-packages-section motion-section ${isVisible ? 'section-in-view' : ''}`}>
+    <div ref={sectionRef} className={`product-section setup-packages-section home-band home-band-setup motion-section ${isVisible ? 'section-in-view' : ''}`}>
       <div className="section-header">
         <h2 className="section-title">Full Setup Packages</h2>
         <button
