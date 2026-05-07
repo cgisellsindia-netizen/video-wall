@@ -709,6 +709,7 @@
   margin: 0 auto;
   border-radius: 20px;
   background: #f7f9fd;
+  border: 1px solid rgba(11, 100, 255, 0.12);
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
   position: relative;
@@ -1105,6 +1106,7 @@
 .product-img-wrap {
   width: 100%; aspect-ratio: 1.18;
   border-radius: 14px; background: #f4f7fb;
+  border: 1px solid rgba(148, 163, 184, 0.18);
   display: flex; align-items: center; justify-content: center;
   margin-bottom: 9px; position: relative; overflow: visible;
 }
