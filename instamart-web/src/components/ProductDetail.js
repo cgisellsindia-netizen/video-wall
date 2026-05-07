@@ -76,6 +76,7 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
   const savings = Math.max(0, Number(product.mrp || 0) - Number(sellingPrice || 0));
   const cartItem = cartItems.find(item => Number(item.product_id || item.id) === Number(product.id));
   const selectedQty = cartItem?.quantity || 0;
+  const isOutOfStock = Number(product.stock || 0) <= 0;
   const relatedProducts = products
     .filter(item => item.id !== product.id && item.category_id === product.category_id)
     .slice(0, 4);
@@ -87,6 +88,7 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
 
   const handleAdd = () => {
     if (!user) { onLogin(); return; }
+    if (isOutOfStock) return;
     onAdd(product);
   };
 
@@ -187,7 +189,11 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
                   <Heart size={18} fill={isSaved ? 'currentColor' : 'none'} /> {isSaved ? 'Saved for later' : 'Save for later'}
                 </button>
               )}
-              {selectedQty > 0 ? (
+              {isOutOfStock ? (
+                <button className="add-btn-large sold-out-detail-btn" type="button" disabled aria-disabled="true">
+                  <ShoppingCart size={20} /> Sold out
+                </button>
+              ) : selectedQty > 0 ? (
                 <div className="detail-qty-stepper">
                   <button type="button" onPointerDown={handlePointerAction(() => onRemove(product, cartItem))} onClick={stopActionTap}><Minus size={18} /></button>
                   <strong>{selectedQty}</strong>
@@ -198,7 +204,7 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
                   <ShoppingCart size={20} /> Add to cart
                 </button>
               )}
-              <button className="product-secondary-action" onClick={() => navigate('/checkout')}>
+              <button className="product-secondary-action" onClick={() => navigate('/checkout')} disabled={isOutOfStock}>
                 <Zap size={19} /> Buy now
               </button>
             </div>

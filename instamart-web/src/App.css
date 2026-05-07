@@ -1028,6 +1028,23 @@
 .inline-add-btn.add-pressed {
   animation: addButtonPop .3s ease;
 }
+.inline-sold-out-btn {
+  width: auto;
+  min-width: 72px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1.5px solid #d7dce5;
+  border-radius: 9px;
+  background: #f8fafc;
+  color: #7b8798;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+  cursor: not-allowed;
+  box-shadow: none;
+}
 .selected-qty-pill {
   display: inline-flex;
   align-items: center;
@@ -4171,6 +4188,7 @@
   .price-current { font-size: 12px; }
   .price-original { font-size: 9px; }
   .inline-add-btn { min-width: 46px; height: 26px; padding: 0 8px; font-size: 10px; border-radius: 8px; }
+  .inline-sold-out-btn { min-width: 52px; height: 26px; padding: 0 8px; font-size: 9px; border-radius: 8px; }
   .card-qty-stepper.inline-stepper { width: 66px; height: 26px; grid-template-columns: 22px 1fr 22px; border-radius: 8px; }
   .card-qty-stepper.inline-stepper strong { font-size: 10px; }
   .card-qty-stepper.inline-stepper button { font-size: 14px; }
@@ -5010,6 +5028,17 @@ body.bottom-nav-hidden .floating-tracker {
 .add-btn-large,
 .product-secondary-action {
   transition: transform 160ms ease, box-shadow 160ms ease;
+}
+.sold-out-detail-btn,
+.product-secondary-action:disabled {
+  background: #eef2f7;
+  color: #7b8798;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.sold-out-detail-btn:hover,
+.product-secondary-action:disabled:hover {
+  transform: none;
 }
 .product-trust-strip {
   display: flex;

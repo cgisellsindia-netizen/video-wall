@@ -58,6 +58,7 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
         {products.map((product, index) => {
           const cartItem = cartItems.find(item => Number(item.product_id || item.id) === Number(product.id));
           const selectedQty = cartItem?.quantity || 0;
+          const isOutOfStock = Number(product.stock || 0) <= 0;
           const isSaved = savedProductIds.includes(Number(product.id));
           const isAnimating = activeProductId === Number(product.id);
           const discount = Number(product.discount_percent) > 0
@@ -113,7 +114,11 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
                   <span className="price-current">Rs {rolePrice}</span>
                   <span className="price-original">Rs {product.mrp}</span>
                 </span>
-                {selectedQty > 0 ? (
+                {isOutOfStock ? (
+                  <button className="inline-sold-out-btn" type="button" disabled aria-disabled="true" onClick={stopCardTap}>
+                    Sold out
+                  </button>
+                ) : selectedQty > 0 ? (
                   <div className={`card-qty-stepper inline-stepper ${isAnimating ? 'stepper-bump' : ''}`}>
                     <button type="button" onPointerDown={handlePointerAction(() => { pulseProduct(product.id); onRemove(product, cartItem); })} onClick={stopCardTap}><Minus size={15} /></button>
                     <strong>{selectedQty}</strong>
@@ -124,6 +129,9 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
                     ADD
                   </button>
                 )}
+              </div>
+              <div className="shop-card-meta-row">
+                <span className={`stock-dot ${isOutOfStock ? 'low' : 'ok'}`}>{isOutOfStock ? 'Out of stock' : 'In stock'}</span>
               </div>
               {(user?.role === 'dealer' || user?.role === 'distributor') && <div className="trade-price-note">{user.role} price</div>}
             </div>

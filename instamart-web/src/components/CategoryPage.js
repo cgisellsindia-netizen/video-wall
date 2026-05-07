@@ -210,6 +210,7 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
         {categoryProducts.map((product) => {
           const cartItem = cartItems.find((item) => Number(item.product_id || item.id) === Number(product.id));
           const selectedQty = cartItem?.quantity || 0;
+          const isOutOfStock = Number(product.stock || 0) <= 0;
           const isSaved = savedProductIds.includes(Number(product.id));
           const discount = Number(product.discount_percent) > 0 ? Math.round(Number(product.discount_percent)) : product.mrp ? Math.max(0, Math.round((1 - product.price / product.mrp) * 100)) : 0;
           return (
@@ -244,7 +245,9 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
               </div>
               <div className="product-price-row blinkit-price-row" onClick={stopCardTap}>
                 <span className="product-price-stack"><span className="price-current">Rs {priceForRole ? priceForRole(product, user) : product.price}</span><span className="price-original">Rs {product.mrp}</span></span>
-                {selectedQty > 0 ? (
+                {isOutOfStock ? (
+                  <button className="inline-sold-out-btn" type="button" disabled aria-disabled="true" onClick={stopCardTap}>Sold out</button>
+                ) : selectedQty > 0 ? (
                   <div className="card-qty-stepper inline-stepper">
                     <button type="button" onPointerDown={handlePointerAction(() => onRemove(product, cartItem))} onClick={stopCardTap}><Minus size={15} /></button>
                     <strong>{selectedQty}</strong>
@@ -255,7 +258,7 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
                 )}
               </div>
               <div className="shop-card-meta-row">
-                <span className={`stock-dot ${Number(product.stock || 0) > 0 ? 'ok' : 'low'}`}>{Number(product.stock || 0) > 0 ? 'In stock' : 'Out of stock'}</span>
+                <span className={`stock-dot ${isOutOfStock ? 'low' : 'ok'}`}>{isOutOfStock ? 'Out of stock' : 'In stock'}</span>
               </div>
               {(user?.role === 'dealer' || user?.role === 'distributor') && <div className="trade-price-note">{user.role} price</div>}
             </div>
