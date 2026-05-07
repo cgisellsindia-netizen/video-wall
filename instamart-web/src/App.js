@@ -25,13 +25,12 @@ import TrackingPage from './components/TrackingPage';
 import DeliveryPartnerPage from './components/DeliveryPartnerPage';
 import InstallerPage from './components/InstallerPage';
 import SavedItemsPage from './components/SavedItemsPage';
-import LocationDeliveryStrip from './components/LocationDeliveryStrip';
 import FloatingTracker from './components/FloatingTracker';
 import FloatingCheckoutBar from './components/FloatingCheckoutBar';
 import Footer from './components/Footer';
 import BottomNav from './components/BottomNav';
 import { API_URL } from './api';
-import { captureCustomerLocation, getSavedCustomerLocation } from './locationLock';
+import { captureCustomerLocation, getSavedCustomerAreaName, getSavedCustomerLocation, resolveCustomerAreaName } from './locationLock';
 import { isTrackableOrder } from './orderTracking';
 import './App.css';
 
@@ -254,7 +253,6 @@ function MainPage({
     <>
       <main className="main-content">
         {!searchQuery && <HeroBanner />}
-        {!searchQuery && <LocationDeliveryStrip />}
         {!searchQuery && <CategoryGrid categories={categories} />}
         {!searchQuery && (
           <SetupPackagesSection
@@ -353,6 +351,7 @@ function AppContent() {
   const [loginOpen, setLoginOpen] = useState(false);
   const [cartItems, setCartItems] = useState([]);
   const [user, setUser] = useState(null);
+  const [locationLabel, setLocationLabel] = useState(() => getSavedCustomerAreaName() || 'Bhubaneswar, Odisha');
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -657,9 +656,36 @@ function AppContent() {
   }, [user, navigate]);
 
   useEffect(() => {
-    if (!user || APP_MODE === 'delivery' || APP_MODE === 'installer' || user.role === 'delivery_partner' || user.role === 'installer') return;
-    if (getSavedCustomerLocation()) return;
-    captureCustomerLocation({ source: 'first-login', timeout: 8000, maximumAge: 300000 });
+    if (!user || APP_MODE === 'delivery' || APP_MODE === 'installer' || user.role === 'delivery_partner' || user.role === 'installer') return undefined;
+    if (getSavedCustomerLocation()) return undefined;
+    let active = true;
+    captureCustomerLocation({ source: 'first-login', timeout: 8000, maximumAge: 300000 })
+      .then(async (savedLocation) => {
+        if (!active || !savedLocation?.lat || !savedLocation?.lng) return;
+        const resolvedArea = await resolveCustomerAreaName(savedLocation);
+        if (active && resolvedArea) setLocationLabel(resolvedArea);
+      });
+    return () => { active = false; };
+  }, [user]);
+
+  useEffect(() => {
+    if (APP_MODE === 'delivery' || APP_MODE === 'installer') return undefined;
+    let active = true;
+    const syncLocationLabel = async () => {
+      const savedArea = getSavedCustomerAreaName();
+      if (savedArea && active) setLocationLabel(savedArea);
+      const savedLocation = getSavedCustomerLocation();
+      if (!savedLocation?.lat || !savedLocation?.lng) return;
+      const resolvedArea = await resolveCustomerAreaName(savedLocation);
+      if (active && resolvedArea) setLocationLabel(resolvedArea);
+    };
+    syncLocationLabel();
+    const onStorage = () => { syncLocationLabel(); };
+    window.addEventListener('storage', onStorage);
+    return () => {
+      active = false;
+      window.removeEventListener('storage', onStorage);
+    };
   }, [user]);
 
   const handleOrderPlaced = (order) => {
@@ -1074,6 +1100,7 @@ function AppContent() {
           searchQuery=""
           onSearch={() => {}}
           appMode={APP_MODE}
+          locationLabel={locationLabel}
         />
         <Routes>
           <Route path="*" element={<DeliveryPartnerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
@@ -1096,6 +1123,7 @@ function AppContent() {
           searchQuery=""
           onSearch={() => {}}
           appMode={APP_MODE}
+          locationLabel={locationLabel}
         />
         <Routes>
           <Route path="*" element={<InstallerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
@@ -1117,6 +1145,7 @@ function AppContent() {
         searchQuery={searchQuery}
         onSearch={setSearchQuery}
         appMode={APP_MODE}
+        locationLabel={locationLabel}
         searchSuggestions={searchSuggestions}
         trendingSearches={trendingSearches}
       />

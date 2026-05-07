@@ -150,14 +150,26 @@
 
 .location-bar {
   display: flex; align-items: center; gap: 6px;
-  padding: 8px 16px; border-radius: 12px;
+  padding: 8px 14px; border-radius: 12px;
   background: rgba(255,255,255,.1); cursor: pointer;
-  transition: background 0.2s; max-width: 300px;
+  transition: background 0.2s; max-width: 340px;
   text-decoration: none;
 }
 .location-bar:hover { background: rgba(255,255,255,.18); }
 .location-bar .loc-icon { color: #f6c400; flex-shrink: 0; }
-.location-bar .loc-text { font-size: 13px; color: #fff; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.location-bar .loc-copy {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+.location-bar .loc-copy small {
+  color: rgba(255,255,255,.72);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.location-bar .loc-text { font-size: 13px; color: #fff; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .location-bar .loc-chevron { color: var(--dark-40); flex-shrink: 0; }
 
 .search-bar {

@@ -10,6 +10,7 @@ function Header({
   searchQuery,
   onSearch,
   appMode = 'web',
+  locationLabel = 'Bhubaneswar, Odisha',
   searchSuggestions = [],
   trendingSearches = []
 }) {
@@ -55,7 +56,10 @@ function Header({
           </a>
           {!isOpsMode && <a className="location-bar" href="/#/shop">
             <MapPin size={16} className="loc-icon" />
-            <span className="loc-text">Bhubaneswar, Odisha - Powered by CGI CCTV</span>
+            <span className="loc-copy">
+              <small>Delivery to</small>
+              <span className="loc-text">{locationLabel}</span>
+            </span>
             <ChevronDown size={14} className="loc-chevron" />
           </a>}
         </div>
