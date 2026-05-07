@@ -1110,7 +1110,7 @@
   margin-bottom: 9px; position: relative; overflow: visible;
 }
 .product-img-wrap img, .product-img-wrap .emoji {
-  width: 108%; height: 108%; object-fit: contain;
+  width: 116%; height: 116%; object-fit: contain;
   object-position: center;
   padding: 0;
   border-radius: inherit;
