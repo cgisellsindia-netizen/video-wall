@@ -21,6 +21,7 @@ function Header({
   const [searchFocused, setSearchFocused] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [cartPulse, setCartPulse] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const visibleSuggestions = useMemo(() => {
     if (searchQuery?.trim()) return searchSuggestions.slice(0, 6);
     return trendingSearches.slice(0, 6);
@@ -39,6 +40,10 @@ function Header({
     const timeoutId = window.setTimeout(() => setCartPulse(false), 420);
     return () => window.clearTimeout(timeoutId);
   }, [cartCount]);
+
+  useEffect(() => {
+    if (searchQuery?.trim()) setMobileSearchOpen(true);
+  }, [searchQuery]);
 
   return (
     <header className={`header ${isScrolled ? 'header-scrolled' : ''}`}>
@@ -63,15 +68,21 @@ function Header({
           {isInstaller && <a href="/#/installer">Installer Panel</a>}
           {user?.role === 'admin' && <a href="/#/admin">Admin</a>}
         </nav>
-        {!isOpsMode && <div className="search-bar">
+        {!isOpsMode && <div className={`search-bar ${mobileSearchOpen ? 'mobile-open' : ''}`}>
           <Search size={18} className="search-icon" />
           <input
             type="text"
             placeholder="Search CCTV cameras, DVRs, NVRs..."
             value={searchQuery}
             onChange={(e) => onSearch(e.target.value)}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setTimeout(() => setSearchFocused(false), 120)}
+            onFocus={() => {
+              setSearchFocused(true);
+              setMobileSearchOpen(true);
+            }}
+            onBlur={() => setTimeout(() => {
+              setSearchFocused(false);
+              if (!searchQuery?.trim()) setMobileSearchOpen(false);
+            }, 120)}
           />
           {searchFocused && visibleSuggestions.length > 0 && (
             <div className="search-suggestions-panel">
@@ -91,6 +102,16 @@ function Header({
           )}
         </div>}
         <div className="header-actions">
+          {!isOpsMode && (
+            <button
+              className={`header-btn mobile-search-toggle ${mobileSearchOpen ? 'active' : ''}`}
+              type="button"
+              onClick={() => setMobileSearchOpen((current) => !current)}
+              aria-label="Search products"
+            >
+              <Search size={18} />
+            </button>
+          )}
           {user ? (
             <>
               <a href="/#/orders" className="header-btn profile-btn"><User size={18} /><span>{displayName.split(' ')[0]}</span></a>

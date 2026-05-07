@@ -156,6 +156,10 @@
 }
 .search-suggestions-panel button:hover { background: #f8fafc; }
 
+.mobile-search-toggle {
+  display: none;
+}
+
 .desktop-nav {
   display: flex;
   gap: 18px;
@@ -1441,6 +1445,26 @@
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: .05em;
+}
+
+.admin-product-table {
+  min-width: 1280px;
+}
+
+.admin-product-actions-cell {
+  min-width: 180px;
+}
+
+.admin-product-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.admin-product-actions .btn {
+  margin-right: 0 !important;
+  white-space: nowrap;
 }
 .support-admin-stack {
   display: grid;
@@ -4150,7 +4174,20 @@
   .logo-text { display: none; }
   .location-bar { display: none; }
   .desktop-nav { display: none; }
-  .search-bar { max-width: none; }
+  .search-bar {
+    display: none;
+    max-width: none;
+    width: 100%;
+    order: 3;
+    flex-basis: 100%;
+    margin-top: 8px;
+  }
+  .search-bar.mobile-open {
+    display: block;
+  }
+  .mobile-search-toggle {
+    display: inline-flex;
+  }
   .header-actions { gap: 6px; }
   .header-btn { padding: 9px 10px; }
   .header-btn span { display: none; }

@@ -2299,9 +2299,9 @@ function AdminPage({ user }) {
 
           <div className="card" style={{ overflow: 'hidden' }}>
             <div style={{ overflowX: 'auto' }}>
-                <table className="admin-table">
-                  <thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Dealer</th><th>Distributor</th><th>Warranty</th><th>MRP</th><th>Stock</th><th>Category</th><th>Actions</th></tr></thead>
-                  <tbody>{products.map(p => (
+              <table className="admin-table admin-product-table">
+                <thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Dealer</th><th>Distributor</th><th>Warranty</th><th>MRP</th><th>Stock</th><th>Category</th><th>Actions</th></tr></thead>
+                <tbody>{products.map(p => (
                     <tr key={p.id}>
                       <td>{p.id}</td>
                       <td>{p.name}</td>
@@ -2382,12 +2382,14 @@ function AdminPage({ user }) {
                       </div>
                       </td>
                       <td>{p.category_name || categories.find(c => c.id === p.category_id)?.name}</td>
-                      <td>
+                      <td className="admin-product-actions-cell">
+                        <div className="admin-product-actions">
                         <button className="btn btn-sm btn-primary" style={{ marginRight: '8px' }} onClick={() => handleInlinePriceSave(p)} disabled={priceBusy[p.id]}>
                           {priceBusy[p.id] ? 'Saving...' : 'Save prices'}
                         </button>
                         <button className="btn btn-sm btn-outline" style={{ marginRight: '8px' }} onClick={() => startEdit(p)}><Edit size={14} /></button>
                         <button className="btn btn-sm" style={{ background: '#ef4444', color: 'white' }} onClick={() => handleDeleteProduct(p.id)}><Trash2 size={14} /></button>
+                        </div>
                       </td>
                   </tr>
                 ))}</tbody>
