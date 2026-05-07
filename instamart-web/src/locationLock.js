@@ -1,6 +1,7 @@
 const LOCATION_KEY = 'camigo_customer_location';
 const LOCK_KEY = 'camigo_customer_location_lock';
 const AREA_KEY = 'camigo_customer_area_name';
+const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
 const normalizePosition = (position, source, locked = false) => ({
   lat: position.coords.latitude,
@@ -61,16 +62,34 @@ const getAreaParts = (address = {}) => {
 export const resolveCustomerAreaName = async ({ lat, lng } = {}) => {
   if (!lat || !lng) return getSavedCustomerAreaName();
   try {
-    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=16&addressdetails=1`, {
-      headers: {
-        Accept: 'application/json',
-        'Accept-Language': 'en'
+    let areaName = '';
+    if (GOOGLE_MAPS_API_KEY) {
+      const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${encodeURIComponent(lat)},${encodeURIComponent(lng)}&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const components = Array.isArray(data?.results?.[0]?.address_components) ? data.results[0].address_components : [];
+        const pick = (...types) => (
+          components.find((component) => types.every((type) => component.types.includes(type)))?.long_name || ''
+        );
+        const primary = pick('sublocality_level_1', 'sublocality') || pick('locality', 'political') || pick('neighborhood', 'political') || pick('administrative_area_level_2', 'political');
+        const secondary = pick('locality', 'political') || pick('administrative_area_level_2', 'political') || pick('administrative_area_level_1', 'political');
+        areaName = [primary, secondary].filter(Boolean).filter((value, index, list) => list.indexOf(value) === index).join(', ');
+        if (!areaName) areaName = data?.results?.[0]?.formatted_address || '';
       }
-    });
-    if (!response.ok) throw new Error('Reverse geocode failed');
-    const data = await response.json();
-    const parts = getAreaParts(data?.address || {});
-    const areaName = [parts.primary, parts.secondary].filter(Boolean).join(', ') || data?.display_name || getSavedCustomerAreaName() || 'Bhubaneswar, Odisha';
+    }
+    if (!areaName) {
+      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=16&addressdetails=1`, {
+        headers: {
+          Accept: 'application/json',
+          'Accept-Language': 'en'
+        }
+      });
+      if (!response.ok) throw new Error('Reverse geocode failed');
+      const data = await response.json();
+      const parts = getAreaParts(data?.address || {});
+      areaName = [parts.primary, parts.secondary].filter(Boolean).join(', ') || data?.display_name || '';
+    }
+    areaName = areaName || getSavedCustomerAreaName() || 'Bhubaneswar, Odisha';
     localStorage.setItem(AREA_KEY, areaName);
     return areaName;
   } catch (error) {

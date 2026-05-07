@@ -9,6 +9,7 @@ function Header({
   onSearch,
   appMode = 'web',
   locationLabel = 'Bhubaneswar, Odisha',
+  deliveryEtaLabel = '16 mins',
   searchSuggestions = [],
   trendingSearches = []
 }) {
@@ -47,10 +48,10 @@ function Header({
         <div className="header-row">
           {!isOpsMode && <a className="location-bar header-location-bar" href="/#/shop">
             <MapPin size={16} className="loc-icon" />
-            <span className="loc-copy">
-              <small>Delivery to</small>
-              <span className="loc-text">{locationLabel}</span>
-            </span>
+          <span className="loc-copy">
+            <small>Delivery in {deliveryEtaLabel}</small>
+            <span className="loc-text">{locationLabel}</span>
+          </span>
             <ChevronDown size={14} className="loc-chevron" />
           </a>}
           <div className="header-actions">

@@ -32,6 +32,7 @@ import BottomNav from './components/BottomNav';
 import { API_URL } from './api';
 import { captureCustomerLocation, getSavedCustomerAreaName, getSavedCustomerLocation, resolveCustomerAreaName } from './locationLock';
 import { isTrackableOrder } from './orderTracking';
+import { getDeliveryEstimate } from './deliveryZone';
 import './App.css';
 
 const getRuntimeAppMode = () => {
@@ -352,6 +353,7 @@ function AppContent() {
   const [cartItems, setCartItems] = useState([]);
   const [user, setUser] = useState(null);
   const [locationLabel, setLocationLabel] = useState(() => getSavedCustomerAreaName() || 'Bhubaneswar, Odisha');
+  const [deliveryEtaLabel, setDeliveryEtaLabel] = useState('16 mins');
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -664,6 +666,7 @@ function AppContent() {
         if (!active || !savedLocation?.lat || !savedLocation?.lng) return;
         const resolvedArea = await resolveCustomerAreaName(savedLocation);
         if (active && resolvedArea) setLocationLabel(resolvedArea);
+        if (active) setDeliveryEtaLabel(getDeliveryEstimate(savedLocation).label);
       });
     return () => { active = false; };
   }, [user]);
@@ -675,7 +678,16 @@ function AppContent() {
       const savedArea = getSavedCustomerAreaName();
       if (savedArea && active) setLocationLabel(savedArea);
       const savedLocation = getSavedCustomerLocation();
-      if (!savedLocation?.lat || !savedLocation?.lng) return;
+      if (!savedLocation?.lat || !savedLocation?.lng) {
+        if (active) setDeliveryEtaLabel('16 mins');
+        const detectedLocation = await captureCustomerLocation({ source: 'header-auto', timeout: 8000, maximumAge: 300000 });
+        if (!active || !detectedLocation?.lat || !detectedLocation?.lng) return;
+        const detectedArea = await resolveCustomerAreaName(detectedLocation);
+        if (active && detectedArea) setLocationLabel(detectedArea);
+        if (active) setDeliveryEtaLabel(getDeliveryEstimate(detectedLocation).label);
+        return;
+      }
+      if (active) setDeliveryEtaLabel(getDeliveryEstimate(savedLocation).label);
       const resolvedArea = await resolveCustomerAreaName(savedLocation);
       if (active && resolvedArea) setLocationLabel(resolvedArea);
     };
@@ -1101,6 +1113,7 @@ function AppContent() {
           onSearch={() => {}}
           appMode={APP_MODE}
           locationLabel={locationLabel}
+          deliveryEtaLabel={deliveryEtaLabel}
         />
         <Routes>
           <Route path="*" element={<DeliveryPartnerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
@@ -1124,6 +1137,7 @@ function AppContent() {
           onSearch={() => {}}
           appMode={APP_MODE}
           locationLabel={locationLabel}
+          deliveryEtaLabel={deliveryEtaLabel}
         />
         <Routes>
           <Route path="*" element={<InstallerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
@@ -1146,6 +1160,7 @@ function AppContent() {
         onSearch={setSearchQuery}
         appMode={APP_MODE}
         locationLabel={locationLabel}
+        deliveryEtaLabel={deliveryEtaLabel}
         searchSuggestions={searchSuggestions}
         trendingSearches={trendingSearches}
       />
