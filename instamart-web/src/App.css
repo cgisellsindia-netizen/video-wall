@@ -722,8 +722,8 @@
   pointer-events: none;
 }
 .category-img img {
-  width: 116%;
-  height: 116%;
+  width: 124%;
+  height: 124%;
   object-fit: contain;
   object-position: center;
   display: block;
@@ -1111,7 +1111,7 @@
   margin-bottom: 9px; position: relative; overflow: visible;
 }
 .product-img-wrap img, .product-img-wrap .emoji {
-  width: 116%; height: 116%; object-fit: contain;
+  width: 124%; height: 124%; object-fit: contain;
   object-position: center;
   padding: 0;
   border-radius: inherit;
