@@ -8,12 +8,6 @@ const heroHighlights = [
   { icon: Headphones, label: 'Installation support' }
 ];
 
-const heroProducts = [
-  { name: 'IP Cameras', image: '/images/cgi-ipb8.jpg', accent: 'Top clarity' },
-  { name: 'PTZ Range', image: '/images/cgi-ptz36x5p.jpg', accent: 'Zoom coverage' },
-  { name: 'PoE Switches', image: '/images/cgi-poe8g.jpg', accent: 'Ready stock' }
-];
-
 const heroProofs = [
   { value: '5-year', label: 'warranty support' },
   { value: 'Local', label: 'dispatch from Bhubaneswar' },
@@ -80,19 +74,6 @@ function HeroBanner() {
               </div>
               <img src="/images/camigo-delivery-hero.png" alt="Camigo delivery partner with CCTV order" />
             </div>
-          </div>
-          <div className="hero-product-cluster">
-            {heroProducts.map((product) => (
-              <article className="hero-product-card" key={product.name}>
-                <div className="hero-product-image-wrap">
-                  <img src={product.image} alt={product.name} />
-                </div>
-                <div className="hero-product-meta">
-                  <strong>{product.name}</strong>
-                  <span>{product.accent}</span>
-                </div>
-              </article>
-            ))}
           </div>
         </div>
       </div>
