@@ -51,6 +51,21 @@
   100% { transform: scale(1); }
 }
 
+@keyframes discountStickerPop {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(10deg);
+    filter: brightness(1);
+  }
+  35% {
+    transform: translate3d(0, -2px, 0) scale(1.08) rotate(10deg);
+    filter: brightness(1.08);
+  }
+  55% {
+    transform: translate3d(0, 0, 0) scale(.97) rotate(10deg);
+    filter: brightness(.98);
+  }
+}
+
 .app { min-height: 100vh; background: rgba(255,255,255,.12); color: #fff; }
 .main-content { padding-bottom: 80px; }
 
@@ -848,9 +863,9 @@
 }
 .product-corner-offer {
   position: absolute;
-  top: -10px;
-  right: -6px;
-  z-index: 5;
+  top: -18px;
+  right: -14px;
+  z-index: 6;
   width: 62px;
   min-height: 62px;
   padding: 12px 8px 10px;
@@ -866,6 +881,9 @@
   background: transparent;
   box-shadow: none;
   overflow: visible;
+  transform: rotate(10deg);
+  transform-origin: center;
+  animation: discountStickerPop 2.2s ease-in-out infinite;
 }
 .product-corner-offer::after {
   content: '';
@@ -4287,7 +4305,7 @@
   .product-img-wrap { margin-bottom: 5px; border-radius: 12px; }
   .product-image-action-wrap { top: 8px; left: 8px; }
   .save-item-btn { top: 7px; left: 7px; width: 26px; height: 26px; }
-  .product-corner-offer { top: -8px; right: -4px; width: 50px; min-height: 50px; padding: 10px 6px 8px; }
+  .product-corner-offer { top: -14px; right: -10px; width: 50px; min-height: 50px; padding: 10px 6px 8px; }
   .product-corner-offer strong { font-size: 12px; }
   .product-corner-offer small { font-size: 7px; }
   .delivery-badge { left: 6px; bottom: 6px; padding: 3px 6px; font-size: 9px; }
@@ -4422,7 +4440,7 @@ body.bottom-nav-hidden .floating-tracker {
   .category-name { font-size: 10px; min-height: 24px; }
   .product-scroll { grid-template-columns: repeat(2, 1fr); }
   .product-price-row { margin-bottom: 6px; }
-  .product-corner-offer { top: -6px; right: -2px; width: 42px; min-height: 42px; padding: 8px 5px 7px; }
+  .product-corner-offer { top: -12px; right: -8px; width: 42px; min-height: 42px; padding: 8px 5px 7px; }
   .product-corner-offer strong { font-size: 10px; }
   .product-corner-offer small { font-size: 7px; }
   .delivery-badge { font-size: 9px; padding: 3px 6px; }
