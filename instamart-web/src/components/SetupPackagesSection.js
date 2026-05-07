@@ -147,7 +147,7 @@ function SetupPackagesSection({
                     onClick={stopCardTap}
                     aria-label={isSaved ? 'Remove from saved items' : 'Save for later'}
                   >
-                    <Heart size={16} fill={isSaved ? 'currentColor' : 'none'} />
+                    <Heart size={16} fill={isSaved ? 'currentColor' : '#ffffff'} />
                   </button>
                 )}
                 <span className="delivery-badge">8 min</span>
