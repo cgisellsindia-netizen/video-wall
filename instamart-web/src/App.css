@@ -615,9 +615,9 @@
 .setup-package-card {
   overflow: hidden;
   border-radius: 20px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(255,255,255,.92);
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.03);
+  border: 0.5px solid rgba(148, 163, 184, 0.14);
+  background: rgba(252,253,255,.88);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.02);
 }
 .setup-package-card.clickable {
   cursor: pointer;
@@ -626,7 +626,7 @@
   position: relative;
   aspect-ratio: 16 / 9;
   background: #eef6ff;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  border-bottom: 0.5px solid rgba(148, 163, 184, 0.08);
 }
 .setup-package-visual img {
   width: 100%;
@@ -1084,12 +1084,12 @@
 
 /* Product Card */
 .product-card {
-  background: var(--white); border-radius: 16px;
+  background: rgba(255,255,255,.9); border-radius: 16px;
   padding: 10px; position: relative;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.025);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.018);
   transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
   transform-origin: center bottom;
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  border: 0.5px solid rgba(148, 163, 184, 0.12);
 }
 .motion-card {
   opacity: 0;
@@ -1099,7 +1099,7 @@
   animation: cardReveal .42s cubic-bezier(.2,.8,.2,1) forwards;
   animation-delay: calc(var(--card-stagger, 0) * 42ms);
 }
-.product-card:hover { box-shadow: 0 10px 20px rgba(15, 23, 42, 0.04); transform: translateY(-3px); border-color: rgba(148, 163, 184, 0.24); }
+.product-card:hover { box-shadow: 0 8px 18px rgba(15, 23, 42, 0.03); transform: translateY(-3px); border-color: rgba(148, 163, 184, 0.18); }
 .product-card:active { transform: scale(.986); }
 .product-card.cart-bump {
   animation: productCardBump .32s ease;
@@ -1107,7 +1107,7 @@
 .product-img-wrap {
   width: 100%; aspect-ratio: 1.18;
   border-radius: 14px; background: #f4f7fb;
-  border: 1px solid rgba(148, 163, 184, 0.08);
+  border: 0.5px solid rgba(148, 163, 184, 0.05);
   display: flex; align-items: center; justify-content: center;
   margin-bottom: 9px; position: relative; overflow: visible;
 }
