@@ -957,7 +957,10 @@
   border: 1px solid rgba(9,36,82,.08);
 }
 .category-banner-strip {
+  --category-banner-gap: 12px;
+  --category-banner-card-width: calc(100% - 56px);
   margin: 0 0 18px;
+  padding: 12px;
   overflow: hidden;
   border-radius: 22px;
   background: linear-gradient(135deg, #f8fbff, #eef4ff);
@@ -966,36 +969,22 @@
 }
 .category-banner-track {
   display: flex;
+  gap: var(--category-banner-gap);
   transition: transform .55s ease;
   will-change: transform;
 }
 .category-banner-slide {
-  min-width: 100%;
+  flex: 0 0 var(--category-banner-card-width);
   overflow: hidden;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
 }
 .category-banner-slide img {
   width: 100%;
   height: 100%;
   display: block;
   object-fit: cover;
-}
-.category-banner-dots {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 0 12px;
-}
-.category-banner-dots button {
-  width: 8px;
-  height: 8px;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(11, 61, 145, 0.22);
-  cursor: pointer;
-}
-.category-banner-dots button.active {
-  width: 20px;
-  background: #0b64ff;
 }
 
 .category-banner-empty {
@@ -4594,7 +4583,13 @@
   .card-qty-stepper.inline-stepper strong { font-size: 10px; }
   .card-qty-stepper.inline-stepper button { font-size: 14px; }
   .category-page-hero { align-items: flex-start; flex-direction: column; padding: 20px; }
-  .category-banner-strip { border-radius: 18px; margin-bottom: 14px; }
+  .category-banner-strip {
+    --category-banner-gap: 10px;
+    --category-banner-card-width: calc(100% - 44px);
+    border-radius: 18px;
+    margin-bottom: 14px;
+    padding: 10px;
+  }
   .category-banner-empty { min-height: 104px; padding: 14px; align-items: flex-start; flex-direction: column; gap: 12px; }
   .category-banner-empty-copy small { font-size: 12px; }
   .category-banner-empty-badges { justify-content: flex-start; }

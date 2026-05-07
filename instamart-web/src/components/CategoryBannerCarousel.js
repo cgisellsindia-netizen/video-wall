@@ -3,7 +3,10 @@ import { API_URL } from '../api';
 
 function CategoryBannerCarousel({ placementId, showEmptySlot = false }) {
   const [banners, setBanners] = useState([]);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [trackOffset, setTrackOffset] = useState(0);
+  const visibleBanners = banners.length > 1
+    ? [...banners, banners[0]]
+    : banners;
 
   useEffect(() => {
     let alive = true;
@@ -12,7 +15,7 @@ function CategoryBannerCarousel({ placementId, showEmptySlot = false }) {
       .then(data => {
         if (!alive) return;
         setBanners(Array.isArray(data) ? data : []);
-        setActiveIndex(0);
+        setTrackOffset(0);
       })
       .catch(() => {
         if (alive) setBanners([]);
@@ -23,7 +26,10 @@ function CategoryBannerCarousel({ placementId, showEmptySlot = false }) {
   useEffect(() => {
     if (banners.length <= 1) return undefined;
     const timer = setInterval(() => {
-      setActiveIndex(current => (current + 1) % banners.length);
+      setTrackOffset(current => {
+        const next = current + 1;
+        return next >= banners.length ? 0 : next;
+      });
     }, 3000);
     return () => clearInterval(timer);
   }, [banners.length]);
@@ -51,11 +57,13 @@ function CategoryBannerCarousel({ placementId, showEmptySlot = false }) {
     <section className="category-banner-strip">
       <div
         className="category-banner-track"
-        style={{ transform: `translateX(-${activeIndex * 100}%)` }}
+        style={{
+          transform: `translateX(calc(-${trackOffset} * (var(--category-banner-card-width) + var(--category-banner-gap))))`,
+        }}
       >
-        {banners.map(banner => (
+        {visibleBanners.map((banner, index) => (
           <div
-            key={banner.id}
+            key={`${banner.id}-${index}`}
             className="category-banner-slide"
             style={{ aspectRatio: `${banner.width || 1200} / ${banner.height || 320}` }}
           >
@@ -63,19 +71,6 @@ function CategoryBannerCarousel({ placementId, showEmptySlot = false }) {
           </div>
         ))}
       </div>
-      {banners.length > 1 && (
-        <div className="category-banner-dots">
-          {banners.map((banner, index) => (
-            <button
-              key={banner.id}
-              type="button"
-              className={index === activeIndex ? 'active' : ''}
-              onClick={() => setActiveIndex(index)}
-              aria-label={`Show banner ${index + 1}`}
-            />
-          ))}
-        </div>
-      )}
     </section>
   );
 }
