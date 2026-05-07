@@ -72,39 +72,39 @@
   position: relative;
   border-radius: 34px;
   padding: 22px 18px 24px;
-  border: 1px solid rgba(9, 36, 82, 0.06);
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.04);
 }
 .home-band-categories {
   background:
-    linear-gradient(180deg, rgba(255,255,255,.96), rgba(248,251,255,.94)),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(251,252,255,.96)),
     #ffffff;
 }
 .home-band-setup {
   background:
-    radial-gradient(circle at top right, rgba(246, 196, 0, .18), transparent 24%),
-    linear-gradient(180deg, rgba(255, 250, 232, .98), rgba(255,255,255,.95));
+    radial-gradient(circle at top right, rgba(246, 196, 0, .10), transparent 26%),
+    linear-gradient(180deg, rgba(255, 252, 242, .98), rgba(255,255,255,.96));
 }
 .home-band-warm {
   background:
-    linear-gradient(180deg, rgba(255, 245, 228, .96), rgba(255,255,255,.95));
+    linear-gradient(180deg, rgba(255, 248, 238, .97), rgba(255,255,255,.96));
 }
 .home-band-soft {
   background:
-    linear-gradient(180deg, rgba(248, 250, 252, .98), rgba(255,255,255,.95));
+    linear-gradient(180deg, rgba(250, 251, 253, .98), rgba(255,255,255,.96));
 }
 .home-band-sky {
   background:
-    radial-gradient(circle at top left, rgba(11, 100, 255, .12), transparent 24%),
-    linear-gradient(180deg, rgba(241, 247, 255, .98), rgba(255,255,255,.95));
+    radial-gradient(circle at top left, rgba(11, 100, 255, .08), transparent 26%),
+    linear-gradient(180deg, rgba(246, 249, 255, .98), rgba(255,255,255,.96));
 }
 .home-band-contrast {
   background:
-    linear-gradient(180deg, rgba(236, 244, 255, .98), rgba(255,255,255,.95));
+    linear-gradient(180deg, rgba(244, 248, 255, .98), rgba(255,255,255,.96));
 }
 .home-band-neutral {
   background:
-    linear-gradient(180deg, rgba(255,255,255,.97), rgba(249,251,254,.94));
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(251,252,254,.96));
 }
 
 /* ===== HEADER ===== */
