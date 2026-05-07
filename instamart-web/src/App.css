@@ -848,12 +848,12 @@
 }
 .product-corner-offer {
   position: absolute;
-  top: -14px;
-  right: 12px;
+  top: -10px;
+  right: -6px;
   z-index: 5;
-  width: 58px;
-  min-height: 56px;
-  padding: 7px 6px 12px;
+  width: 62px;
+  min-height: 62px;
+  padding: 12px 8px 10px;
   color: #fff;
   font-weight: 900;
   line-height: 1;
@@ -871,13 +871,13 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: url('./assets/product-discount-banner.png') center/contain no-repeat;
-  filter: drop-shadow(0 8px 14px rgba(127, 29, 29, 0.18));
+  background: url('./assets/product-discount-burst.png') center/contain no-repeat;
+  filter: drop-shadow(0 10px 18px rgba(127, 29, 29, 0.22));
   z-index: -1;
 }
 .product-corner-offer strong {
   display: block;
-  margin-top: 4px;
+  margin-top: 0;
   font-size: 12px;
   font-weight: 950;
   letter-spacing: -.02em;
@@ -4291,7 +4291,7 @@
   .product-img-wrap { margin-bottom: 5px; border-radius: 12px; }
   .product-image-action-wrap { top: 8px; left: 8px; }
   .save-item-btn { top: 7px; left: 7px; width: 26px; height: 26px; }
-  .product-corner-offer { top: -10px; right: 10px; width: 46px; min-height: 44px; padding: 5px 4px 9px; }
+  .product-corner-offer { top: -8px; right: -4px; width: 50px; min-height: 50px; padding: 10px 6px 8px; }
   .product-corner-offer strong { font-size: 10px; }
   .product-corner-offer small { font-size: 6px; }
   .delivery-badge { left: 6px; bottom: 6px; padding: 3px 6px; font-size: 9px; }
@@ -4426,7 +4426,7 @@ body.bottom-nav-hidden .floating-tracker {
   .category-name { font-size: 10px; min-height: 24px; }
   .product-scroll { grid-template-columns: repeat(2, 1fr); }
   .product-price-row { margin-bottom: 6px; }
-  .product-corner-offer { top: -8px; right: 8px; width: 38px; min-height: 38px; padding: 4px 3px 8px; }
+  .product-corner-offer { top: -6px; right: -2px; width: 42px; min-height: 42px; padding: 8px 5px 7px; }
   .product-corner-offer strong { font-size: 9px; }
   .product-corner-offer small { font-size: 6px; }
   .delivery-badge { font-size: 9px; padding: 3px 6px; }
