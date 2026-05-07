@@ -118,6 +118,15 @@ const priceForRole = (product, user) => {
   return Math.round(Number(product.price || 0) * discount);
 };
 
+const isSetupProduct = (product = {}) => {
+  const unit = String(product.unit || '').toLowerCase();
+  const name = String(product.name || '').toLowerCase();
+  const description = String(product.description || '').toLowerCase();
+  return unit.includes('setup')
+    || name.includes('setup')
+    || description.includes('setup package');
+};
+
 function MainPage({
   user,
   cartCount,
@@ -138,9 +147,17 @@ function MainPage({
   savedProductIds = [],
   onToggleSaved
 }) {
+  const setupProducts = useMemo(
+    () => products.filter((product) => isSetupProduct(product)),
+    [products]
+  );
+  const regularProducts = useMemo(
+    () => products.filter((product) => !isSetupProduct(product)),
+    [products]
+  );
   const filteredProducts = searchQuery
-    ? products.filter(p => String(p.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
-    : products;
+    ? regularProducts.filter(p => String(p.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
+    : regularProducts;
 
   const productsByCategory = categories.map(cat => ({
     ...cat,
@@ -155,7 +172,7 @@ function MainPage({
         {!searchQuery && <CategoryGrid categories={categories} />}
         {!searchQuery && (
           <SetupPackagesSection
-            products={products}
+            products={setupProducts}
             onAdd={addToCart}
             onRemove={removeFromCart}
             cartItems={cartItems}
@@ -164,10 +181,10 @@ function MainPage({
             onToggleSaved={onToggleSaved}
           />
         )}
-        {!searchQuery && recentProducts.length > 0 && (
+        {!searchQuery && recentProducts.filter((product) => !isSetupProduct(product)).length > 0 && (
           <ProductSection
             title="Buy Again"
-            products={recentProducts}
+            products={recentProducts.filter((product) => !isSetupProduct(product))}
             onAdd={addToCart}
             onRemove={removeFromCart}
             user={user}
@@ -176,10 +193,10 @@ function MainPage({
             onToggleSaved={onToggleSaved}
           />
         )}
-        {!searchQuery && savedProducts.length > 0 && (
+        {!searchQuery && savedProducts.filter((product) => !isSetupProduct(product)).length > 0 && (
           <ProductSection
             title="Saved for Later"
-            products={savedProducts}
+            products={savedProducts.filter((product) => !isSetupProduct(product))}
             onAdd={addToCart}
             onRemove={removeFromCart}
             user={user}
@@ -188,10 +205,10 @@ function MainPage({
             onToggleSaved={onToggleSaved}
           />
         )}
-        {!searchQuery && recommendedProducts.length > 0 && (
+        {!searchQuery && recommendedProducts.filter((product) => !isSetupProduct(product)).length > 0 && (
           <ProductSection
             title="Recommended for You"
-            products={recommendedProducts}
+            products={recommendedProducts.filter((product) => !isSetupProduct(product))}
             onAdd={addToCart}
             onRemove={removeFromCart}
             user={user}
@@ -200,10 +217,10 @@ function MainPage({
             onToggleSaved={onToggleSaved}
           />
         )}
-        {!searchQuery && bestsellingProducts.length > 0 && (
+        {!searchQuery && bestsellingProducts.filter((product) => !isSetupProduct(product)).length > 0 && (
           <ProductSection
             title="Most Loved CCTV Picks"
-            products={bestsellingProducts}
+            products={bestsellingProducts.filter((product) => !isSetupProduct(product))}
             onAdd={addToCart}
             onRemove={removeFromCart}
             user={user}
