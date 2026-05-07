@@ -179,7 +179,12 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
                 ) : (
                   <div className="emoji">PROD</div>
                 )}
-                {discount > 0 && <span className="product-corner-offer">{discount}% OFF</span>}
+                {discount > 0 && (
+                  <span className="product-corner-offer" aria-label={`${discount}% off`}>
+                    <strong>{discount}%</strong>
+                    <small>OFF</small>
+                  </span>
+                )}
                 {onToggleSaved && (
                   <button
                     type="button"

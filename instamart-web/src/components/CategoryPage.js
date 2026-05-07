@@ -216,7 +216,12 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
             <div key={product.id} className="product-card" onClick={() => navigate(`/product/${product.id}`)}>
               <div className="product-img-wrap">
                 {product.image ? <img src={product.image} alt={product.name} loading="lazy" /> : <div className="emoji">CCTV</div>}
-                {discount > 0 && <span className="product-corner-offer">{discount}% OFF</span>}
+                {discount > 0 && (
+                  <span className="product-corner-offer" aria-label={`${discount}% off`}>
+                    <strong>{discount}%</strong>
+                    <small>OFF</small>
+                  </span>
+                )}
                 {onToggleSaved && (
                   <button
                     type="button"

@@ -82,7 +82,12 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
                 ) : (
                   <div className="emoji">CCTV</div>
                 )}
-                {discount > 0 && <span className="product-corner-offer">{discount}% OFF</span>}
+                {discount > 0 && (
+                  <span className="product-corner-offer" aria-label={`${discount}% off`}>
+                    <strong>{discount}%</strong>
+                    <small>OFF</small>
+                  </span>
+                )}
                 {onToggleSaved && (
                   <button
                     type="button"
