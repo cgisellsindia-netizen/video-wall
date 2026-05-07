@@ -1138,7 +1138,7 @@ function AdminPage({ user }) {
   if (loading) return <div className="loading">Loading admin panel...</div>;
 
   return (
-    <div className="container" style={{ maxWidth: '1200px', padding: '24px 16px 100px' }}>
+    <div className="container admin-page-shell">
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
         <Shield size={28} color="#f6c400" />
         <h2 className="section-title" style={{ margin: 0 }}>Admin Dashboard</h2>
