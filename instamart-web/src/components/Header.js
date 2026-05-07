@@ -1,10 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { MapPin, ChevronDown, Search, ShoppingCart, User, LogOut, Shield } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { MapPin, ChevronDown, Search, User, LogOut, Shield } from 'lucide-react';
 
 function Header({
   user,
-  cartCount,
-  onCartClick,
   onLoginClick,
   onLogout,
   searchQuery,
@@ -21,8 +19,8 @@ function Header({
   const homeLink = isDeliveryPartner ? '/#/delivery-partner' : isInstaller ? '/#/installer' : '/#/';
   const [searchFocused, setSearchFocused] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [cartPulse, setCartPulse] = useState(false);
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileMenuRef = useRef(null);
   const visibleSuggestions = useMemo(() => {
     if (searchQuery?.trim()) return searchSuggestions.slice(0, 6);
     return trendingSearches.slice(0, 6);
@@ -36,33 +34,58 @@ function Header({
   }, []);
 
   useEffect(() => {
-    if (!cartCount) return undefined;
-    setCartPulse(true);
-    const timeoutId = window.setTimeout(() => setCartPulse(false), 420);
-    return () => window.clearTimeout(timeoutId);
-  }, [cartCount]);
-
-  useEffect(() => {
-    if (searchQuery?.trim()) setMobileSearchOpen(true);
-  }, [searchQuery]);
+    if (!profileOpen) return undefined;
+    const handlePointerDown = (event) => {
+      if (!profileMenuRef.current?.contains(event.target)) setProfileOpen(false);
+    };
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, [profileOpen]);
 
   return (
     <header className={`header ${isScrolled ? 'header-scrolled' : ''}`}>
       <div className="header-top">
-        <div className="logo-area">
-          <a href={homeLink} className="logo">
-            <img className="logo-icon logo-img" src="/camigo-logo.svg" alt="Camigo" />
-            <div className="logo-text" style={{color:"#fff",fontWeight:900,letterSpacing:"-1px",fontSize:"28px"}}>Cam<span style={{color:"#f6c400"}}>igo</span></div>
-          </a>
-          {!isOpsMode && <a className="location-bar" href="/#/shop">
-            <MapPin size={16} className="loc-icon" />
-            <span className="loc-copy">
-              <small>Delivery to</small>
-              <span className="loc-text">{locationLabel}</span>
-            </span>
-            <ChevronDown size={14} className="loc-chevron" />
-          </a>}
+        <div className="header-row">
+          <div className="logo-area">
+            <a href={homeLink} className="logo">
+              <img className="logo-icon logo-img" src="/camigo-logo.svg" alt="Camigo" />
+              <div className="logo-text" style={{color:"#fff",fontWeight:900,letterSpacing:"-1px",fontSize:"28px"}}>Cam<span style={{color:"#f6c400"}}>igo</span></div>
+            </a>
+          </div>
+          <div className="header-actions">
+            {user ? (
+              <>
+                {user.role === 'admin' && <a className="header-btn admin-shortcut" href="/#/admin"><Shield size={18} /><span>Admin</span></a>}
+                <div className={`profile-menu ${profileOpen ? 'open' : ''}`} ref={profileMenuRef}>
+                  <button
+                    className="header-btn profile-icon-btn"
+                    type="button"
+                    onClick={() => setProfileOpen((current) => !current)}
+                    aria-label="Account"
+                  >
+                    <User size={18} />
+                  </button>
+                  <div className="profile-dropdown">
+                    <span className="profile-dropdown-name">{displayName}</span>
+                    <a href="/#/orders" onClick={() => setProfileOpen(false)}>Orders</a>
+                    <a href="/#/saved" onClick={() => setProfileOpen(false)}>Saved</a>
+                    <button type="button" onClick={onLogout}><LogOut size={16} /><span>Logout</span></button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <button className="header-btn primary profile-login-btn" onClick={onLoginClick}><User size={18} /><span>Login</span></button>
+            )}
+          </div>
         </div>
+        {!isOpsMode && <a className="location-bar" href="/#/shop">
+          <MapPin size={16} className="loc-icon" />
+          <span className="loc-copy">
+            <small>Delivery to</small>
+            <span className="loc-text">{locationLabel}</span>
+          </span>
+          <ChevronDown size={14} className="loc-chevron" />
+        </a>}
         <nav className="desktop-nav">
           {!isOpsMode && <a href="/#/shop">Shop</a>}
           {!isOpsMode && <a href="/#/orders">Orders</a>}
@@ -72,7 +95,7 @@ function Header({
           {isInstaller && <a href="/#/installer">Installer Panel</a>}
           {user?.role === 'admin' && <a href="/#/admin">Admin</a>}
         </nav>
-        {!isOpsMode && <div className={`search-bar ${mobileSearchOpen ? 'mobile-open' : ''}`}>
+        {!isOpsMode && <div className="search-bar">
           <Search size={18} className="search-icon" />
           <input
             type="text"
@@ -81,11 +104,9 @@ function Header({
             onChange={(e) => onSearch(e.target.value)}
             onFocus={() => {
               setSearchFocused(true);
-              setMobileSearchOpen(true);
             }}
             onBlur={() => setTimeout(() => {
               setSearchFocused(false);
-              if (!searchQuery?.trim()) setMobileSearchOpen(false);
             }, 120)}
           />
           {searchFocused && visibleSuggestions.length > 0 && (
@@ -105,31 +126,6 @@ function Header({
             </div>
           )}
         </div>}
-        <div className="header-actions">
-          {!isOpsMode && (
-            <button
-              className={`header-btn mobile-search-toggle ${mobileSearchOpen ? 'active' : ''}`}
-              type="button"
-              onClick={() => setMobileSearchOpen((current) => !current)}
-              aria-label="Search products"
-            >
-              <Search size={18} />
-            </button>
-          )}
-          {user ? (
-            <>
-              <a href="/#/orders" className="header-btn profile-btn"><User size={18} /><span>{displayName.split(' ')[0]}</span></a>
-              {user.role === 'admin' && <a className="header-btn admin-shortcut" href="/#/admin"><Shield size={18} /><span>Admin</span></a>}
-              <button className="header-btn" onClick={onLogout}><LogOut size={18} /><span>Logout</span></button>
-            </>
-          ) : (
-            <button className="header-btn primary" onClick={onLoginClick}><User size={18} /><span>Login</span></button>
-          )}
-          {!isOpsMode && <button className="header-btn cart-btn" onClick={onCartClick}>
-            <ShoppingCart size={18} /><span>Cart</span>
-            {cartCount > 0 && <span className={`cart-badge ${cartPulse ? 'cart-badge-pulse' : ''}`}>{cartCount}</span>}
-          </button>}
-        </div>
       </div>
     </header>
   );
