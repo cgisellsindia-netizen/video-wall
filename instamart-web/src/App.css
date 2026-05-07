@@ -689,7 +689,7 @@
 }
 .category-card {
   background: rgba(255,255,255,.86);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 8px;
   text-align: center;
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.025);
@@ -4567,7 +4567,7 @@
   .setup-package-action-row .card-qty-stepper { padding: 2px; }
   .setup-package-action-row .card-qty-stepper button { width: 28px; height: 28px; }
   .setup-package-action-row .card-qty-stepper strong { min-width: 20px; font-size: 12px; }
-  .category-card { border-radius: 16px; padding: 5px; box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04); }
+  .category-card { border-radius: 8px; padding: 5px; box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04); }
   .category-img { width: 100%; height: auto; margin-bottom: 0; border-radius: 8px; }
   .product-scroll { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
   .shop-product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
