@@ -77,34 +77,33 @@
 }
 .home-band-categories {
   background:
-    linear-gradient(180deg, rgba(255,255,255,.98), rgba(251,252,255,.96)),
-    #ffffff;
+    linear-gradient(180deg, #eef6ff, #dff0ff);
 }
 .home-band-setup {
   background:
-    radial-gradient(circle at top right, rgba(246, 196, 0, .10), transparent 26%),
-    linear-gradient(180deg, rgba(255, 252, 242, .98), rgba(255,255,255,.96));
+    radial-gradient(circle at top right, rgba(246, 196, 0, .18), transparent 28%),
+    linear-gradient(180deg, #fff5cc, #ffeeb3);
 }
 .home-band-warm {
   background:
-    linear-gradient(180deg, rgba(255, 248, 238, .97), rgba(255,255,255,.96));
+    linear-gradient(180deg, #ffe7d6, #ffdcca);
 }
 .home-band-soft {
   background:
-    linear-gradient(180deg, rgba(250, 251, 253, .98), rgba(255,255,255,.96));
+    linear-gradient(180deg, #f3ebff, #eadcff);
 }
 .home-band-sky {
   background:
-    radial-gradient(circle at top left, rgba(11, 100, 255, .08), transparent 26%),
-    linear-gradient(180deg, rgba(246, 249, 255, .98), rgba(255,255,255,.96));
+    radial-gradient(circle at top left, rgba(11, 100, 255, .14), transparent 28%),
+    linear-gradient(180deg, #dff1ff, #cde9ff);
 }
 .home-band-contrast {
   background:
-    linear-gradient(180deg, rgba(244, 248, 255, .98), rgba(255,255,255,.96));
+    linear-gradient(180deg, #e0f7ef, #cef0e3);
 }
 .home-band-neutral {
   background:
-    linear-gradient(180deg, rgba(255,255,255,.98), rgba(251,252,254,.96));
+    linear-gradient(180deg, #f2f4f8, #e9edf5);
 }
 
 /* ===== HEADER ===== */
