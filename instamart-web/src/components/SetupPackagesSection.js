@@ -54,7 +54,19 @@ function SetupPackagesSection({
   const sectionProducts = useMemo(
     () => {
       const resolved = packages
-        .map((entry) => productMap.get(Number(entry.product_id || 0)))
+        .map((entry) => {
+          const product = productMap.get(Number(entry.product_id || 0));
+          if (!product) return null;
+          return {
+            ...product,
+            name: entry.title || product.name,
+            description: entry.subtitle || product.description,
+            image: entry.image || product.image,
+            package_badge: entry.badge || '',
+            package_price: Number(entry.price || 0) > 0 ? Number(entry.price) : product.price,
+            package_category_id: entry.category_id || product.category_id
+          };
+        })
         .filter(Boolean);
       return resolved.length ? resolved : fallbackSetupProducts;
     },
@@ -101,11 +113,12 @@ function SetupPackagesSection({
           const discount = Number(product.discount_percent) > 0
             ? Math.round(Number(product.discount_percent))
             : product.mrp ? Math.max(0, Math.round((1 - product.price / product.mrp) * 100)) : 0;
+          const basePrice = Number(product.package_price || product.price || 0);
           const rolePrice = user?.role === 'dealer' && Number(product.dealer_price) > 0
             ? Math.round(Number(product.dealer_price))
             : user?.role === 'distributor' && Number(product.distributor_price) > 0
               ? Math.round(Number(product.distributor_price))
-              : user?.role === 'dealer' ? Math.round(product.price * 0.90) : user?.role === 'distributor' ? Math.round(product.price * 0.85) : product.price;
+              : user?.role === 'dealer' ? Math.round(basePrice * 0.90) : user?.role === 'distributor' ? Math.round(basePrice * 0.85) : basePrice;
 
           return (
             <div

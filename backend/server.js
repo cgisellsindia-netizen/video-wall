@@ -1001,6 +1001,12 @@ const syncSetupPackageProducts = async (entries = []) => {
           productId
         ]
       );
+      await new Promise((resolve, reject) => {
+        saveProductImages(productId, draft.image, [draft.image], (error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
     } else {
       const created = await dbRunAsync(
         `INSERT INTO products (
@@ -1023,6 +1029,12 @@ const syncSetupPackageProducts = async (entries = []) => {
         ]
       );
       productId = Number(created.lastID);
+      await new Promise((resolve, reject) => {
+        saveProductImages(productId, draft.image, [draft.image], (error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
     }
 
     nextPackages.push({

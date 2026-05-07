@@ -767,6 +767,28 @@ function AdminPage({ user }) {
     reader.readAsDataURL(file);
   };
 
+  const addSetupPackageDraft = () => {
+    const defaultCategoryId = String(categories[0]?.id || 1);
+    setSetupPackageDrafts(prev => ([
+      ...prev,
+      {
+        id: `setup-package-${Date.now()}`,
+        title: '',
+        subtitle: '',
+        badge: '',
+        image: '',
+        price: '',
+        product_id: '',
+        category_id: defaultCategoryId
+      }
+    ]));
+    setMessage('New full setup draft added. Fill in the details and save.');
+  };
+
+  const removeSetupPackageDraft = (packageIndex) => {
+    setSetupPackageDrafts(prev => prev.filter((_, index) => index !== packageIndex));
+  };
+
   const handleSaveSetupPackages = async () => {
     const token = localStorage.getItem('token');
     const payload = setupPackageDrafts.map((entry, index) => ({
@@ -1268,9 +1290,14 @@ function AdminPage({ user }) {
                 These are real Camigo products shown near the top of the homepage, just under Shop by Category. Saving here updates the package card and the underlying product.
               </p>
             </div>
-            <button className="btn btn-primary btn-sm" type="button" onClick={handleSaveSetupPackages} disabled={setupPackagesBusy}>
-              {setupPackagesBusy ? 'Saving...' : 'Save full setups'}
-            </button>
+            <div className="banner-admin-group-actions">
+              <button className="btn btn-outline btn-sm" type="button" onClick={addSetupPackageDraft}>
+                <Plus size={14} /> Add new package
+              </button>
+              <button className="btn btn-primary btn-sm" type="button" onClick={handleSaveSetupPackages} disabled={setupPackagesBusy}>
+                {setupPackagesBusy ? 'Saving...' : 'Save full setups'}
+              </button>
+            </div>
           </div>
 
           <div className="setup-package-admin-list">
@@ -1282,7 +1309,12 @@ function AdminPage({ user }) {
                 <div className="category-admin-body">
                   <div className="category-admin-topline">
                     <strong>{entry.title || `Package ${index + 1}`}</strong>
-                    <span className="tag tag-info">Product #{entry.product_id || 'New'}</span>
+                    <div className="banner-admin-group-actions">
+                      <span className="tag tag-info">Product #{entry.product_id || 'New'}</span>
+                      <button className="btn btn-sm banner-delete-btn" type="button" onClick={() => removeSetupPackageDraft(index)}>
+                        <Trash2 size={14} /> Remove
+                      </button>
+                    </div>
                   </div>
                   <div className="admin-product-form category-admin-form">
                     <div className="form-group">
