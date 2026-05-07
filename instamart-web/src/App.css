@@ -280,8 +280,8 @@
     radial-gradient(circle at 82% 20%, rgba(246, 196, 0, .18), transparent 20%),
     radial-gradient(circle at 12% 88%, rgba(28, 160, 255, .14), transparent 26%),
     linear-gradient(135deg, #071b3a 0%, #0b2b61 44%, #0c3f91 100%);
-  min-height: 350px;
-  border-radius: 24px; padding: 32px 32px 24px;
+    min-height: 304px;
+    border-radius: 24px; padding: 24px 28px 20px;
   display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, .9fr); align-items: stretch; justify-content: space-between;
   position: relative; overflow: visible;
   box-shadow: 0 22px 44px rgba(5, 18, 45, .18);
@@ -304,12 +304,12 @@
 }
 .hero-content { position: relative; z-index: 2; max-width: 640px; }
 .hero-content h1 {
-  font-size: clamp(34px, 5vw, 52px); font-weight: 900; color: white;
-  line-height: 1.02; margin: 0 0 12px;
+    font-size: clamp(30px, 4.5vw, 46px); font-weight: 900; color: white;
+    line-height: 1.02; margin: 0 0 10px;
   letter-spacing: -.05em;
 }
 .hero-content p {
-  font-size: 16px; color: rgba(255,255,255,0.84);
+    font-size: 15px; color: rgba(255,255,255,0.84);
   margin: 0;
   max-width: 600px;
   font-weight: 600;
@@ -361,20 +361,20 @@
   border: 1px solid rgba(255,255,255,.12);
 }
 .hero-storefront {
-  gap: 28px;
+    gap: 22px;
 }
 .hero-copy-block {
-  display: grid;
-  align-content: center;
-  gap: 16px;
+    display: grid;
+    align-content: center;
+    gap: 12px;
 }
 .hero-kicker {
   width: fit-content;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 14px;
-  padding: 8px 12px;
+    margin-bottom: 8px;
+    padding: 7px 11px;
   border-radius: 999px;
   background: rgba(255,255,255,.10);
   border: 1px solid rgba(255,255,255,.12);
@@ -385,10 +385,10 @@
   text-transform: uppercase;
 }
 .hero-highlights {
-  margin-bottom: 14px;
+    margin-bottom: 8px;
 }
 .hero-highlight-pill {
-  padding: 8px 12px;
+    padding: 7px 10px;
   border-radius: 999px;
   background: rgba(255,255,255,.09);
   border: 1px solid rgba(255,255,255,.1);
@@ -410,12 +410,12 @@
   box-shadow: 0 10px 24px rgba(7, 27, 58, .12);
 }
 .hero-proof-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
 }
 .hero-proof-card {
-  padding: 14px 14px 13px;
+    padding: 11px 12px 10px;
   border-radius: 18px;
   background: rgba(255,255,255,.08);
   border: 1px solid rgba(255,255,255,.09);
@@ -438,14 +438,14 @@
 .hero-visual-board {
   position: relative;
   z-index: 2;
-  min-height: 320px;
-  display: grid;
-  gap: 16px;
+    min-height: 278px;
+    display: grid;
+    gap: 12px;
   align-items: stretch;
 }
 .hero-visual-glow {
-  position: absolute;
-  inset: 10px 0 56px 0;
+    position: absolute;
+    inset: 12px 0 52px 0;
   border-radius: 34px;
   background:
     radial-gradient(circle at 50% 28%, rgba(255,255,255,.18), transparent 42%),
@@ -455,9 +455,9 @@
 .hero-visual-panel {
   position: relative;
   z-index: 2;
-  min-height: 250px;
-  padding: 18px;
-  border-radius: 30px;
+    min-height: 224px;
+    padding: 16px;
+    border-radius: 26px;
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.05)),
@@ -468,8 +468,8 @@
 }
 .hero-panel-badge {
   position: absolute;
-  top: 18px;
-  left: 18px;
+    top: 14px;
+    left: 14px;
   z-index: 3;
   padding: 8px 12px;
   border-radius: 999px;
@@ -486,7 +486,7 @@
   grid-template-columns: 60px 1fr;
   gap: 10px;
   align-items: center;
-  padding: 10px 12px;
+    padding: 9px 11px;
   border-radius: 20px;
   background: rgba(255,255,255,.97);
   box-shadow: 0 18px 34px rgba(7, 27, 58, .14);
@@ -519,8 +519,8 @@
   font-weight: 800;
 }
 .hero-delivery-visual {
-  position: relative;
-  min-height: 214px;
+    position: relative;
+    min-height: 186px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -529,21 +529,21 @@
 .hero-delivery-visual img {
   position: relative;
   z-index: 2;
-  width: min(24vw, 280px);
-  min-width: 210px;
+    width: min(22vw, 248px);
+    min-width: 190px;
   object-fit: contain;
   filter: drop-shadow(0 28px 38px rgba(0,0,0,.26));
 }
 .hero-delivery-card {
   position: absolute;
   left: 0;
-  bottom: 22px;
+    bottom: 14px;
   z-index: 3;
   max-width: 250px;
   display: grid;
   gap: 6px;
-  padding: 16px 18px;
-  border-radius: 22px;
+    padding: 13px 15px;
+    border-radius: 20px;
   background: rgba(255,255,255,.98);
   color: #13223a;
   box-shadow: 0 18px 34px rgba(7, 27, 58, .16);
@@ -4509,28 +4509,28 @@
   .cart-btn span { display: inline; }
   .admin-shortcut { display: none; }
   .hero-banner { margin: 10px auto 12px; padding: 0 12px; }
-  .hero-inner { min-height: 0; padding: 18px 18px 16px; grid-template-columns: 1fr; gap: 18px; }
+  .hero-inner { min-height: 0; padding: 16px 18px 14px; grid-template-columns: 1fr; gap: 14px; }
   .hero-content { max-width: none; }
-  .hero-content h1 { font-size: 24px; margin-bottom: 10px; }
+  .hero-content h1 { font-size: 23px; margin-bottom: 8px; }
   .hero-content p { font-size: 14px; }
-  .hero-copy-block { gap: 14px; }
+  .hero-copy-block { gap: 11px; }
   .hero-actions { gap: 10px; }
   .hero-cta { flex: 1 1 180px; min-height: 46px; }
   .hero-stats { justify-content: flex-start; gap: 8px; }
   .hero-stat { font-size: 12px; }
   .hero-stat-icon { width: 28px; height: 28px; }
-  .hero-kicker { margin-bottom: 12px; font-size: 11px; }
+  .hero-kicker { margin-bottom: 8px; font-size: 11px; }
   .hero-proof-grid { grid-template-columns: 1fr; gap: 10px; }
-  .hero-visual-board { min-height: 0; gap: 12px; }
-  .hero-visual-glow { inset: 12px 0 62px 0; }
-  .hero-visual-panel { min-height: 220px; padding: 16px; border-radius: 24px; }
+  .hero-visual-board { min-height: 0; gap: 10px; }
+  .hero-visual-glow { inset: 12px 0 50px 0; }
+  .hero-visual-panel { min-height: 198px; padding: 14px; border-radius: 22px; }
   .hero-panel-badge { top: 14px; left: 14px; }
   .hero-product-cluster { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .hero-product-card { grid-template-columns: 1fr; gap: 8px; padding: 8px; }
   .hero-product-image-wrap { width: 100%; aspect-ratio: 1.15; }
-  .hero-delivery-visual { min-height: 188px; justify-content: flex-end; }
-  .hero-delivery-visual img { width: 180px; min-width: 0; }
-  .hero-delivery-card { left: 0; bottom: 10px; max-width: 180px; padding: 12px; }
+  .hero-delivery-visual { min-height: 166px; justify-content: flex-end; }
+  .hero-delivery-visual img { width: 168px; min-width: 0; }
+  .hero-delivery-card { left: 0; bottom: 8px; max-width: 172px; padding: 10px; }
   .hero-delivery-card strong { font-size: 14px; }
   .hero-delivery-card small { font-size: 10px; }
   .category-section { margin: 18px auto; padding: 0 12px; }
@@ -4686,21 +4686,21 @@ body.bottom-nav-hidden .floating-tracker {
 
 @media (max-width: 480px) {
   .hero-banner { padding: 0 10px; }
-  .hero-inner { padding: 16px 14px 14px; border-radius: 20px; }
-  .hero-content h1 { font-size: 21px; }
+  .hero-inner { padding: 14px 14px 12px; border-radius: 20px; }
+  .hero-content h1 { font-size: 20px; }
   .hero-content p { font-size: 13px; }
   .hero-kicker { font-size: 10px; padding: 7px 10px; }
   .hero-cta { width: 100%; }
   .hero-highlight-pill { padding: 7px 9px; }
   .hero-signal-pill { font-size: 10px; padding: 6px 8px; }
-  .hero-visual-panel { min-height: 196px; padding: 14px; }
+  .hero-visual-panel { min-height: 176px; padding: 12px; }
   .hero-product-cluster { gap: 8px; }
   .hero-product-card { padding: 7px; border-radius: 14px; }
   .hero-product-meta strong { font-size: 11px; }
   .hero-product-meta span { font-size: 10px; }
-  .hero-delivery-visual { min-height: 158px; }
-  .hero-delivery-visual img { width: 152px; }
-  .hero-delivery-card { left: 0; bottom: 0; max-width: 150px; padding: 10px; border-radius: 18px; }
+  .hero-delivery-visual { min-height: 142px; }
+  .hero-delivery-visual img { width: 138px; }
+  .hero-delivery-card { left: 0; bottom: 0; max-width: 142px; padding: 9px; border-radius: 16px; }
   .hero-delivery-card strong { font-size: 13px; }
   .hero-delivery-card small { font-size: 10px; }
   .category-section { padding: 0 10px; }
