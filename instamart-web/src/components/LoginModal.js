@@ -10,11 +10,12 @@ const parseJsonResponse = async (res) => {
 };
 
 const postAuth = async (path, body) => {
-  const primaryUrl = `https://camigo-store.onrender.com/api${path}`;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const primaryUrl = `${API_URL}${path}`;
   const fallbackUrls = [
-    `${API_URL}${path}`,
+    `${origin}/api${path}`,
     `${origin}${path}`,
+    `https://camigo-store.onrender.com/api${path}`,
     `https://camigo-store.onrender.com${path}`,
   ].filter((url, index, urls) => url && url !== primaryUrl && urls.indexOf(url) === index);
   const request = { method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(body) };
