@@ -13,7 +13,7 @@ function SetupPackagesSection({
   onToggleSaved = null
 }) {
   const [packages, setPackages] = useState([]);
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
   const [activeProductId, setActiveProductId] = useState(null);
   const navigate = useNavigate();
   const sectionRef = useRef(null);
@@ -49,22 +49,6 @@ function SetupPackagesSection({
     };
     loadPackages();
     return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    const node = sectionRef.current;
-    if (!node) return undefined;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.14 }
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
   }, []);
 
   const sectionProducts = useMemo(
