@@ -615,8 +615,8 @@
 .setup-package-card {
   overflow: hidden;
   border-radius: 20px;
-  border: 0.5px solid rgba(148, 163, 184, 0.08);
-  background: rgba(255,255,255,.96);
+  border: 0;
+  background: transparent;
   box-shadow: none;
 }
 .setup-package-card.clickable {
@@ -626,7 +626,8 @@
   position: relative;
   aspect-ratio: 16 / 9;
   background: #f8fbff;
-  border-bottom: 0;
+  border-radius: 18px;
+  overflow: hidden;
 }
 .setup-package-visual img {
   width: 100%;
@@ -648,7 +649,7 @@
 .setup-package-body {
   display: grid;
   gap: 7px;
-  padding: 10px 10px 11px;
+  padding: 9px 4px 6px;
 }
 .setup-package-price-row {
   display: flex;
@@ -1084,12 +1085,12 @@
 
 /* Product Card */
 .product-card {
-  background: rgba(255,255,255,.98); border-radius: 16px;
-  padding: 10px; position: relative;
+  background: transparent; border-radius: 16px;
+  padding: 0; position: relative;
   box-shadow: none;
   transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
   transform-origin: center bottom;
-  border: 0.5px solid rgba(148, 163, 184, 0.08);
+  border: 0;
 }
 .motion-card {
   opacity: 0;
@@ -1099,17 +1100,17 @@
   animation: cardReveal .42s cubic-bezier(.2,.8,.2,1) forwards;
   animation-delay: calc(var(--card-stagger, 0) * 42ms);
 }
-.product-card:hover { box-shadow: 0 6px 14px rgba(15, 23, 42, 0.025); transform: translateY(-2px); border-color: rgba(148, 163, 184, 0.14); }
+.product-card:hover { box-shadow: none; transform: translateY(-2px); border-color: transparent; }
 .product-card:active { transform: scale(.986); }
 .product-card.cart-bump {
   animation: productCardBump .32s ease;
 }
 .product-img-wrap {
   width: 100%; aspect-ratio: 1.18;
-  border-radius: 14px; background: #ffffff;
+  border-radius: 18px; background: #f7f9fc;
   border: 0;
   display: flex; align-items: center; justify-content: center;
-  margin-bottom: 8px; position: relative; overflow: visible;
+  margin-bottom: 7px; position: relative; overflow: visible;
 }
 .product-img-wrap img, .product-img-wrap .emoji {
   width: 100%; height: 100%; object-fit: cover;
@@ -1201,6 +1202,7 @@
 }
 .product-name {
   font-size: 12px; font-weight: 850; color: #20232d;
+  padding: 0 2px;
   margin-bottom: 2px; line-height: 1.22;
   display: -webkit-box; -webkit-line-clamp: 2;
   -webkit-box-orient: vertical; overflow: hidden;
@@ -1208,6 +1210,7 @@
 }
 .product-weight {
   font-size: 10px; color: #6f7380; margin-bottom: 4px;
+  padding: 0 2px;
   font-weight: 650;
 }
 .product-rating-row {
@@ -1215,6 +1218,7 @@
   align-items: center;
   gap: 4px;
   margin: 0 0 4px;
+  margin-left: 2px;
   color: #0f7a4f;
   font-size: 10px;
   font-weight: 850;
@@ -1246,6 +1250,7 @@
 }
 .product-price-row {
   display: flex; align-items: center; justify-content: space-between;
+  padding: 0 2px;
   margin-bottom: 8px;
 }
 .blinkit-price-row {
