@@ -2300,11 +2300,16 @@ function AdminPage({ user }) {
           <div className="card" style={{ overflow: 'hidden' }}>
             <div style={{ overflowX: 'auto' }}>
               <table className="admin-table admin-product-table">
-                <thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Dealer</th><th>Distributor</th><th>Warranty</th><th>MRP</th><th>Stock</th><th>Category</th><th>Actions</th></tr></thead>
+                <thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Dealer</th><th>Distributor</th><th>Warranty</th><th>MRP</th><th>Stock & Actions</th></tr></thead>
                 <tbody>{products.map(p => (
                     <tr key={p.id}>
                       <td>{p.id}</td>
-                      <td>{p.name}</td>
+                      <td>
+                        <div className="admin-product-name-cell">
+                          <strong>{p.name}</strong>
+                          <span>{p.category_name || categories.find(c => c.id === p.category_id)?.name}</span>
+                        </div>
+                      </td>
                       <td>
                         <div className="inline-price-field">
                           <span className="inline-price-prefix">Rs</span>
@@ -2358,38 +2363,35 @@ function AdminPage({ user }) {
                       </td>
                       <td>
                         <div className="inline-stock-editor">
-                        <div className={`inline-stock-pill ${Number(p.stock || 0) > 0 ? 'ok' : 'low'}`}>
-                          {Number(p.stock || 0) > 0 ? `${p.stock} in stock` : 'Out of stock'}
-                        </div>
-                        <div className="inline-stock-controls">
-                          <button type="button" className="btn btn-sm btn-outline" onClick={() => adjustInlineStock(p.id, -1)} disabled={stockBusy[p.id]}>-</button>
-                          <input
-                            type="number"
-                            min="0"
-                            value={stockDrafts[p.id] ?? String(p.stock ?? 0)}
-                            onChange={e => setStockDrafts(prev => ({ ...prev, [p.id]: e.target.value }))}
-                          />
-                          <button type="button" className="btn btn-sm btn-outline" onClick={() => adjustInlineStock(p.id, 1)} disabled={stockBusy[p.id]}>+</button>
-                        </div>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary inline-stock-save"
-                          onClick={() => handleInlineStockSave(p)}
-                          disabled={stockBusy[p.id]}
-                        >
-                          {stockBusy[p.id] ? 'Saving...' : 'Save stock'}
-                        </button>
-                      </div>
-                      </td>
-                      <td>{p.category_name || categories.find(c => c.id === p.category_id)?.name}</td>
-                      <td className="admin-product-actions-cell">
-                        <div className="admin-product-actions">
-                          <button className="btn btn-sm btn-primary admin-product-save-btn" onClick={() => handleInlinePriceSave(p)} disabled={priceBusy[p.id]}>
-                            {priceBusy[p.id] ? 'Saving...' : 'Save prices'}
-                          </button>
-                          <div className="admin-product-icon-actions">
-                            <button className="btn btn-sm btn-outline" onClick={() => startEdit(p)}><Edit size={14} /></button>
-                            <button className="btn btn-sm" style={{ background: '#ef4444', color: 'white' }} onClick={() => handleDeleteProduct(p.id)}><Trash2 size={14} /></button>
+                          <div className={`inline-stock-pill ${Number(p.stock || 0) > 0 ? 'ok' : 'low'}`}>
+                            {Number(p.stock || 0) > 0 ? `${p.stock} in stock` : 'Out of stock'}
+                          </div>
+                          <div className="inline-stock-controls">
+                            <button type="button" className="btn btn-sm btn-outline" onClick={() => adjustInlineStock(p.id, -1)} disabled={stockBusy[p.id]}>-</button>
+                            <input
+                              type="number"
+                              min="0"
+                              value={stockDrafts[p.id] ?? String(p.stock ?? 0)}
+                              onChange={e => setStockDrafts(prev => ({ ...prev, [p.id]: e.target.value }))}
+                            />
+                            <button type="button" className="btn btn-sm btn-outline" onClick={() => adjustInlineStock(p.id, 1)} disabled={stockBusy[p.id]}>+</button>
+                          </div>
+                          <div className="admin-product-row-actions">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-primary inline-stock-save"
+                              onClick={() => handleInlineStockSave(p)}
+                              disabled={stockBusy[p.id]}
+                            >
+                              {stockBusy[p.id] ? 'Saving...' : 'Save stock'}
+                            </button>
+                            <button className="btn btn-sm btn-primary admin-product-save-btn" onClick={() => handleInlinePriceSave(p)} disabled={priceBusy[p.id]}>
+                              {priceBusy[p.id] ? 'Saving...' : 'Save prices'}
+                            </button>
+                            <div className="admin-product-icon-actions">
+                              <button className="btn btn-sm btn-outline" onClick={() => startEdit(p)}><Edit size={14} /></button>
+                              <button className="btn btn-sm" style={{ background: '#ef4444', color: 'white' }} onClick={() => handleDeleteProduct(p.id)}><Trash2 size={14} /></button>
+                            </div>
                           </div>
                         </div>
                       </td>
