@@ -127,6 +127,77 @@ const isSetupProduct = (product = {}) => {
     || description.includes('setup package');
 };
 
+const normalizeSearchText = (value = '') => String(value || '')
+  .toLowerCase()
+  .replace(/[^a-z0-9\s]/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const levenshteinDistance = (left = '', right = '') => {
+  const a = String(left);
+  const b = String(right);
+  if (!a) return b.length;
+  if (!b) return a.length;
+  const matrix = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i += 1) matrix[i][0] = i;
+  for (let j = 0; j <= b.length; j += 1) matrix[0][j] = j;
+  for (let i = 1; i <= a.length; i += 1) {
+    for (let j = 1; j <= b.length; j += 1) {
+      const substitutionCost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + substitutionCost
+      );
+    }
+  }
+  return matrix[a.length][b.length];
+};
+
+const getSearchTokens = (value = '') => normalizeSearchText(value).split(' ').filter(Boolean);
+
+const getTokenSimilarity = (queryToken, candidateToken) => {
+  if (!queryToken || !candidateToken) return 0;
+  if (candidateToken.includes(queryToken) || queryToken.includes(candidateToken)) return 0.96;
+  const distance = levenshteinDistance(queryToken, candidateToken);
+  const maxLength = Math.max(queryToken.length, candidateToken.length);
+  if (!maxLength) return 0;
+  return Math.max(0, 1 - (distance / maxLength));
+};
+
+const getSearchScore = (query, candidate) => {
+  const normalizedQuery = normalizeSearchText(query);
+  const normalizedCandidate = normalizeSearchText(candidate);
+  if (!normalizedQuery || !normalizedCandidate) return 0;
+  if (normalizedCandidate === normalizedQuery) return 200;
+  if (normalizedCandidate.startsWith(normalizedQuery)) return 160;
+  if (normalizedCandidate.includes(normalizedQuery)) return 140;
+
+  const queryTokens = getSearchTokens(normalizedQuery);
+  const candidateTokens = getSearchTokens(normalizedCandidate);
+  if (!queryTokens.length || !candidateTokens.length) return 0;
+
+  let score = 0;
+  for (const queryToken of queryTokens) {
+    let bestTokenScore = 0;
+    for (const candidateToken of candidateTokens) {
+      bestTokenScore = Math.max(bestTokenScore, getTokenSimilarity(queryToken, candidateToken));
+    }
+    score += bestTokenScore;
+  }
+
+  const averageScore = score / queryTokens.length;
+  const tightLengthBonus = Math.max(0, 0.18 - (Math.abs(normalizedCandidate.length - normalizedQuery.length) * 0.01));
+  return averageScore + tightLengthBonus;
+};
+
+const getProductSearchText = (product = {}) => [
+  product.name,
+  product.description,
+  product.unit,
+  product.category_name
+].filter(Boolean).join(' ');
+
 function MainPage({
   user,
   cartCount,
@@ -155,9 +226,24 @@ function MainPage({
     () => products.filter((product) => !isSetupProduct(product)),
     [products]
   );
-  const filteredProducts = searchQuery
-    ? regularProducts.filter(p => String(p.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
-    : regularProducts;
+  const filteredProducts = useMemo(() => {
+    const normalizedQuery = normalizeSearchText(searchQuery);
+    if (!normalizedQuery) return regularProducts;
+
+    return regularProducts
+      .map((product) => ({
+        product,
+        score: getSearchScore(normalizedQuery, getProductSearchText(product))
+      }))
+      .filter(({ score }) => score >= 0.54 || Number(score) >= 140)
+      .sort((left, right) => {
+        if (right.score !== left.score) return right.score - left.score;
+        const ratingDelta = Number(right.product.rating_average || 0) - Number(left.product.rating_average || 0);
+        if (ratingDelta !== 0) return ratingDelta;
+        return Number(right.product.rating_count || 0) - Number(left.product.rating_count || 0);
+      })
+      .map(({ product }) => product);
+  }, [regularProducts, searchQuery]);
 
   const productsByCategory = categories.map(cat => ({
     ...cat,
@@ -914,18 +1000,27 @@ function AppContent() {
       .slice(0, 10),
     [products, savedProductIds]
   );
-  const searchSuggestions = searchQuery.trim()
-    ? Array.from(new Set([
-        ...products
-          .map(product => product.name)
-          .filter(Boolean)
-          .filter(name => String(name).toLowerCase().includes(searchQuery.toLowerCase())),
-        ...categories
-          .map(category => category.name)
-          .filter(Boolean)
-          .filter(name => String(name).toLowerCase().includes(searchQuery.toLowerCase()))
-      ])).slice(0, 8)
-    : [];
+  const searchSuggestions = useMemo(() => {
+    const normalizedQuery = normalizeSearchText(searchQuery);
+    if (!normalizedQuery) return [];
+
+    return [
+      ...products.map((product) => product.name).filter(Boolean),
+      ...categories.map((category) => category.name).filter(Boolean)
+    ]
+      .map((name) => ({
+        name,
+        score: getSearchScore(normalizedQuery, name)
+      }))
+      .filter(({ score }) => score >= 0.58 || Number(score) >= 140)
+      .sort((left, right) => {
+        if (right.score !== left.score) return right.score - left.score;
+        return String(left.name).localeCompare(String(right.name));
+      })
+      .map(({ name }) => String(name).trim())
+      .filter((name, index, all) => name && all.indexOf(name) === index)
+      .slice(0, 8);
+  }, [categories, products, searchQuery]);
   const firstName = String(user?.name || '').trim().split(/\s+/)[0] || '';
   const noticeTitle = appNotice?.personalize && firstName ? `${firstName}, ${appNotice.title}` : appNotice?.title;
   const noticeMessage = appNotice?.personalize && firstName ? `${firstName}, ${appNotice.message}` : appNotice?.message;
