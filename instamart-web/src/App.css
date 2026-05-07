@@ -722,8 +722,8 @@
   pointer-events: none;
 }
 .category-img img {
-  width: 108%;
-  height: 108%;
+  width: 116%;
+  height: 116%;
   object-fit: contain;
   object-position: center;
   display: block;
