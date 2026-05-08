@@ -9,6 +9,16 @@ const withTimeout = (promise, timeoutMs = 4000) => (
     new Promise((resolve) => window.setTimeout(() => resolve(null), timeoutMs))
   ])
 );
+const expandLocationQueries = (term = '') => {
+  const base = String(term || '').trim();
+  const variants = [
+    base,
+    `${base}, Bhubaneswar, Odisha, India`,
+    `${base}, Odisha, India`,
+    `${base}, India`
+  ].map((value) => value.trim()).filter(Boolean);
+  return variants.filter((value, index) => variants.indexOf(value) === index);
+};
 
 const normalizePosition = (position, source, locked = false) => ({
   lat: position.coords.latitude,
@@ -177,23 +187,25 @@ export const searchCustomerLocations = async (query = '') => {
   const term = String(query || '').trim();
   if (term.length < 2) return [];
   try {
+    const expandedQueries = expandLocationQueries(term);
     if (GOOGLE_MAPS_API_KEY) {
       const maps = await loadGoogleMapsPlaces();
       if (maps?.places?.AutocompleteService) {
-        const predictions = await withTimeout(new Promise((resolve) => {
-          const autocompleteService = new maps.places.AutocompleteService();
-          autocompleteService.getPlacePredictions(
-            {
-              input: term,
-              componentRestrictions: { country: 'in' }
-            },
-            (results, status) => {
-              const okStatus = status === 'OK' || status === maps.places.PlacesServiceStatus?.OK;
-              resolve(okStatus && Array.isArray(results) ? results : []);
-            }
-          );
-        }), 3000);
-        if (predictions.length > 0) {
+        const autocompleteService = new maps.places.AutocompleteService();
+        for (const expandedQuery of expandedQueries) {
+          const predictions = await withTimeout(new Promise((resolve) => {
+            autocompleteService.getPlacePredictions(
+              {
+                input: expandedQuery,
+                componentRestrictions: { country: 'in' }
+              },
+              (results, status) => {
+                const okStatus = status === 'OK' || status === maps.places.PlacesServiceStatus?.OK;
+                resolve(okStatus && Array.isArray(results) ? results : []);
+              }
+            );
+          }), 3000);
+          if (!predictions.length) continue;
           const placeResults = (await Promise.all(
             predictions.slice(0, 6).map((prediction) => (
               geocodePlaceId(maps, prediction.place_id, prediction.description)
@@ -203,30 +215,35 @@ export const searchCustomerLocations = async (query = '') => {
         }
       }
 
-      const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(term)}&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`);
-      if (response.ok) {
+      for (const expandedQuery of expandedQueries) {
+        const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(expandedQuery)}&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`);
+        if (!response.ok) continue;
         const data = await response.json();
         const googleResults = (Array.isArray(data?.results) ? data.results : []).slice(0, 5).map((result) => ({
           label: result.formatted_address,
           lat: result.geometry?.location?.lat,
           lng: result.geometry?.location?.lng
-        })).filter((item) => item.label && item.lat && item.lng);
+        })).filter((item) => item.label && Number.isFinite(item.lat) && Number.isFinite(item.lng));
         if (googleResults.length > 0 && data?.status === 'OK') return googleResults;
       }
     }
-    const fallbackResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(term)}`, {
-      headers: {
-        Accept: 'application/json',
-        'Accept-Language': 'en'
-      }
-    });
-    if (!fallbackResponse.ok) return [];
-    const data = await fallbackResponse.json();
-    return (Array.isArray(data) ? data : []).map((item) => ({
-      label: item.display_name,
-      lat: Number(item.lat),
-      lng: Number(item.lon)
-    })).filter((item) => item.label && Number.isFinite(item.lat) && Number.isFinite(item.lng));
+    for (const expandedQuery of expandedQueries) {
+      const fallbackResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(expandedQuery)}`, {
+        headers: {
+          Accept: 'application/json',
+          'Accept-Language': 'en'
+        }
+      });
+      if (!fallbackResponse.ok) continue;
+      const data = await fallbackResponse.json();
+      const fallbackResults = (Array.isArray(data) ? data : []).map((item) => ({
+        label: item.display_name,
+        lat: Number(item.lat),
+        lng: Number(item.lon)
+      })).filter((item) => item.label && Number.isFinite(item.lat) && Number.isFinite(item.lng));
+      if (fallbackResults.length > 0) return fallbackResults;
+    }
+    return [];
   } catch (error) {
     return [];
   }
