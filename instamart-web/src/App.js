@@ -423,18 +423,23 @@ function AppContent() {
 
   const refreshCurrentUser = async (referenceUser) => {
     const token = localStorage.getItem('token');
-    if (!token || !referenceUser?.id) return;
+    if (!token) return null;
     try {
-      const res = await fetch(`${API_URL}/users/${referenceUser.id}`, {
+      const res = await fetch(`${API_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.status === 401 || res.status === 403) {
         handleAuthFailure();
-        return;
+        return null;
       }
       const data = await res.json();
-      if (res.ok && data?.id) updateUserState(data);
+      const nextUser = data?.user?.id ? data.user : (res.ok && data?.id ? data : null);
+      if (nextUser) {
+        updateUserState(nextUser);
+        return nextUser;
+      }
     } catch (e) {}
+    return referenceUser || null;
   };
 
   const fetchCustomerOrders = async (referenceUser = user) => {
@@ -475,34 +480,51 @@ function AppContent() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    if (token && savedUser) {
-      try {
-        const parsedUser = JSON.parse(savedUser);
-        if (parsedUser && typeof parsedUser === 'object') {
-          setUser(parsedUser);
-          refreshCurrentUser(parsedUser);
-          if (parsedUser.role === 'delivery_partner' && location.pathname !== '/delivery-partner') {
-            navigate('/delivery-partner', { replace: true });
-          }
-        } else {
-          localStorage.removeItem('token');
+    let stopped = false;
+
+    const bootstrapApp = async () => {
+      const token = localStorage.getItem('token');
+      const savedUser = localStorage.getItem('user');
+      let parsedUser = null;
+
+      if (savedUser) {
+        try {
+          const candidate = JSON.parse(savedUser);
+          if (candidate && typeof candidate === 'object') parsedUser = candidate;
+          else localStorage.removeItem('user');
+        } catch (e) {
           localStorage.removeItem('user');
         }
-      } catch (e) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
       }
-    }
-    try {
-      JSON.parse(localStorage.getItem('camigo_active_order') || 'null');
-    } catch (e) {
-      localStorage.removeItem('camigo_active_order');
-    }
-    fetchCategories();
-    fetchProducts();
-    setAuthReady(true);
+
+      if (parsedUser && !stopped) {
+        setUser(parsedUser);
+      }
+
+      if (token) {
+        const restoredUser = await refreshCurrentUser(parsedUser);
+        if (!stopped && restoredUser?.role === 'delivery_partner' && location.pathname !== '/delivery-partner') {
+          navigate('/delivery-partner', { replace: true });
+        } else if (!stopped && restoredUser?.role === 'installer' && location.pathname !== '/installer') {
+          navigate('/installer', { replace: true });
+        }
+      }
+
+      try {
+        JSON.parse(localStorage.getItem('camigo_active_order') || 'null');
+      } catch (e) {
+        localStorage.removeItem('camigo_active_order');
+      }
+
+      fetchCategories();
+      fetchProducts();
+      if (!stopped) setAuthReady(true);
+    };
+
+    bootstrapApp();
+    return () => {
+      stopped = true;
+    };
   }, []);
 
   useEffect(() => {

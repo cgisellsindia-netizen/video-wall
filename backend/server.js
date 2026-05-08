@@ -2970,6 +2970,26 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await dbGetAsync('SELECT * FROM users WHERE id = ?', [req.user.userId]);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ user: formatUserForClient(user) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/auth/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await dbGetAsync('SELECT * FROM users WHERE id = ?', [req.user.userId]);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ user: formatUserForClient(user) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 const verifyPhoneNumber = async (req, res) => {
   if (!firebaseReady) {
     return res.status(503).json({ error: 'Firebase phone verification is not configured on the server yet' });
