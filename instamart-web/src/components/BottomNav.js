@@ -17,18 +17,25 @@ function BottomNav({ cartCount, onCartClick, user }) {
 
   useEffect(() => {
     let lastY = window.scrollY;
+    let revealTimer = null;
+    const updateHiddenState = (shouldHide) => {
+      setHidden(shouldHide);
+      document.body.classList.toggle('bottom-nav-hidden', shouldHide);
+    };
     const onScroll = () => {
       const currentY = window.scrollY;
       const scrollingDown = currentY > lastY;
       const shouldHide = window.innerWidth <= 768 && scrollingDown && currentY > 90;
-      setHidden(shouldHide);
-      document.body.classList.toggle('bottom-nav-hidden', shouldHide);
+      updateHiddenState(shouldHide);
+      window.clearTimeout(revealTimer);
+      revealTimer = window.setTimeout(() => updateHiddenState(false), 180);
       lastY = currentY;
     };
 
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
+      window.clearTimeout(revealTimer);
       window.removeEventListener('scroll', onScroll);
       document.body.classList.remove('bottom-nav-hidden');
     };
