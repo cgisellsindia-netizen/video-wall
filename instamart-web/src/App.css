@@ -1152,12 +1152,12 @@
 }
 .product-corner-offer {
   position: absolute;
-  top: -24px;
-  right: -20px;
+  top: -28px;
+  right: -24px;
   z-index: 6;
-  width: 62px;
-  min-height: 62px;
-  padding: 12px 8px 10px;
+  width: 70px;
+  min-height: 70px;
+  padding: 13px 9px 11px;
   color: #fff;
   font-weight: 900;
   line-height: 1;
@@ -4605,8 +4605,8 @@
   .product-img-wrap { aspect-ratio: 1.22; margin-bottom: 5px; border-radius: 12px; }
   .product-image-action-wrap { top: 8px; left: 8px; }
   .save-item-btn { top: 7px; left: 7px; width: 26px; height: 26px; }
-  .product-corner-offer { top: -18px; right: -14px; width: 50px; min-height: 50px; padding: 10px 6px 8px; }
-  .product-corner-offer strong { font-size: 12px; }
+  .product-corner-offer { top: -22px; right: -18px; width: 56px; min-height: 56px; padding: 11px 6px 8px; }
+  .product-corner-offer strong { font-size: 13px; }
   .product-corner-offer small { font-size: 7px; }
   .delivery-badge { left: 6px; bottom: 6px; padding: 3px 6px; font-size: 9px; }
   .product-name { font-size: 10px; min-height: 24px; line-height: 1.12; margin-bottom: 1px; }
@@ -4760,8 +4760,8 @@ body.bottom-nav-hidden .floating-tracker {
   .category-img { height: auto; margin-bottom: 0; }
   .product-scroll { grid-template-columns: repeat(2, 1fr); }
   .product-price-row { margin-bottom: 6px; }
-  .product-corner-offer { top: -16px; right: -12px; width: 42px; min-height: 42px; padding: 8px 5px 7px; }
-  .product-corner-offer strong { font-size: 10px; }
+  .product-corner-offer { top: -18px; right: -14px; width: 48px; min-height: 48px; padding: 9px 5px 7px; }
+  .product-corner-offer strong { font-size: 11px; }
   .product-corner-offer small { font-size: 7px; }
   .delivery-badge { font-size: 9px; padding: 3px 6px; }
 }
