@@ -135,34 +135,44 @@
   gap: 14px;
 }
 .location-bar {
-  display: flex; align-items: center; gap: 6px;
-  padding: 8px 14px; border-radius: 12px;
-  background: rgba(255,255,255,.1); cursor: pointer;
-  transition: background 0.2s; max-width: 340px;
-  text-decoration: none;
-  width: fit-content;
-  border: 0;
-}
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-radius: 12px;
+    background: rgba(255,255,255,.1); cursor: pointer;
+    transition: background 0.2s; max-width: 420px;
+    text-decoration: none;
+    width: fit-content;
+    border: 0;
+  }
 .header-location-bar {
-  flex: 1;
-  max-width: none;
-  min-width: 0;
-}
+    flex: 1;
+    max-width: none;
+    min-width: 0;
+  }
 .location-bar:hover { background: rgba(255,255,255,.18); }
 .location-bar .loc-icon { color: #f6c400; flex-shrink: 0; }
 .location-bar .loc-copy {
-  min-width: 0;
-  display: grid;
-  gap: 1px;
-}
+    min-width: 0;
+    display: grid;
+    gap: 1px;
+    flex: 1;
+  }
 .location-bar .loc-copy small {
-  color: rgba(255,255,255,.88);
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+    color: rgba(255,255,255,.88);
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    line-height: 1.05;
+  }
+.location-bar .loc-text {
+  font-size: 11px;
+  color: rgba(255,255,255,.78);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
-.location-bar .loc-text { font-size: 12px; color: rgba(255,255,255,.78); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .location-bar .loc-chevron { color: var(--dark-40); flex-shrink: 0; }
 .location-sheet-overlay {
   position: fixed;
@@ -4550,13 +4560,13 @@
     margin-top: 0;
   }
   .header-location-bar {
-    padding: 0;
-    border-radius: 0;
-    background: transparent;
-  }
+      padding: 0;
+      border-radius: 0;
+      background: transparent;
+    }
   .header-location-bar:hover { background: transparent; }
-  .location-bar .loc-copy small { font-size: 11px; }
-  .location-bar .loc-text { font-size: 12px; }
+  .location-bar .loc-copy small { font-size: 13px; }
+  .location-bar .loc-text { font-size: 11px; }
   .header-actions { gap: 6px; }
   .header-btn { padding: 9px 10px; }
   .header-btn span { display: none; }
@@ -4736,8 +4746,8 @@ body.bottom-nav-hidden .floating-tracker {
 @media (max-width: 480px) {
   .header-top { padding: 8px 10px; gap: 8px; }
   .header-row { align-items: flex-start; }
-  .location-bar .loc-copy small { font-size: 10px; }
-  .location-bar .loc-text { font-size: 11px; }
+  .location-bar .loc-copy small { font-size: 12px; }
+  .location-bar .loc-text { font-size: 10px; }
   .location-sheet { min-height: 60vh; padding: 18px 14px 24px; border-radius: 24px 24px 0 0; }
   .location-sheet-close { right: 14px; top: -58px; width: 44px; height: 44px; }
   .location-sheet h3 { font-size: 20px; }
