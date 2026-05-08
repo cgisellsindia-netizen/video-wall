@@ -268,6 +268,14 @@
   font-size: 14px;
   font-weight: 700;
 }
+.location-sheet-results-state {
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: #fff;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 600;
+}
 .location-sheet-results button svg {
   color: #2563eb;
   flex-shrink: 0;

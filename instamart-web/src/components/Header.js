@@ -214,6 +214,13 @@ function Header({
                 ))}
               </div>
             )}
+            {locationQuery.trim().length >= 2 && locationResults.length === 0 && (
+              <div className="location-sheet-results">
+                <div className="location-sheet-results-state">
+                  {locationBusy ? 'Searching places...' : 'No places found. Check Places API and Maps JavaScript API.'}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

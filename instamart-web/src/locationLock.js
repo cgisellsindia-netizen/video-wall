@@ -2,6 +2,7 @@ const LOCATION_KEY = 'camigo_customer_location';
 const LOCK_KEY = 'camigo_customer_location_lock';
 const AREA_KEY = 'camigo_customer_area_name';
 const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+let googleMapsPlacesPromise = null;
 
 const normalizePosition = (position, source, locked = false) => ({
   lat: position.coords.latitude,
@@ -65,6 +66,52 @@ const getAreaParts = (address = {}) => {
   };
 };
 
+const loadGoogleMapsPlaces = async () => {
+  if (!GOOGLE_MAPS_API_KEY || typeof window === 'undefined') return null;
+  if (window.google?.maps?.places && window.google?.maps?.Geocoder) return window.google.maps;
+  if (googleMapsPlacesPromise) return googleMapsPlacesPromise;
+
+  googleMapsPlacesPromise = new Promise((resolve) => {
+    const existing = document.querySelector('script[data-google-maps-places="true"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(window.google?.maps || null), { once: true });
+      existing.addEventListener('error', () => resolve(null), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleMapsPlaces = 'true';
+    script.onload = () => resolve(window.google?.maps || null);
+    script.onerror = () => resolve(null);
+    document.head.appendChild(script);
+  });
+
+  return googleMapsPlacesPromise;
+};
+
+const geocodePlaceId = async (maps, placeId, fallbackLabel = '') => {
+  if (!maps?.Geocoder || !placeId) return null;
+  return new Promise((resolve) => {
+    const geocoder = new maps.Geocoder();
+    geocoder.geocode({ placeId }, (results, status) => {
+      const okStatus = status === 'OK' || status === maps.GeocoderStatus?.OK;
+      if (!okStatus || !Array.isArray(results) || !results[0]?.geometry?.location) {
+        resolve(null);
+        return;
+      }
+      const location = results[0].geometry.location;
+      resolve({
+        label: fallbackLabel || results[0].formatted_address,
+        lat: typeof location.lat === 'function' ? location.lat() : location.lat,
+        lng: typeof location.lng === 'function' ? location.lng() : location.lng
+      });
+    });
+  });
+};
+
 export const resolveCustomerAreaName = async ({ lat, lng } = {}) => {
   if (!lat || !lng) return getSavedCustomerAreaName();
   try {
@@ -119,15 +166,29 @@ export const searchCustomerLocations = async (query = '') => {
   if (term.length < 2) return [];
   try {
     if (GOOGLE_MAPS_API_KEY) {
-      const placesResponse = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(term)}&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`);
-      if (placesResponse.ok) {
-        const placesData = await placesResponse.json();
-        const placeResults = (Array.isArray(placesData?.results) ? placesData.results : []).slice(0, 6).map((result) => ({
-          label: [result.name, result.formatted_address || result.vicinity].filter(Boolean).join(', '),
-          lat: result.geometry?.location?.lat,
-          lng: result.geometry?.location?.lng
-        })).filter((item) => item.label && item.lat && item.lng);
-        if (placeResults.length > 0 && placesData?.status === 'OK') return placeResults;
+      const maps = await loadGoogleMapsPlaces();
+      if (maps?.places?.AutocompleteService) {
+        const predictions = await new Promise((resolve) => {
+          const autocompleteService = new maps.places.AutocompleteService();
+          autocompleteService.getPlacePredictions(
+            {
+              input: term,
+              componentRestrictions: { country: 'in' }
+            },
+            (results, status) => {
+              const okStatus = status === 'OK' || status === maps.places.PlacesServiceStatus?.OK;
+              resolve(okStatus && Array.isArray(results) ? results : []);
+            }
+          );
+        });
+        if (predictions.length > 0) {
+          const placeResults = (await Promise.all(
+            predictions.slice(0, 6).map((prediction) => (
+              geocodePlaceId(maps, prediction.place_id, prediction.description)
+            ))
+          )).filter((item) => item?.label && Number.isFinite(item?.lat) && Number.isFinite(item?.lng));
+          if (placeResults.length > 0) return placeResults;
+        }
       }
 
       const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(term)}&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`);
