@@ -201,6 +201,7 @@ export const searchCustomerLocations = async (query = '') => {
   if (term.length < 2) return [];
   const expandedQueries = expandLocationQueries(term);
   const googleMatches = [];
+  const fallbackMatches = [];
 
   if (GOOGLE_MAPS_API_KEY) {
     try {
@@ -246,11 +247,7 @@ export const searchCustomerLocations = async (query = '') => {
     }
   }
 
-  const dedupedGoogleMatches = dedupeLocationResults(googleMatches).slice(0, 8);
-  if (dedupedGoogleMatches.length > 0) return dedupedGoogleMatches;
-
   try {
-    const fallbackMatches = [];
     for (const expandedQuery of expandedQueries) {
       const fallbackResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(expandedQuery)}`, {
         headers: {
@@ -267,8 +264,12 @@ export const searchCustomerLocations = async (query = '') => {
       })).filter((item) => item.label && Number.isFinite(item.lat) && Number.isFinite(item.lng));
       fallbackMatches.push(...fallbackResults);
     }
-    return dedupeLocationResults(fallbackMatches).slice(0, 8);
   } catch (error) {
-    return [];
+    // Keep any provider results already collected.
   }
+
+  return dedupeLocationResults([
+    ...googleMatches,
+    ...fallbackMatches
+  ]).slice(0, 8);
 };
