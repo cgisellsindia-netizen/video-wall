@@ -4496,19 +4496,12 @@
   stroke-width: 1.9;
 }
 .bottom-nav-item.active {
-  color: #ef1b1b;
+  color: #d81f28;
+  background: rgba(255, 255, 255, .22);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.32);
 }
 .bottom-nav-item.active::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: -3px;
-  width: 56px;
-  height: 5px;
-  border-radius: 999px;
-  background: #ef1b1b;
-  transform: translateX(-50%);
-  box-shadow: 0 4px 10px rgba(239, 27, 27, .22);
+  content: none;
 }
 .bottom-nav-item .nav-badge {
   position: absolute; top: 2px; right: 4px;
@@ -4866,9 +4859,6 @@ body.bottom-nav-hidden .floating-tracker {
     min-width: 42px;
     padding: 4px 5px 6px;
     font-size: 9px;
-  }
-  .bottom-nav-item.active::after {
-    width: 48px;
   }
   .header-top { padding: 8px 10px; gap: 8px; }
   .header-row { align-items: flex-start; }
