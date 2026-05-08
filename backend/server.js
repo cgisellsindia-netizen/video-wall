@@ -2460,18 +2460,22 @@ const buildOrderDraft = async (user, body) => {
 
   const placeholders = normalizedItems.map(() => '?').join(',');
   const products = await dbAllAsync(
-    `SELECT id, price, dealer_price, distributor_price, warranty_years, category_id, name, description
-     FROM products
-     WHERE id IN (${placeholders})`,
-    normalizedItems.map(item => item.product_id)
-  );
+      `SELECT id, price, dealer_price, distributor_price, warranty_years, category_id, name, description, cod_enabled
+       FROM products
+       WHERE id IN (${placeholders})`,
+      normalizedItems.map(item => item.product_id)
+    );
 
   const prices = new Map(products.map(product => [product.id, priceForUserRole(product, user.role)]));
   const warrantyYears = new Map(products.map(product => [product.id, Math.max(1, Number(product.warranty_years || 5))]));
-  const productCategory = new Map(products.map(product => [product.id, Number(product.category_id)]));
-  if (prices.size !== normalizedItems.length) {
-    throw new Error('One or more products were not found');
-  }
+    const productCategory = new Map(products.map(product => [product.id, Number(product.category_id)]));
+    const productCodEnabled = new Map(products.map(product => [product.id, Number(product.cod_enabled ?? 1) !== 0]));
+    if (prices.size !== normalizedItems.length) {
+      throw new Error('One or more products were not found');
+    }
+    if (normalizedPaymentMethod === 'cod' && normalizedItems.some(item => !productCodEnabled.get(item.product_id))) {
+      throw new Error('One or more items in this order are not eligible for cash on delivery');
+    }
 
   let totalAmount = normalizedItems.reduce((sum, item) => sum + (prices.get(item.product_id) * item.quantity), 0);
   let taxableAmount = totalAmount;
@@ -3454,6 +3458,33 @@ app.post('/api/payments/razorpay/verify', authenticateToken, async (req, res) =>
   }
 });
 
+app.post('/api/payments/razorpay/abort', authenticateToken, async (req, res) => {
+  try {
+    const razorpayOrderId = String(req.body?.razorpay_order_id || '').trim();
+    if (!razorpayOrderId) {
+      return res.status(400).json({ error: 'Razorpay order id is required' });
+    }
+    const order = await dbGetAsync(
+      'SELECT * FROM orders WHERE razorpay_order_id = ? AND user_id = ?',
+      [razorpayOrderId, req.user.userId]
+    );
+    if (!order) {
+      return res.status(404).json({ error: 'Pending payment order not found' });
+    }
+    if (String(order.payment_status || '').toLowerCase() === 'paid') {
+      return res.json({ message: 'Order is already paid.', payment_status: 'paid' });
+    }
+    await dbRunAsync(
+      'UPDATE orders SET status = ?, payment_status = ? WHERE id = ?',
+      ['cancelled', 'failed', order.id]
+    );
+    queueOperationalStateSync('razorpay-order-aborted');
+    res.json({ message: 'Pending payment order closed.', payment_status: 'failed' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/hubs', (req, res) => {
   db.all('SELECT * FROM hubs ORDER BY active DESC, id ASC', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -3480,6 +3511,9 @@ app.get('/api/orders/:id', authenticateToken, (req, res) => {
   db.get(query, params, (err, order) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!order) return res.status(404).json({ error: 'Order not found' });
+    const onlineUnpaid = String(order.payment_method || '').toLowerCase() !== 'cod'
+      && String(order.payment_status || '').toLowerCase() !== 'paid';
+    if (onlineUnpaid) return res.status(404).json({ error: 'Order not found' });
     
     db.all('SELECT oi.*, p.name, p.image, p.unit FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?',
       [req.params.id], (err, items) => {
@@ -3490,10 +3524,17 @@ app.get('/api/orders/:id', authenticateToken, (req, res) => {
 });
 
 app.get('/api/orders', authenticateToken, (req, res) => {
-  db.all('SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC', [req.user.userId], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    attachOrderItems(rows, res);
-  });
+  db.all(
+    `SELECT * FROM orders
+     WHERE user_id = ?
+       AND (lower(coalesce(payment_method, '')) = 'cod' OR lower(coalesce(payment_status, '')) = 'paid')
+     ORDER BY created_at DESC`,
+    [req.user.userId],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      attachOrderItems(rows, res);
+    }
+  );
 });
 
 app.get('/api/account/warranty-registrations', authenticateToken, async (req, res) => {
@@ -4335,9 +4376,10 @@ app.post('/api/admin/users', authenticateToken, requireAdmin, async (req, res) =
 });
 
 app.get('/api/admin/orders', authenticateToken, requireAdmin, (req, res) => {
-  db.all(`SELECT o.*, u.email, u.phone, u.name as user_name 
-          FROM orders o 
-          JOIN users u ON o.user_id = u.id 
+  db.all(`SELECT o.*, u.email, u.phone, u.name as user_name
+          FROM orders o
+          JOIN users u ON o.user_id = u.id
+          WHERE (lower(coalesce(o.payment_method, '')) = 'cod' OR lower(coalesce(o.payment_status, '')) = 'paid')
           ORDER BY o.created_at DESC`, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
@@ -5261,10 +5303,10 @@ app.get('/api/users/:id', authenticateToken, (req, res) => {
 
 // Admin Product CRUD
 app.post('/api/admin/products', authenticateToken, requireAdmin, (req, res) => {
-  const { name, description, price, mrp, image, images, category_id, stock, unit, discount_percent, dealer_price, distributor_price, warranty_years } = req.body;
-  const warrantyYears = Math.max(1, Number(warranty_years || 5));
-  db.run(`INSERT INTO products (name, description, price, mrp, image, category_id, stock, unit, discount_percent, dealer_price, distributor_price, warranty_years) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [name, description, price, mrp, image, category_id, stock, unit, discount_percent || 0, dealer_price || null, distributor_price || null, warrantyYears],
+    const { name, description, price, mrp, image, images, category_id, stock, unit, discount_percent, dealer_price, distributor_price, warranty_years, cod_enabled } = req.body;
+    const warrantyYears = Math.max(1, Number(warranty_years || 5));
+    db.run(`INSERT INTO products (name, description, price, mrp, image, category_id, stock, unit, discount_percent, dealer_price, distributor_price, warranty_years, cod_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [name, description, price, mrp, image, category_id, stock, unit, discount_percent || 0, dealer_price || null, distributor_price || null, warrantyYears, Number(cod_enabled) ? 1 : 0],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
       saveProductImages(this.lastID, image, images, async (imageErr) => {
@@ -5281,10 +5323,10 @@ app.post('/api/admin/products', authenticateToken, requireAdmin, (req, res) => {
 });
 
 app.put('/api/admin/products/:id', authenticateToken, requireAdmin, (req, res) => {
-  const { name, description, price, mrp, image, images, category_id, stock, unit, discount_percent, dealer_price, distributor_price, warranty_years } = req.body;
-  const warrantyYears = Math.max(1, Number(warranty_years || 5));
-  db.run(`UPDATE products SET name=?, description=?, price=?, mrp=?, image=?, category_id=?, stock=?, unit=?, discount_percent=?, dealer_price=?, distributor_price=?, warranty_years=? WHERE id=?`,
-    [name, description, price, mrp, image, category_id, stock, unit, discount_percent || 0, dealer_price || null, distributor_price || null, warrantyYears, req.params.id],
+    const { name, description, price, mrp, image, images, category_id, stock, unit, discount_percent, dealer_price, distributor_price, warranty_years, cod_enabled } = req.body;
+    const warrantyYears = Math.max(1, Number(warranty_years || 5));
+    db.run(`UPDATE products SET name=?, description=?, price=?, mrp=?, image=?, category_id=?, stock=?, unit=?, discount_percent=?, dealer_price=?, distributor_price=?, warranty_years=?, cod_enabled=? WHERE id=?`,
+      [name, description, price, mrp, image, category_id, stock, unit, discount_percent || 0, dealer_price || null, distributor_price || null, warrantyYears, Number(cod_enabled) ? 1 : 0, req.params.id],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
       saveProductImages(req.params.id, image, images, async (imageErr) => {

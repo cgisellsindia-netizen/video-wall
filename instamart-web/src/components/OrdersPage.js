@@ -219,7 +219,7 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
   };
 
   const printInvoice = (order) => {
-    const invoiceWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700');
+    const invoiceWindow = window.open('', '_blank', 'width=900,height=700');
     if (!invoiceWindow) return;
     const itemRows = (order.items || []).map((item) => `
       <tr>
@@ -575,7 +575,7 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
                         ) : (
                           <span className="order-track-pill">{paymentPending ? 'Payment incomplete' : 'Tracking unavailable'}</span>
                         )}
-                        <button className="btn btn-sm btn-outline" onClick={() => printInvoice(order)}>Invoice</button>
+                        {!isPaymentPendingOrder(order) && <button className="btn btn-sm btn-outline" onClick={() => printInvoice(order)}>Invoice</button>}
                         <button className="btn btn-sm btn-outline" onClick={() => reorderItems(order)} disabled={reorderBusyId === order.id}>
                           {reorderBusyId === order.id ? 'Reordering...' : 'Reorder'}
                         </button>

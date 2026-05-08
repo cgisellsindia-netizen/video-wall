@@ -179,6 +179,8 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
   const isLocalDelivery = deliveryQuote?.mode === 'local' || (!deliveryQuote && serviceability.mode === 'local');
   const isCourierDelivery = deliveryQuote?.mode === 'courier' || (!deliveryQuote && serviceability.mode === 'courier');
   const deliveryFee = Number(deliveryQuote?.charge || 0);
+  const cartAllowsCod = cartItems.every((item) => Number(item.cod_enabled ?? 1) !== 0);
+  const codAvailableForCheckout = codEnabled && cartAllowsCod;
   const deliveryEstimate = deliveryQuote?.estimateLabel
     || (serviceability.mode === 'courier' ? 'Courier estimate pending' : serviceability.mode === 'local' ? 'Same-day quote pending' : 'Enter valid pincode');
   const deliveryZoneLabel = deliveryQuote?.zoneLabel
@@ -190,8 +192,8 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
   const payDisabled = Boolean(loading || !cartItems.length || !deliveryAvailable || !deliveryQuote || quoteLoading || !address.trim() || !paymentGatewayReady);
 
   useEffect(() => {
-    if (paymentMethod === 'cod' && !codEnabled) setPaymentMethod('upi');
-  }, [codEnabled, paymentMethod]);
+    if (paymentMethod === 'cod' && !codAvailableForCheckout) setPaymentMethod('upi');
+  }, [codAvailableForCheckout, paymentMethod]);
 
   useEffect(() => {
     const detectedPincode = pincode.trim() || extractPincode(address);
@@ -436,6 +438,18 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not start payment');
 
+      const abortPendingOnlineOrder = async () => {
+        try {
+          await fetch(`${API_URL}/payments/razorpay/abort`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ razorpay_order_id: data.razorpay_order_id })
+          });
+        } catch (abortError) {
+          // Ignore cleanup errors; the main error is more important to show.
+        }
+      };
+
       const verified = await new Promise((resolve, reject) => {
         const razorpay = new window.Razorpay({
           key: data.key,
@@ -459,7 +473,10 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
           },
           config: buildRazorpayDisplayConfig(),
           modal: {
-            ondismiss: () => reject(new Error('Payment cancelled'))
+            ondismiss: async () => {
+              await abortPendingOnlineOrder();
+              reject(new Error('Payment cancelled'));
+            }
           },
           handler: async (response) => {
             try {
@@ -485,7 +502,9 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
           }
         });
         razorpay.on('payment.failed', (response) => {
-          reject(new Error(response.error?.description || 'Payment failed'));
+          abortPendingOnlineOrder().finally(() => {
+            reject(new Error(response.error?.description || 'Payment failed'));
+          });
         });
         razorpay.open();
       });
@@ -622,12 +641,14 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
           <div className={`payment-options ${codEnabled ? '' : 'payment-options-two'}`}>
             <button type="button" className={paymentMethod === 'upi' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('upi')}><Smartphone size={18} /> UPI</button>
             <button type="button" className={paymentMethod === 'card' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('card')}><CreditCard size={18} /> Card</button>
-            {codEnabled && <button type="button" className={paymentMethod === 'cod' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('cod')}><CreditCard size={18} /> COD</button>}
+            {codAvailableForCheckout && <button type="button" className={paymentMethod === 'cod' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('cod')}><CreditCard size={18} /> COD</button>}
           </div>
           <p className="checkout-note">
-            {codEnabled
+            {codAvailableForCheckout
               ? 'COD is currently active from admin. UPI and card still open Razorpay checkout, while COD places the order directly.'
-              : 'Cash on delivery is disabled. Camigo will now open real Razorpay checkout for the selected payment mode.'}
+              : codEnabled && !cartAllowsCod
+                ? 'Some products in this cart are marked as COD disabled in admin, so only UPI and card are available.'
+                : 'Cash on delivery is disabled. Camigo will now open real Razorpay checkout for the selected payment mode.'}
           </p>
           {paymentMethod === 'upi' && (
               <p className="checkout-note upi-app-note">

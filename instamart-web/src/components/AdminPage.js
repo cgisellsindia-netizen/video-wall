@@ -35,7 +35,7 @@ function AdminPage({ user }) {
   const [notificationForm, setNotificationForm] = useState({ title: '', message: '', target: 'customer', personalize: true, product_id: '', image_url: '' });
   const navigate = useNavigate();
 
-  const emptyProduct = { name: '', description: '', price: '', mrp: '', discount_percent: '', dealer_price: '', distributor_price: '', warranty_years: '5', image: '/images/cgi-new.jpg', images: ['/images/cgi-new.jpg'], category_id: '1', stock: '50', unit: '1 Unit' };
+  const emptyProduct = { name: '', description: '', price: '', mrp: '', discount_percent: '', dealer_price: '', distributor_price: '', warranty_years: '5', cod_enabled: true, image: '/images/cgi-new.jpg', images: ['/images/cgi-new.jpg'], category_id: '1', stock: '50', unit: '1 Unit' };
   const [form, setForm] = useState(emptyProduct);
   const emptyUser = { name: '', email: '', password: '', phone: '', address: '', role: 'dealer' };
   const [userForm, setUserForm] = useState(emptyUser);
@@ -267,7 +267,8 @@ function AdminPage({ user }) {
     discount_percent: parseFloat(productLike.discount_percent || 0),
     dealer_price: productLike.dealer_price === '' || productLike.dealer_price === null || productLike.dealer_price === undefined ? null : parseFloat(productLike.dealer_price),
     distributor_price: productLike.distributor_price === '' || productLike.distributor_price === null || productLike.distributor_price === undefined ? null : parseFloat(productLike.distributor_price),
-    warranty_years: Math.max(1, parseInt(productLike.warranty_years || '5', 10))
+    warranty_years: Math.max(1, parseInt(productLike.warranty_years || '5', 10)),
+    cod_enabled: Boolean(productLike.cod_enabled)
   });
 
   const fetchData = async () => {
@@ -527,6 +528,7 @@ function AdminPage({ user }) {
       dealer_price: p.dealer_price || '',
       distributor_price: p.distributor_price || '',
       warranty_years: p.warranty_years || 5,
+      cod_enabled: Number(p.cod_enabled ?? 1) !== 0,
       image: p.image,
       images: Array.isArray(p.images) && p.images.length ? p.images : [p.image].filter(Boolean),
       category_id: p.category_id.toString(),
@@ -2301,6 +2303,13 @@ function AdminPage({ user }) {
                 <div className="form-group"><label>Dealer Price</label><input type="number" value={form.dealer_price} onChange={e => setForm({...form, dealer_price: e.target.value})} placeholder="Optional" /></div>
                 <div className="form-group"><label>Distributor Price</label><input type="number" value={form.distributor_price} onChange={e => setForm({...form, distributor_price: e.target.value})} placeholder="Optional" /></div>
                 <div className="form-group"><label>Warranty Years</label><input type="number" min="1" value={form.warranty_years} onChange={e => setForm({...form, warranty_years: e.target.value})} required /></div>
+                <div className="form-group">
+                  <label>Cash on Delivery</label>
+                  <select value={form.cod_enabled ? '1' : '0'} onChange={e => setForm({ ...form, cod_enabled: e.target.value === '1' })} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #dbe3ef' }}>
+                    <option value="1">Enabled for this product</option>
+                    <option value="0">Disabled for this product</option>
+                  </select>
+                </div>
                 <div className="form-group"><label>Stock</label><input type="number" value={form.stock} onChange={e => setForm({...form, stock: e.target.value})} required /></div>
                 <div className="form-group"><label>Unit</label><input value={form.unit} onChange={e => setForm({...form, unit: e.target.value})} required /></div>
                 <div className="form-group"><label>Category</label>

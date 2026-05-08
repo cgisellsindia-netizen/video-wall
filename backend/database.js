@@ -303,7 +303,8 @@ db.serialize(async () => {
       'discount_percent REAL DEFAULT 0',
       'dealer_price REAL',
       'distributor_price REAL',
-      'warranty_years INTEGER DEFAULT 5'
+      'warranty_years INTEGER DEFAULT 5',
+      'cod_enabled INTEGER DEFAULT 1'
     ]);
     await ensureColumns('users', [
       'phone_verified INTEGER DEFAULT 0',
