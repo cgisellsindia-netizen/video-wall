@@ -3,6 +3,12 @@ const LOCK_KEY = 'camigo_customer_location_lock';
 const AREA_KEY = 'camigo_customer_area_name';
 const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 let googleMapsPlacesPromise = null;
+const withTimeout = (promise, timeoutMs = 4000) => (
+  Promise.race([
+    promise,
+    new Promise((resolve) => window.setTimeout(() => resolve(null), timeoutMs))
+  ])
+);
 
 const normalizePosition = (position, source, locked = false) => ({
   lat: position.coords.latitude,
@@ -74,8 +80,13 @@ const loadGoogleMapsPlaces = async () => {
   googleMapsPlacesPromise = new Promise((resolve) => {
     const existing = document.querySelector('script[data-google-maps-places="true"]');
     if (existing) {
+      if (window.google?.maps) {
+        resolve(window.google.maps);
+        return;
+      }
       existing.addEventListener('load', () => resolve(window.google?.maps || null), { once: true });
       existing.addEventListener('error', () => resolve(null), { once: true });
+      window.setTimeout(() => resolve(window.google?.maps || null), 3500);
       return;
     }
 
@@ -86,10 +97,11 @@ const loadGoogleMapsPlaces = async () => {
     script.dataset.googleMapsPlaces = 'true';
     script.onload = () => resolve(window.google?.maps || null);
     script.onerror = () => resolve(null);
+    window.setTimeout(() => resolve(window.google?.maps || null), 3500);
     document.head.appendChild(script);
   });
 
-  return googleMapsPlacesPromise;
+  return withTimeout(googleMapsPlacesPromise, 4000);
 };
 
 const geocodePlaceId = async (maps, placeId, fallbackLabel = '') => {
@@ -168,7 +180,7 @@ export const searchCustomerLocations = async (query = '') => {
     if (GOOGLE_MAPS_API_KEY) {
       const maps = await loadGoogleMapsPlaces();
       if (maps?.places?.AutocompleteService) {
-        const predictions = await new Promise((resolve) => {
+        const predictions = await withTimeout(new Promise((resolve) => {
           const autocompleteService = new maps.places.AutocompleteService();
           autocompleteService.getPlacePredictions(
             {
@@ -180,7 +192,7 @@ export const searchCustomerLocations = async (query = '') => {
               resolve(okStatus && Array.isArray(results) ? results : []);
             }
           );
-        });
+        }), 3000);
         if (predictions.length > 0) {
           const placeResults = (await Promise.all(
             predictions.slice(0, 6).map((prediction) => (

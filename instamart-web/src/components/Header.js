@@ -25,7 +25,8 @@ function Header({
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
   const [locationQuery, setLocationQuery] = useState('');
   const [locationResults, setLocationResults] = useState([]);
-  const [locationBusy, setLocationBusy] = useState(false);
+  const [locationSearchBusy, setLocationSearchBusy] = useState(false);
+  const [detectingLocation, setDetectingLocation] = useState(false);
   const profileMenuRef = useRef(null);
   const visibleSuggestions = useMemo(() => {
     if (searchQuery?.trim()) return searchSuggestions.slice(0, 6);
@@ -56,11 +57,11 @@ function Header({
         if (active) setLocationResults([]);
         return;
       }
-      setLocationBusy(true);
+      setLocationSearchBusy(true);
       const results = await searchCustomerLocations(locationQuery);
       if (active) {
         setLocationResults(results);
-        setLocationBusy(false);
+        setLocationSearchBusy(false);
       }
     };
     const timeoutId = window.setTimeout(loadResults, 220);
@@ -71,7 +72,7 @@ function Header({
   }, [locationQuery, locationSheetOpen]);
 
   const handleUseCurrentLocation = async () => {
-    setLocationBusy(true);
+    setDetectingLocation(true);
     const detectedLocation = await captureCustomerLocation({ source: 'location-sheet', timeout: 10000, maximumAge: 120000 });
     if (detectedLocation?.lat && detectedLocation?.lng) {
       const resolvedArea = await resolveCustomerAreaName(detectedLocation);
@@ -85,19 +86,19 @@ function Header({
       setLocationQuery('');
       setLocationResults([]);
     }
-    setLocationBusy(false);
+    setDetectingLocation(false);
   };
 
   const handlePickLocation = async (result) => {
     if (!result?.lat || !result?.lng) return;
-    setLocationBusy(true);
+    setLocationSearchBusy(true);
     await onLocationChange?.({
       lat: result.lat,
       lng: result.lng,
       areaName: result.label,
       source: 'location-search'
     });
-    setLocationBusy(false);
+    setLocationSearchBusy(false);
     setLocationSheetOpen(false);
     setLocationQuery('');
     setLocationResults([]);
@@ -200,9 +201,9 @@ function Header({
                 onChange={(event) => setLocationQuery(event.target.value)}
               />
             </div>
-            <button className="location-sheet-current" type="button" onClick={handleUseCurrentLocation} disabled={locationBusy}>
+            <button className="location-sheet-current" type="button" onClick={handleUseCurrentLocation} disabled={detectingLocation}>
               <LocateFixed size={19} />
-              <span>{locationBusy ? 'Detecting location...' : 'Use current location'}</span>
+              <span>{detectingLocation ? 'Detecting location...' : 'Use current location'}</span>
             </button>
             {locationResults.length > 0 && (
               <div className="location-sheet-results">
@@ -217,7 +218,7 @@ function Header({
             {locationQuery.trim().length >= 2 && locationResults.length === 0 && (
               <div className="location-sheet-results">
                 <div className="location-sheet-results-state">
-                  {locationBusy ? 'Searching places...' : 'No places found. Check Places API and Maps JavaScript API.'}
+                  {locationSearchBusy ? 'Searching places...' : 'No places found. Check Places API and Maps JavaScript API.'}
                 </div>
               </div>
             )}
