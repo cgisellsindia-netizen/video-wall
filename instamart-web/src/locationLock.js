@@ -19,6 +19,19 @@ const expandLocationQueries = (term = '') => {
   ].map((value) => value.trim()).filter(Boolean);
   return variants.filter((value, index) => variants.indexOf(value) === index);
 };
+const dedupeLocationResults = (results = []) => {
+  const seen = new Set();
+  return results.filter((item) => {
+    const label = String(item?.label || '').trim();
+    const lat = Number(item?.lat);
+    const lng = Number(item?.lng);
+    if (!label || !Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+    const key = `${label.toLowerCase()}|${lat.toFixed(5)}|${lng.toFixed(5)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 const normalizePosition = (position, source, locked = false) => ({
   lat: position.coords.latitude,
@@ -187,6 +200,7 @@ export const searchCustomerLocations = async (query = '') => {
   const term = String(query || '').trim();
   if (term.length < 2) return [];
   const expandedQueries = expandLocationQueries(term);
+  const googleMatches = [];
 
   if (GOOGLE_MAPS_API_KEY) {
     try {
@@ -212,7 +226,7 @@ export const searchCustomerLocations = async (query = '') => {
               geocodePlaceId(maps, prediction.place_id, prediction.description)
             ))
           )).filter((item) => item?.label && Number.isFinite(item?.lat) && Number.isFinite(item?.lng));
-          if (placeResults.length > 0) return placeResults;
+          googleMatches.push(...placeResults);
         }
       }
 
@@ -225,14 +239,18 @@ export const searchCustomerLocations = async (query = '') => {
           lat: result.geometry?.location?.lat,
           lng: result.geometry?.location?.lng
         })).filter((item) => item.label && Number.isFinite(item.lat) && Number.isFinite(item.lng));
-        if (googleResults.length > 0 && data?.status === 'OK') return googleResults;
+        if (googleResults.length > 0 && data?.status === 'OK') googleMatches.push(...googleResults);
       }
     } catch (error) {
       // Fall through to OSM if Google Places/Geocoding fails in the browser.
     }
   }
 
+  const dedupedGoogleMatches = dedupeLocationResults(googleMatches).slice(0, 8);
+  if (dedupedGoogleMatches.length > 0) return dedupedGoogleMatches;
+
   try {
+    const fallbackMatches = [];
     for (const expandedQuery of expandedQueries) {
       const fallbackResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(expandedQuery)}`, {
         headers: {
@@ -247,9 +265,9 @@ export const searchCustomerLocations = async (query = '') => {
         lat: Number(item.lat),
         lng: Number(item.lon)
       })).filter((item) => item.label && Number.isFinite(item.lat) && Number.isFinite(item.lng));
-      if (fallbackResults.length > 0) return fallbackResults;
+      fallbackMatches.push(...fallbackResults);
     }
-    return [];
+    return dedupeLocationResults(fallbackMatches).slice(0, 8);
   } catch (error) {
     return [];
   }
