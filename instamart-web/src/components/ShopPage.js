@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Filter, Heart, Minus, Plus, Search, SlidersHorizontal, Star } from 'lucide-react';
 
-function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null }) {
+function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null, deliveryEtaLabel = '16 mins' }) {
   const [selectedCat, setSelectedCat] = useState('all');
   const [sortBy, setSortBy] = useState('default');
   const [priceBand, setPriceBand] = useState('all');
@@ -197,7 +197,7 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
                     <Heart size={16} fill={isSaved ? 'currentColor' : 'none'} />
                   </button>
                 )}
-                <span className="delivery-badge">8 min</span>
+                <span className="delivery-badge">{deliveryEtaLabel}</span>
               </div>
               <div className="product-name">{product.name}</div>
               <div className="product-weight">{product.unit}</div>

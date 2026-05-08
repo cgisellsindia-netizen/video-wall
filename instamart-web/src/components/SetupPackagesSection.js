@@ -10,7 +10,8 @@ function SetupPackagesSection({
   user,
   cartItems = [],
   savedProductIds = [],
-  onToggleSaved = null
+  onToggleSaved = null,
+  deliveryEtaLabel = '16 mins'
 }) {
   const [packages, setPackages] = useState([]);
   const [isVisible, setIsVisible] = useState(true);
@@ -150,7 +151,7 @@ function SetupPackagesSection({
                     <Heart size={16} fill={isSaved ? 'currentColor' : '#ffffff'} />
                   </button>
                 )}
-                <span className="delivery-badge">8 min</span>
+                <span className="delivery-badge">{deliveryEtaLabel}</span>
               </div>
               <div className="product-name">{product.name}</div>
               <div className="product-weight">{product.unit}</div>

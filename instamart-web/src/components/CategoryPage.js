@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Heart, Minus, Plus, Search, SlidersHorizontal, Star } from 'lucide-react';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
 
-function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null }) {
+function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null, deliveryEtaLabel = '16 mins' }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const categoryId = parseInt(id, 10);
@@ -234,7 +234,7 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
                     <Heart size={16} fill={isSaved ? 'currentColor' : 'none'} />
                   </button>
                 )}
-                <span className="delivery-badge">8 min</span>
+                <span className="delivery-badge">{deliveryEtaLabel}</span>
               </div>
               <div className="product-name">{product.name}</div>
               <div className="product-weight">{product.unit}</div>

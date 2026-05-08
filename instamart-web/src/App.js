@@ -216,7 +216,8 @@ function MainPage({
   bestsellingProducts = [],
   savedProducts = [],
   savedProductIds = [],
-  onToggleSaved
+  onToggleSaved,
+  deliveryEtaLabel = '16 mins'
 }) {
   const setupProducts = useMemo(
     () => products.filter((product) => isSetupProduct(product)),
@@ -264,6 +265,7 @@ function MainPage({
             user={user}
             savedProductIds={savedProductIds}
             onToggleSaved={onToggleSaved}
+            deliveryEtaLabel={deliveryEtaLabel}
           />
         )}
         {!searchQuery && recentProducts.filter((product) => !isSetupProduct(product)).length > 0 && (
@@ -277,6 +279,7 @@ function MainPage({
             savedProductIds={savedProductIds}
             onToggleSaved={onToggleSaved}
             sectionTone="warm"
+            deliveryEtaLabel={deliveryEtaLabel}
           />
         )}
         {!searchQuery && savedProducts.filter((product) => !isSetupProduct(product)).length > 0 && (
@@ -290,6 +293,7 @@ function MainPage({
             savedProductIds={savedProductIds}
             onToggleSaved={onToggleSaved}
             sectionTone="soft"
+            deliveryEtaLabel={deliveryEtaLabel}
           />
         )}
         {!searchQuery && recommendedProducts.filter((product) => !isSetupProduct(product)).length > 0 && (
@@ -303,6 +307,7 @@ function MainPage({
             savedProductIds={savedProductIds}
             onToggleSaved={onToggleSaved}
             sectionTone="sky"
+            deliveryEtaLabel={deliveryEtaLabel}
           />
         )}
         {!searchQuery && bestsellingProducts.filter((product) => !isSetupProduct(product)).length > 0 && (
@@ -316,11 +321,12 @@ function MainPage({
             savedProductIds={savedProductIds}
             onToggleSaved={onToggleSaved}
             sectionTone="contrast"
+            deliveryEtaLabel={deliveryEtaLabel}
           />
         )}
         {searchQuery ? (
           filteredProducts.length ? (
-            <ProductSection title={`Search: "${searchQuery}"`} products={filteredProducts} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={onToggleSaved} sectionTone="soft" />
+            <ProductSection title={`Search: "${searchQuery}"`} products={filteredProducts} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={onToggleSaved} sectionTone="soft" deliveryEtaLabel={deliveryEtaLabel} />
           ) : (
             <section className="category-section">
               <div className="card search-empty-state">
@@ -338,7 +344,7 @@ function MainPage({
           )
         ) : (
           productsByCategory.map(cat => (
-            <ProductSection key={cat.id} title={cat.name} categoryId={cat.id} products={cat.products} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={onToggleSaved} sectionTone="neutral" />
+            <ProductSection key={cat.id} title={cat.name} categoryId={cat.id} products={cat.products} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={onToggleSaved} sectionTone="neutral" deliveryEtaLabel={deliveryEtaLabel} />
           ))
         )}
       </main>
@@ -1204,13 +1210,14 @@ function AppContent() {
               savedProducts={savedProducts}
               savedProductIds={savedProductIds}
               onToggleSaved={toggleSavedItem}
+              deliveryEtaLabel={deliveryEtaLabel}
             />
           </DeliveryOnlyRoute>
         } />
         <Route path="/product/:id" element={<DeliveryOnlyRoute user={user}><ProductDetail products={products} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} user={user} onLogin={() => setLoginOpen(true)} priceForRole={priceForRole} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} /></DeliveryOnlyRoute>} />
-        <Route path="/category/:id" element={<DeliveryOnlyRoute user={user}><CategoryPage categories={categories} products={products} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} /></DeliveryOnlyRoute>} />
+        <Route path="/category/:id" element={<DeliveryOnlyRoute user={user}><CategoryPage categories={categories} products={products} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} deliveryEtaLabel={deliveryEtaLabel} /></DeliveryOnlyRoute>} />
         <Route path="/orders" element={<DeliveryOnlyRoute user={user}><OrdersPage user={user} onLogin={() => setLoginOpen(true)} onUserUpdate={updateUserState} /></DeliveryOnlyRoute>} />
-        <Route path="/saved" element={<DeliveryOnlyRoute user={user}><SavedItemsPage user={user} onLogin={() => setLoginOpen(true)} products={products} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} priceForRole={priceForRole} /></DeliveryOnlyRoute>} />
+        <Route path="/saved" element={<DeliveryOnlyRoute user={user}><SavedItemsPage user={user} onLogin={() => setLoginOpen(true)} products={products} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} priceForRole={priceForRole} deliveryEtaLabel={deliveryEtaLabel} /></DeliveryOnlyRoute>} />
         <Route path="/install" element={<DeliveryOnlyRoute user={user}><InstallationPage user={user} onLogin={() => setLoginOpen(true)} /></DeliveryOnlyRoute>} />
         <Route path="/dealer" element={<DealerDashboard user={user} />} />
         <Route path="/distributor" element={<DealerDashboard user={user} />} />
@@ -1218,7 +1225,7 @@ function AppContent() {
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
         <Route path="/admin" element={<AdminPage user={user} />} />
-        <Route path="/shop" element={<DeliveryOnlyRoute user={user}><ShopPage products={products} categories={categories} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} /></DeliveryOnlyRoute>} />
+        <Route path="/shop" element={<DeliveryOnlyRoute user={user}><ShopPage products={products} categories={categories} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} deliveryEtaLabel={deliveryEtaLabel} /></DeliveryOnlyRoute>} />
         <Route path="/checkout" element={<DeliveryOnlyRoute user={user}><CheckoutPage user={user} liveCartItems={cartItems} onLogin={() => setLoginOpen(true)} onOrderPlaced={handleOrderPlaced} onUserUpdate={updateUserState} /></DeliveryOnlyRoute>} />
         <Route path="/tracking/:id" element={<TrackingPage />} />
         <Route path="/delivery-partner" element={<DeliveryPartnerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />

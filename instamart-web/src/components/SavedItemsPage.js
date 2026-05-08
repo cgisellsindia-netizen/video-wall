@@ -11,7 +11,8 @@ function SavedItemsPage({
   onAdd,
   onRemove,
   cartItems = [],
-  priceForRole
+  priceForRole,
+  deliveryEtaLabel = '16 mins'
 }) {
   const navigate = useNavigate();
   const savedProducts = useMemo(
@@ -98,7 +99,7 @@ function SavedItemsPage({
                 >
                   <Heart size={16} fill="currentColor" />
                 </button>
-                <span className="delivery-badge">8 min</span>
+                <span className="delivery-badge">{deliveryEtaLabel}</span>
               </div>
               <div className="product-name">{product.name}</div>
               <div className="product-weight">{product.unit}</div>

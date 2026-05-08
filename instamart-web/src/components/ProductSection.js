@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Heart, Minus, Plus, Star } from 'lucide-react';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
 
-function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [], categoryId = null, savedProductIds = [], onToggleSaved = null, sectionTone = 'neutral' }) {
+function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [], categoryId = null, savedProductIds = [], onToggleSaved = null, sectionTone = 'neutral', deliveryEtaLabel = '16 mins' }) {
   const navigate = useNavigate();
   const sectionRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -100,7 +100,7 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
                     <Heart size={16} fill={isSaved ? 'currentColor' : '#ffffff'} />
                   </button>
                 )}
-                <span className="delivery-badge">8 min</span>
+                <span className="delivery-badge">{deliveryEtaLabel}</span>
               </div>
               <div className="product-name">{product.name}</div>
               <div className="product-weight">{product.unit}</div>
