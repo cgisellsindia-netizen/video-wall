@@ -122,11 +122,12 @@ export const searchCustomerLocations = async (query = '') => {
       const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(term)}&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`);
       if (response.ok) {
         const data = await response.json();
-        return (Array.isArray(data?.results) ? data.results : []).slice(0, 5).map((result) => ({
+        const googleResults = (Array.isArray(data?.results) ? data.results : []).slice(0, 5).map((result) => ({
           label: result.formatted_address,
           lat: result.geometry?.location?.lat,
           lng: result.geometry?.location?.lng
         })).filter((item) => item.label && item.lat && item.lng);
+        if (googleResults.length > 0 && data?.status === 'OK') return googleResults;
       }
     }
     const fallbackResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(term)}`, {
