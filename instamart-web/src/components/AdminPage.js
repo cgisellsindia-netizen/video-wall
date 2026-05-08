@@ -56,8 +56,37 @@ function AdminPage({ user }) {
   const [mediaManifestUrl, setMediaManifestUrl] = useState('');
   const [mediaManifestBusy, setMediaManifestBusy] = useState(false);
   const [mediaBrowser, setMediaBrowser] = useState({ open: false, mode: 'cover', dir: '/', busy: false, data: null });
+  const [codSettingBusy, setCodSettingBusy] = useState(false);
 
   useEffect(() => { if (!user) { navigate('/'); return; } fetchData(); }, [user]);
+
+  const handleToggleCod = async (enabled) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    setCodSettingBusy(true);
+    setMessage('');
+    try {
+      const res = await fetch(`${API_URL}/admin/store-settings/cod`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ enabled })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not update COD setting');
+      setSystemStatus((current) => ({
+        ...(current || {}),
+        payments: {
+          ...(current?.payments || {}),
+          cod_enabled: Boolean(data.cod_enabled)
+        }
+      }));
+      setMessage(data.message || `Cash on delivery ${enabled ? 'enabled' : 'disabled'}.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setCodSettingBusy(false);
+    }
+  };
 
   useEffect(() => {
     setStockDrafts(prev => {
@@ -1274,6 +1303,46 @@ function AdminPage({ user }) {
                   <label>Seller pincode</label>
                   <code>{systemStatus?.delhivery?.seller_pincode || 'Not set in Render yet'}</code>
                 </div>
+              </div>
+            </article>
+
+            <article className="integration-card">
+              <div className="integration-card-top">
+                <div>
+                  <strong>Cash on delivery</strong>
+                  <span className={`tag ${systemStatus?.payments?.cod_enabled ? 'tag-success' : 'tag-warning'}`}>
+                    {systemStatus?.payments?.cod_enabled ? 'COD active' : 'COD disabled'}
+                  </span>
+                </div>
+                <div className="integration-meta-pills">
+                  <span className="tag tag-info">Checkout payment mode</span>
+                </div>
+              </div>
+
+              <div className="integration-detail-grid">
+                <div className="integration-detail integration-detail-wide">
+                  <label>Admin control</label>
+                  <code>{systemStatus?.payments?.cod_enabled ? 'Customers can place COD orders from checkout.' : 'Customers see online payment only until COD is enabled.'}</code>
+                </div>
+              </div>
+
+              <div className="integration-stats-row">
+                <button
+                  className={`btn btn-sm ${systemStatus?.payments?.cod_enabled ? 'btn-outline' : 'btn-primary'}`}
+                  type="button"
+                  onClick={() => handleToggleCod(true)}
+                  disabled={codSettingBusy || systemStatus?.payments?.cod_enabled}
+                >
+                  {codSettingBusy && !systemStatus?.payments?.cod_enabled ? 'Saving...' : 'Activate COD'}
+                </button>
+                <button
+                  className={`btn btn-sm ${systemStatus?.payments?.cod_enabled ? 'btn-primary' : 'btn-outline'}`}
+                  type="button"
+                  onClick={() => handleToggleCod(false)}
+                  disabled={codSettingBusy || !systemStatus?.payments?.cod_enabled}
+                >
+                  {codSettingBusy && systemStatus?.payments?.cod_enabled ? 'Saving...' : 'Deactivate COD'}
+                </button>
               </div>
             </article>
           </div>

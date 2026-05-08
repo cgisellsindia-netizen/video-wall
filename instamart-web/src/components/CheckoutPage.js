@@ -38,6 +38,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
   const [addressBook, setAddressBook] = useState([]);
   const [addressLabel, setAddressLabel] = useState('Home');
   const [addressSaving, setAddressSaving] = useState(false);
+  const [codEnabled, setCodEnabled] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -62,6 +63,15 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
       localStorage.setItem('cart_backup', JSON.stringify(liveCartItems));
     }
   }, [liveCartItems]);
+
+  useEffect(() => {
+    fetch(`${API_URL}/store-settings`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (typeof data?.cod_enabled === 'boolean') setCodEnabled(data.cod_enabled);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -176,7 +186,12 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
   const deliveryProvider = deliveryQuote?.provider || (isCourierDelivery ? 'Delhivery' : isLocalDelivery ? 'Uber Parcel + Rapido average' : 'Unavailable');
   const gst = Math.round(discountedSubtotal * 0.18);
   const payable = discountedSubtotal + gst + deliveryFee + installationFee;
-  const payDisabled = Boolean(loading || !cartItems.length || !deliveryAvailable || !deliveryQuote || quoteLoading || !address.trim() || !razorpayReady);
+  const paymentGatewayReady = paymentMethod === 'cod' ? true : razorpayReady;
+  const payDisabled = Boolean(loading || !cartItems.length || !deliveryAvailable || !deliveryQuote || quoteLoading || !address.trim() || !paymentGatewayReady);
+
+  useEffect(() => {
+    if (paymentMethod === 'cod' && !codEnabled) setPaymentMethod('upi');
+  }, [codEnabled, paymentMethod]);
 
   useEffect(() => {
     const detectedPincode = pincode.trim() || extractPincode(address);
@@ -319,7 +334,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
     if (!address || !phone) { setError('Delivery address and phone are required.'); return; }
     if (!cartItems.length) { setError('Cart is empty.'); return; }
     if (!deliveryQuote || quoteLoading) { setError('Wait a moment while Camigo finishes the delivery charge calculation.'); return; }
-    if (!razorpayReady || !window.Razorpay) { setError('Payment gateway is still loading. Please wait a moment and try again.'); return; }
+    if (paymentMethod !== 'cod' && (!razorpayReady || !window.Razorpay)) { setError('Payment gateway is still loading. Please wait a moment and try again.'); return; }
 
     setLoading(true);
     const token = localStorage.getItem('token');
@@ -338,6 +353,35 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
         setLoading(false);
         return;
       }
+      if (paymentMethod === 'cod') {
+        const codRes = await fetch(`${API_URL}/orders/cod`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            items: cartItems.map(i => ({ product_id: i.product_id || i.id, quantity: i.quantity })),
+            address,
+            pincode: deliveryQuote?.detectedPincode || deliveryCheck.detectedPincode,
+            phone,
+            payment_method: 'cod',
+            promo_code: promoResult?.code || promoCode.trim().toUpperCase() || undefined,
+            installation_requested: installationRequested,
+            customer_lat: customerCoords?.lat,
+            customer_lng: customerCoords?.lng,
+            customer_accuracy: customerCoords?.accuracy,
+            customer_location_locked_at: customerCoords?.savedAt
+          })
+        });
+        const codData = await codRes.json().catch(() => ({}));
+        if (!codRes.ok) throw new Error(codData.error || 'Could not place COD order');
+        localStorage.removeItem('cart_backup');
+        const nextAddresses = [address, ...savedAddresses].filter(Boolean).filter((value, index, arr) => arr.indexOf(value) === index).slice(0, 4);
+        localStorage.setItem('camigo_saved_addresses', JSON.stringify(nextAddresses));
+        onOrderPlaced?.({ ...codData, address });
+        navigate(`/tracking/${codData.order_id}`);
+        setLoading(false);
+        return;
+      }
+
       const res = await fetch(`${API_URL}/payments/razorpay/order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -430,7 +474,11 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
       <div className="checkout-main">
         <span className="eyebrow">Secure checkout</span>
         <h1>Confirm delivery and payment</h1>
-        <p className="checkout-subtitle">Camigo checkout now accepts online payments only with UPI or card before placing your order.</p>
+        <p className="checkout-subtitle">
+          {codEnabled
+            ? 'Choose UPI, card, or cash on delivery before placing your Camigo order.'
+            : 'Camigo checkout now accepts online payments only with UPI or card before placing your order.'}
+        </p>
 
         {error && <div className="admin-message">{error}</div>}
 
@@ -535,18 +583,23 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
           </div>
         </section>
 
-        <section className="checkout-card">
-          <h3><CreditCard size={18} /> Payment gateway</h3>
-          <div className="payment-options payment-options-two">
+          <section className="checkout-card">
+            <h3><CreditCard size={18} /> Payment gateway</h3>
+          <div className={`payment-options ${codEnabled ? '' : 'payment-options-two'}`}>
             <button type="button" className={paymentMethod === 'upi' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('upi')}><Smartphone size={18} /> UPI</button>
             <button type="button" className={paymentMethod === 'card' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('card')}><CreditCard size={18} /> Card</button>
+            {codEnabled && <button type="button" className={paymentMethod === 'cod' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('cod')}><CreditCard size={18} /> COD</button>}
           </div>
-          <p className="checkout-note">Cash on delivery is disabled. Camigo will now open real Razorpay checkout for the selected payment mode.</p>
+          <p className="checkout-note">
+            {codEnabled
+              ? 'COD is currently active from admin. UPI and card still open Razorpay checkout, while COD places the order directly.'
+              : 'Cash on delivery is disabled. Camigo will now open real Razorpay checkout for the selected payment mode.'}
+          </p>
           {paymentMethod === 'upi' && (
-            <p className="checkout-note upi-app-note">
-              On mobile, Razorpay will show available UPI apps for app-to-app payment when supported by the device.
-            </p>
-          )}
+              <p className="checkout-note upi-app-note">
+                On mobile, Razorpay will show available UPI apps for app-to-app payment when supported by the device.
+              </p>
+            )}
         </section>
       </div>
 
@@ -619,11 +672,13 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
               : quoteLoading
                 ? 'Calculating delivery charge...'
                 : !user?.phone_verified
-                  ? 'Verify mobile to pay'
-                  : razorpayReady
-                  ? `Pay Rs ${payable}`
-                  : 'Loading payment gateway...'}
-        </button>
+                    ? 'Verify mobile to pay'
+                    : paymentMethod === 'cod'
+                      ? `Place COD order Rs ${payable}`
+                      : razorpayReady
+                        ? `Pay Rs ${payable}`
+                        : 'Loading payment gateway...'}
+          </button>
       </aside>
       {phoneVerifyOpen && (
         <div className="checkout-verify-overlay" role="dialog" aria-modal="true" aria-label="Verify mobile number">

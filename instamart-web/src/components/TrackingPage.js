@@ -118,7 +118,7 @@ function TrackingPage() {
               <Truck size={18} />
               <div>
                 <strong>No delivery partner assigned yet</strong>
-                <span>COD is disabled, so unpaid orders stay on hold. Cancel this order from Orders and place checkout again after payment.</span>
+                <span>This order is waiting for payment confirmation. Cancel it from Orders and place checkout again after payment.</span>
               </div>
             </div>
 

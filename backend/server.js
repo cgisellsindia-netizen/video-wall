@@ -181,11 +181,13 @@ const DEFAULT_CAMIGO_HUB = {
 };
 
 const APP_SETTING_KEYS = {
-  homepageSetupPackages: 'homepage_setup_packages'
+  homepageSetupPackages: 'homepage_setup_packages',
+  codEnabled: 'cod_enabled'
 };
 
 const OPERATIONAL_APP_SETTING_KEYS = [
-  APP_SETTING_KEYS.homepageSetupPackages
+  APP_SETTING_KEYS.homepageSetupPackages,
+  APP_SETTING_KEYS.codEnabled
 ];
 
 const DEFAULT_SETUP_PACKAGES = [
@@ -935,6 +937,8 @@ const saveJsonAppSetting = async (settingKey, value) => {
     [key, JSON.stringify(value)]
   );
 };
+
+const isCodEnabled = async () => Boolean(await getJsonAppSetting(APP_SETTING_KEYS.codEnabled, false));
 
 const resolveSetupPackages = async () => {
   const stored = await getJsonAppSetting(APP_SETTING_KEYS.homepageSetupPackages, null);
@@ -2437,12 +2441,17 @@ const buildOrderDraft = async (user, body) => {
   if (!Array.isArray(items) || !items.length) {
     throw new Error('Order items are required');
   }
-  if (!address || !payment_method) {
-    throw new Error('Address and payment method are required');
-  }
-  if (!['upi', 'card'].includes(String(payment_method || '').toLowerCase())) {
-    throw new Error('Only UPI and card payments are allowed');
-  }
+    if (!address || !payment_method) {
+      throw new Error('Address and payment method are required');
+    }
+    const normalizedPaymentMethod = String(payment_method || '').toLowerCase();
+    const codEnabled = await isCodEnabled();
+    if (!['upi', 'card', 'cod'].includes(normalizedPaymentMethod)) {
+      throw new Error('Only UPI, card, and COD payments are allowed');
+    }
+    if (normalizedPaymentMethod === 'cod' && !codEnabled) {
+      throw new Error('Cash on delivery is currently disabled');
+    }
 
   const normalizedItems = normalizeOrderItems(items);
   if (!normalizedItems.length) {
@@ -2513,7 +2522,7 @@ const buildOrderDraft = async (user, body) => {
     prices,
     warrantyYears,
     address: addressWithPincode,
-    paymentMethod: String(payment_method).toLowerCase(),
+      paymentMethod: normalizedPaymentMethod,
     totalAmount,
     gstAmount,
     deliveryFee,
@@ -3023,6 +3032,16 @@ app.get('/api/setup-packages', async (req, res) => {
   }
 });
 
+app.get('/api/store-settings', async (req, res) => {
+  try {
+    res.json({
+      cod_enabled: await isCodEnabled()
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/categories', (req, res) => {
   db.all('SELECT * FROM categories ORDER BY sort_order', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -3252,6 +3271,48 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
   res.status(410).json({
     error: 'Direct order placement is disabled. Start payment through Razorpay checkout first.'
   });
+});
+
+app.post('/api/orders/cod', authenticateToken, async (req, res) => {
+  try {
+    if (!(await isCodEnabled())) {
+      return res.status(403).json({ error: 'Cash on delivery is currently disabled' });
+    }
+    const draft = await createOrderDraft(req.body);
+    if (draft.paymentMethod !== 'cod') {
+      return res.status(400).json({ error: 'COD order must use payment method cod' });
+    }
+
+    const currentUser = await dbGetAsync('SELECT * FROM users WHERE id = ?', [req.user.userId]);
+    if (!currentUser) return res.status(404).json({ error: 'User not found' });
+
+    const orderId = await createLocalOrderRecord({
+      userId: currentUser.id,
+      draft,
+      status: 'pending',
+      paymentStatus: 'cod_due'
+    });
+    queueOperationalStateSync('cod-order-created');
+
+    const order = await dbGetAsync('SELECT * FROM orders WHERE id = ?', [orderId]);
+    if (order && String(order.delivery_mode || '').toLowerCase() === 'local' && hasUberDirectConfig) {
+      try {
+        await createUberDirectDeliveryForOrder(order, currentUser);
+      } catch (uberError) {
+        console.warn(`Uber Direct COD delivery creation failed for order ${order.id}: ${uberError.message}`);
+      }
+    }
+
+    res.json({
+      message: 'COD order placed successfully.',
+      order_id: orderId,
+      status: 'pending',
+      payment_status: 'cod_due',
+      final_amount: order?.final_amount ?? draft.finalAmount
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.post('/api/payments/razorpay/order', authenticateToken, async (req, res) => {
@@ -3910,8 +3971,8 @@ app.get('/api/delivery/orders', authenticateToken, (req, res) => {
   db.all(`SELECT o.*, u.name as user_name, u.phone as user_phone
           FROM orders o
           JOIN users u ON o.user_id = u.id
-          WHERE o.payment_status = 'paid'
-            AND o.status NOT IN ('delivered', 'rejected')
+           WHERE (o.payment_status = 'paid' OR lower(coalesce(o.payment_method, '')) = 'cod')
+              AND o.status NOT IN ('delivered', 'rejected')
           ORDER BY o.created_at DESC`, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
@@ -3925,8 +3986,8 @@ app.get('/api/installer/orders', authenticateToken, (req, res) => {
   db.all(`SELECT o.*, u.name as user_name, u.phone as user_phone
           FROM orders o
           JOIN users u ON o.user_id = u.id
-          WHERE o.payment_status = 'paid'
-            AND o.installation_requested = 1
+           WHERE (o.payment_status = 'paid' OR lower(coalesce(o.payment_method, '')) = 'cod')
+              AND o.installation_requested = 1
             AND o.installation_status != 'completed'
           ORDER BY o.created_at DESC`, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -4130,7 +4191,8 @@ app.get('/api/tracking/:orderId', authenticateToken, async (req, res) => {
 
     const orderStatus = String(order.status || '').toLowerCase();
     const paymentStatus = String(order.payment_status || '').toLowerCase();
-    if (orderStatus === 'payment_pending' || (paymentStatus && paymentStatus !== 'paid') || ['cancelled', 'rejected', 'delivered'].includes(orderStatus)) {
+    const codOrder = String(order.payment_method || '').toLowerCase() === 'cod';
+    if (orderStatus === 'payment_pending' || ((!codOrder && paymentStatus && paymentStatus !== 'paid')) || ['cancelled', 'rejected', 'delivered'].includes(orderStatus)) {
       return res.json({ order, partner: null, partner_location: null });
     }
 
@@ -4433,9 +4495,10 @@ app.post('/api/admin/orders/:id/manual-dispatch', authenticateToken, requireAdmi
 
 app.get('/api/admin/system-status', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const [uberLinkedOrders, paidUberOrders] = await Promise.all([
+    const [uberLinkedOrders, paidUberOrders, codEnabled] = await Promise.all([
       dbGetAsync("SELECT COUNT(*) AS count FROM orders WHERE uber_direct_order_id IS NOT NULL AND TRIM(uber_direct_order_id) <> ''"),
-      dbGetAsync('SELECT COUNT(*) AS count FROM orders WHERE delivery_provider = ? AND payment_status = ?', ['Uber Direct', 'paid'])
+      dbGetAsync('SELECT COUNT(*) AS count FROM orders WHERE delivery_provider = ? AND payment_status = ?', ['Uber Direct', 'paid']),
+      isCodEnabled()
     ]);
     res.json({
       uber_direct: {
@@ -4462,10 +4525,29 @@ app.get('/api/admin/system-status', authenticateToken, requireAdmin, async (req,
         seller_phone: DELHIVERY_SELLER_PHONE || '',
         seller_pincode: DELHIVERY_SELLER_PINCODE || ''
       },
+      payments: {
+        cod_enabled: codEnabled
+      },
       media_library: {
         ready: Boolean(MEDIA_LIBRARY_PUBLIC_BASE),
         public_base: MEDIA_LIBRARY_PUBLIC_BASE || ''
       }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/admin/store-settings/cod', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const enabled = Boolean(req.body?.enabled);
+    await saveJsonAppSetting(APP_SETTING_KEYS.codEnabled, enabled);
+    const operationalBackup = await syncOperationalStateForResponse('cod-setting-updated');
+    res.json({
+      message: `Cash on delivery ${enabled ? 'enabled' : 'disabled'}.`,
+      cod_enabled: enabled,
+      operational_backup: operationalBackup,
+      operational_warning: operationalBackup.warning
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
