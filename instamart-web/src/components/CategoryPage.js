@@ -12,6 +12,7 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
   const [searchTerm, setSearchTerm] = useState('');
   const [priceBand, setPriceBand] = useState('all');
   const [availability, setAvailability] = useState('all');
+  const [filterOpen, setFilterOpen] = useState(false);
   const siblingCategories = categories.filter((entry) => entry.id !== categoryId).slice(0, 7);
 
   const categoryProducts = useMemo(() => {
@@ -96,6 +97,11 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
     };
     return guideMap[category?.name] || fallback;
   }, [category?.name]);
+  const activeFilterCount = [
+    sortBy !== 'default',
+    priceBand !== 'all',
+    availability !== 'all'
+  ].filter(Boolean).length;
 
   const stopCardTap = (event) => {
     event.preventDefault();
@@ -153,33 +159,46 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
             placeholder={`Search in ${category?.name || 'category'}`}
           />
         </div>
-        <div className="shop-filter-grid">
-          <div className="shop-filter-field">
+        <div className="shop-filter-toolbar">
+          <button
+            type="button"
+            className={filterOpen ? 'shop-filter-toggle active' : 'shop-filter-toggle'}
+            onClick={() => setFilterOpen((current) => !current)}
+          >
             <SlidersHorizontal size={18} />
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-              <option value="default">Default</option>
-              <option value="price-low">Price: Low to High</option>
-              <option value="price-high">Price: High to Low</option>
-              <option value="rating">Top Rated</option>
-              <option value="discount">Best Discount</option>
-            </select>
-          </div>
-          <div className="shop-filter-field">
-            <select value={priceBand} onChange={(e) => setPriceBand(e.target.value)}>
-              <option value="all">All Prices</option>
-              <option value="under-2000">Under Rs 2000</option>
-              <option value="2000-5000">Rs 2000 - 5000</option>
-              <option value="above-5000">Above Rs 5000</option>
-            </select>
-          </div>
-          <div className="shop-filter-field">
-            <select value={availability} onChange={(e) => setAvailability(e.target.value)}>
-              <option value="all">All Stock States</option>
-              <option value="in-stock">In Stock Only</option>
-            </select>
-          </div>
+            <span>Filters</span>
+            {activeFilterCount > 0 && <strong className="shop-filter-badge">{activeFilterCount}</strong>}
+          </button>
           <div className="shop-result-count">{categoryProducts.length} products</div>
         </div>
+        {filterOpen && (
+          <div className="shop-filter-grid shop-filter-panel">
+            <div className="shop-filter-field">
+              <SlidersHorizontal size={18} />
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="default">Default</option>
+                <option value="price-low">Price: Low to High</option>
+                <option value="price-high">Price: High to Low</option>
+                <option value="rating">Top Rated</option>
+                <option value="discount">Best Discount</option>
+              </select>
+            </div>
+            <div className="shop-filter-field">
+              <select value={priceBand} onChange={(e) => setPriceBand(e.target.value)}>
+                <option value="all">All Prices</option>
+                <option value="under-2000">Under Rs 2000</option>
+                <option value="2000-5000">Rs 2000 - 5000</option>
+                <option value="above-5000">Above Rs 5000</option>
+              </select>
+            </div>
+            <div className="shop-filter-field">
+              <select value={availability} onChange={(e) => setAvailability(e.target.value)}>
+                <option value="all">All Stock States</option>
+                <option value="in-stock">In Stock Only</option>
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="catalog-strip-grid">

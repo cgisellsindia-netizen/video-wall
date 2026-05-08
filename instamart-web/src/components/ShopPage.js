@@ -9,6 +9,7 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
   const [availability, setAvailability] = useState('all');
   const [minRating, setMinRating] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
   const navigate = useNavigate();
   const spotlightCategories = categories.slice(0, 8);
   const filtered = useMemo(() => {
@@ -50,6 +51,13 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
       .slice(0, 4),
     [filtered]
   );
+  const activeFilterCount = [
+    selectedCat !== 'all',
+    sortBy !== 'default',
+    priceBand !== 'all',
+    availability !== 'all',
+    minRating !== 'all'
+  ].filter(Boolean).length;
 
   const stopCardTap = (event) => {
     event.preventDefault();
@@ -100,49 +108,62 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
             placeholder="Search inside all products"
           />
         </div>
-        <div className="shop-filter-grid">
-          <div className="shop-filter-field">
+        <div className="shop-filter-toolbar">
+          <button
+            type="button"
+            className={filterOpen ? 'shop-filter-toggle active' : 'shop-filter-toggle'}
+            onClick={() => setFilterOpen((current) => !current)}
+          >
             <Filter size={18} />
-            <select value={selectedCat} onChange={(e) => setSelectedCat(e.target.value)}>
-              <option value="all">All Categories</option>
-              {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-            </select>
-          </div>
-          <div className="shop-filter-field">
-            <SlidersHorizontal size={18} />
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-              <option value="default">Default</option>
-              <option value="price-low">Price: Low to High</option>
-              <option value="price-high">Price: High to Low</option>
-              <option value="rating">Top Rated</option>
-              <option value="discount">Best Discount</option>
-              <option value="name">Name: A-Z</option>
-            </select>
-          </div>
-          <div className="shop-filter-field">
-            <select value={priceBand} onChange={(e) => setPriceBand(e.target.value)}>
-              <option value="all">All Prices</option>
-              <option value="under-2000">Under Rs 2000</option>
-              <option value="2000-5000">Rs 2000 - 5000</option>
-              <option value="above-5000">Above Rs 5000</option>
-            </select>
-          </div>
-          <div className="shop-filter-field">
-            <select value={availability} onChange={(e) => setAvailability(e.target.value)}>
-              <option value="all">All Stock States</option>
-              <option value="in-stock">In Stock Only</option>
-            </select>
-          </div>
-          <div className="shop-filter-field">
-            <select value={minRating} onChange={(e) => setMinRating(e.target.value)}>
-              <option value="all">All Ratings</option>
-              <option value="4">4.0+ rating</option>
-              <option value="4.5">4.5+ rating</option>
-              <option value="4.8">4.8+ rating</option>
-            </select>
-          </div>
+            <span>Filters</span>
+            {activeFilterCount > 0 && <strong className="shop-filter-badge">{activeFilterCount}</strong>}
+          </button>
           <div className="shop-result-count">{filtered.length} products</div>
         </div>
+        {filterOpen && (
+          <div className="shop-filter-grid shop-filter-panel">
+            <div className="shop-filter-field">
+              <Filter size={18} />
+              <select value={selectedCat} onChange={(e) => setSelectedCat(e.target.value)}>
+                <option value="all">All Categories</option>
+                {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select>
+            </div>
+            <div className="shop-filter-field">
+              <SlidersHorizontal size={18} />
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="default">Default</option>
+                <option value="price-low">Price: Low to High</option>
+                <option value="price-high">Price: High to Low</option>
+                <option value="rating">Top Rated</option>
+                <option value="discount">Best Discount</option>
+                <option value="name">Name: A-Z</option>
+              </select>
+            </div>
+            <div className="shop-filter-field">
+              <select value={priceBand} onChange={(e) => setPriceBand(e.target.value)}>
+                <option value="all">All Prices</option>
+                <option value="under-2000">Under Rs 2000</option>
+                <option value="2000-5000">Rs 2000 - 5000</option>
+                <option value="above-5000">Above Rs 5000</option>
+              </select>
+            </div>
+            <div className="shop-filter-field">
+              <select value={availability} onChange={(e) => setAvailability(e.target.value)}>
+                <option value="all">All Stock States</option>
+                <option value="in-stock">In Stock Only</option>
+              </select>
+            </div>
+            <div className="shop-filter-field">
+              <select value={minRating} onChange={(e) => setMinRating(e.target.value)}>
+                <option value="all">All Ratings</option>
+                <option value="4">4.0+ rating</option>
+                <option value="4.5">4.5+ rating</option>
+                <option value="4.8">4.8+ rating</option>
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       {(topRatedProducts.length > 0 || bestDiscountProducts.length > 0) && (
