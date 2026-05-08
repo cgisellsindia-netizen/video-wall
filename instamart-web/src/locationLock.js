@@ -119,6 +119,17 @@ export const searchCustomerLocations = async (query = '') => {
   if (term.length < 2) return [];
   try {
     if (GOOGLE_MAPS_API_KEY) {
+      const placesResponse = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(term)}&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`);
+      if (placesResponse.ok) {
+        const placesData = await placesResponse.json();
+        const placeResults = (Array.isArray(placesData?.results) ? placesData.results : []).slice(0, 6).map((result) => ({
+          label: [result.name, result.formatted_address || result.vicinity].filter(Boolean).join(', '),
+          lat: result.geometry?.location?.lat,
+          lng: result.geometry?.location?.lng
+        })).filter((item) => item.label && item.lat && item.lng);
+        if (placeResults.length > 0 && placesData?.status === 'OK') return placeResults;
+      }
+
       const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(term)}&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`);
       if (response.ok) {
         const data = await response.json();
