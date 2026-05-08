@@ -80,10 +80,14 @@ class ErrorBoundary extends React.Component {
   }
 
   resetApp = () => {
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
     Object.keys(localStorage)
-      .filter(key => key === 'token' || key === 'user' || key.startsWith('camigo') || key === 'cart_backup')
+      .filter(key => key.startsWith('camigo') || key === 'cart_backup')
       .forEach(key => localStorage.removeItem(key));
     sessionStorage.clear();
+    if (savedToken) localStorage.setItem('token', savedToken);
+    if (savedUser) localStorage.setItem('user', savedUser);
     if ('caches' in window) {
       caches.keys().then(keys => keys.forEach(key => caches.delete(key))).catch(() => {});
     }
@@ -92,7 +96,9 @@ class ErrorBoundary extends React.Component {
         .then(registrations => registrations.forEach(registration => registration.unregister()))
         .catch(() => {});
     }
-    window.location.href = `/?reset=${Date.now()}`;
+    const params = new URLSearchParams(window.location.search);
+    params.set('reset', String(Date.now()));
+    window.location.replace(`${window.location.pathname}?${params.toString()}${window.location.hash || ''}`);
   };
 
   render() {
