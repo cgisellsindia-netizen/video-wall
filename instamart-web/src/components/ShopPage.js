@@ -11,6 +11,29 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
   const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
   const spotlightCategories = categories.slice(0, 8);
+  const filtered = useMemo(() => {
+    let result = [...products];
+    if (selectedCat !== 'all') result = result.filter((product) => product.category_id === parseInt(selectedCat, 10));
+    if (availability === 'in-stock') result = result.filter((product) => Number(product.stock || 0) > 0);
+    if (minRating !== 'all') result = result.filter((product) => Number(product.rating_average || 0) >= Number(minRating));
+    if (searchTerm.trim()) {
+      const query = searchTerm.trim().toLowerCase();
+      result = result.filter((product) => {
+        const haystack = [product.name, product.description, product.unit].join(' ').toLowerCase();
+        return haystack.includes(query);
+      });
+    }
+    if (priceBand === 'under-2000') result = result.filter((product) => Number(product.price || 0) < 2000);
+    if (priceBand === '2000-5000') result = result.filter((product) => Number(product.price || 0) >= 2000 && Number(product.price || 0) <= 5000);
+    if (priceBand === 'above-5000') result = result.filter((product) => Number(product.price || 0) > 5000);
+
+    if (sortBy === 'price-low') result.sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
+    if (sortBy === 'price-high') result.sort((a, b) => Number(b.price || 0) - Number(a.price || 0));
+    if (sortBy === 'name') result.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    if (sortBy === 'rating') result.sort((a, b) => Number(b.rating_average || 0) - Number(a.rating_average || 0));
+    if (sortBy === 'discount') result.sort((a, b) => Number(b.discount_percent || 0) - Number(a.discount_percent || 0));
+    return result;
+  }, [products, selectedCat, sortBy, priceBand, availability, minRating, searchTerm]);
   const topRatedProducts = useMemo(
     () => [...filtered]
       .sort((a, b) => {
@@ -37,30 +60,6 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
     stopCardTap(event);
     handler();
   };
-
-  const filtered = useMemo(() => {
-    let result = [...products];
-    if (selectedCat !== 'all') result = result.filter((product) => product.category_id === parseInt(selectedCat, 10));
-    if (availability === 'in-stock') result = result.filter((product) => Number(product.stock || 0) > 0);
-    if (minRating !== 'all') result = result.filter((product) => Number(product.rating_average || 0) >= Number(minRating));
-    if (searchTerm.trim()) {
-      const query = searchTerm.trim().toLowerCase();
-      result = result.filter((product) => {
-        const haystack = [product.name, product.description, product.unit].join(' ').toLowerCase();
-        return haystack.includes(query);
-      });
-    }
-    if (priceBand === 'under-2000') result = result.filter((product) => Number(product.price || 0) < 2000);
-    if (priceBand === '2000-5000') result = result.filter((product) => Number(product.price || 0) >= 2000 && Number(product.price || 0) <= 5000);
-    if (priceBand === 'above-5000') result = result.filter((product) => Number(product.price || 0) > 5000);
-
-    if (sortBy === 'price-low') result.sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
-    if (sortBy === 'price-high') result.sort((a, b) => Number(b.price || 0) - Number(a.price || 0));
-    if (sortBy === 'name') result.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
-    if (sortBy === 'rating') result.sort((a, b) => Number(b.rating_average || 0) - Number(a.rating_average || 0));
-    if (sortBy === 'discount') result.sort((a, b) => Number(b.discount_percent || 0) - Number(a.discount_percent || 0));
-    return result;
-  }, [products, selectedCat, sortBy, priceBand, availability, minRating, searchTerm]);
 
   return (
     <div className="container shop-page-shell">
