@@ -2,8 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Shield, Users, ShoppingBag, Package, Plus, Trash2, Edit, MapPin, Truck, Sparkles, FolderOpen, Image as ImageIcon, ArrowUp, Copy, ExternalLink, Bike, CheckCircle2, Headphones } from 'lucide-react';
 import { API_URL } from '../api';
+import PageBuilderAdmin from './PageBuilderAdmin';
 
-function AdminPage({ user }) {
+function AdminPage({ user, pageContent, onPageContentSaved }) {
   const [users, setUsers] = useState([]);
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
@@ -1210,6 +1211,7 @@ function AdminPage({ user }) {
         <button className={`btn btn-sm ${activeTab === 'delivery' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('delivery')}><Truck size={16} /> Delivery Partners ({deliveryPartners.length})</button>
         <button className={`btn btn-sm ${activeTab === 'hubs' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('hubs')}><MapPin size={16} /> Hubs ({hubs.length})</button>
         <button className={`btn btn-sm ${activeTab === 'banners' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('banners')}><Package size={16} /> Category Banners ({categoryBanners.length})</button>
+        <button className={`btn btn-sm ${activeTab === 'page-builder' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('page-builder')}><Sparkles size={16} /> Live Page Editor</button>
         <button className={`btn btn-sm ${activeTab === 'notifications' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('notifications')}><Bell size={16} /> Notifications</button>
       </div>
 
@@ -2511,6 +2513,16 @@ function AdminPage({ user }) {
             </div>
           </div>
         </div>
+      )}
+
+      {activeTab === 'page-builder' && (
+        <PageBuilderAdmin
+          products={products}
+          categories={categories}
+          pageContent={pageContent}
+          onPageContentSaved={onPageContentSaved}
+          setMessage={setMessage}
+        />
       )}
     </div>
   );

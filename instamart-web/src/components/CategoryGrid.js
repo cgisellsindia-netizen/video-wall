@@ -16,13 +16,13 @@ const categoryImages = {
   'Accessories': '/category-real/accessories.jpg',
 };
 
-function CategoryGrid({ categories }) {
+function CategoryGrid({ categories, title = 'Shop by Category' }) {
   const navigate = useNavigate();
 
   return (
     <div className="category-section home-band home-band-categories">
       <CategoryBannerCarousel placementId={0} showEmptySlot />
-      <div className="section-header"><h2 className="section-title">Shop by Category</h2><span className="see-all">See all</span></div>
+      <div className="section-header"><h2 className="section-title">{title}</h2><span className="see-all">See all</span></div>
       <div className="category-grid">
         {categories.map(cat => (
           <div key={cat.id} className="category-card" onClick={() => navigate(`/category/${cat.id}`)}>

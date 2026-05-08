@@ -11,7 +11,8 @@ function SetupPackagesSection({
   cartItems = [],
   savedProductIds = [],
   onToggleSaved = null,
-  deliveryEtaLabel = '16 mins'
+  deliveryEtaLabel = '16 mins',
+  title = 'Full Setup Packages'
 }) {
   const [packages, setPackages] = useState([]);
   const [isVisible, setIsVisible] = useState(true);
@@ -95,7 +96,7 @@ function SetupPackagesSection({
   return (
     <div ref={sectionRef} className={`product-section setup-packages-section home-band home-band-setup motion-section ${isVisible ? 'section-in-view' : ''}`}>
       <div className="section-header">
-        <h2 className="section-title">Full Setup Packages</h2>
+        <h2 className="section-title">{title}</h2>
         <button
           type="button"
           className="see-all see-all-btn"

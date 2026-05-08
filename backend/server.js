@@ -182,12 +182,16 @@ const DEFAULT_CAMIGO_HUB = {
 
 const APP_SETTING_KEYS = {
   homepageSetupPackages: 'homepage_setup_packages',
-  codEnabled: 'cod_enabled'
+  codEnabled: 'cod_enabled',
+  homepageLayout: 'homepage_layout',
+  productPageLayout: 'product_page_layout'
 };
 
 const OPERATIONAL_APP_SETTING_KEYS = [
   APP_SETTING_KEYS.homepageSetupPackages,
-  APP_SETTING_KEYS.codEnabled
+  APP_SETTING_KEYS.codEnabled,
+  APP_SETTING_KEYS.homepageLayout,
+  APP_SETTING_KEYS.productPageLayout
 ];
 
 const DEFAULT_SETUP_PACKAGES = [
@@ -3066,6 +3070,17 @@ app.get('/api/store-settings', async (req, res) => {
   }
 });
 
+app.get('/api/page-content', async (req, res) => {
+  try {
+    res.json({
+      homepage: await getJsonAppSetting(APP_SETTING_KEYS.homepageLayout, null),
+      productPage: await getJsonAppSetting(APP_SETTING_KEYS.productPageLayout, null)
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/categories', (req, res) => {
   db.all('SELECT * FROM categories ORDER BY sort_order', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -4610,6 +4625,24 @@ app.put('/api/admin/store-settings/cod', authenticateToken, requireAdmin, async 
       cod_enabled: enabled,
       operational_backup: operationalBackup,
       operational_warning: operationalBackup.warning
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/admin/page-content', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const homepage = req.body?.homepage ?? null;
+    const productPage = req.body?.productPage ?? null;
+    await saveJsonAppSetting(APP_SETTING_KEYS.homepageLayout, homepage);
+    await saveJsonAppSetting(APP_SETTING_KEYS.productPageLayout, productPage);
+    const operationalBackup = await syncOperationalStateForResponse('page-content-updated');
+    res.json({
+      message: 'Page content updated.',
+      homepage,
+      productPage,
+      backup_warning: operationalBackup.warning
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -13,21 +13,25 @@ const heroProofs = [
   { value: 'Dealer', label: 'pricing for bulk buyers' }
 ];
 
-function HeroBanner() {
+function HeroBanner({ config = null }) {
+  const highlights = Array.isArray(config?.highlights) && config.highlights.length
+    ? config.highlights.map((label, index) => ({ icon: heroHighlights[index % heroHighlights.length].icon, label }))
+    : heroHighlights;
+  const proofs = Array.isArray(config?.proofs) && config.proofs.length ? config.proofs : heroProofs;
   return (
     <section className="hero-banner">
       <div className="hero-inner hero-storefront">
         <div className="hero-content hero-copy-block">
           <span className="hero-kicker">
             <Sparkles size={15} />
-            Camigo Fast CCTV Delivery
+            {config?.kicker || 'Camigo Fast CCTV Delivery'}
           </span>
-          <h1>Fast CCTV delivery for homes, shops, offices, and installers.</h1>
+          <h1>{config?.title || 'Fast CCTV delivery for homes, shops, offices, and installers.'}</h1>
           <p>
-            Order cameras, recorders, PoE switches, SMPS units, and full setup packages with quick local dispatch from Bhubaneswar.
+            {config?.description || 'Order cameras, recorders, PoE switches, SMPS units, and full setup packages with quick local dispatch from Bhubaneswar.'}
           </p>
           <div className="hero-stats hero-highlights">
-            {heroHighlights.map(({ icon: Icon, label }) => (
+            {highlights.map(({ icon: Icon, label }) => (
               <div className="hero-stat hero-highlight-pill" key={label}>
                 <div className="hero-stat-icon"><Icon size={16} /></div>
                 <span>{label}</span>
@@ -35,7 +39,7 @@ function HeroBanner() {
             ))}
           </div>
           <div className="hero-proof-grid">
-            {heroProofs.map((item) => (
+            {proofs.map((item) => (
               <div className="hero-proof-card" key={item.label}>
                 <strong>{item.value}</strong>
                 <span>{item.label}</span>
@@ -47,12 +51,12 @@ function HeroBanner() {
         <div className="hero-visual-board" aria-hidden="true">
           <div className="hero-visual-glow" />
           <div className="hero-visual-panel">
-            <div className="hero-panel-badge">Quick local dispatch</div>
+            <div className="hero-panel-badge">{config?.visualBadge || 'Quick local dispatch'}</div>
             <div className="hero-delivery-visual">
               <div className="hero-delivery-card">
-                <span className="hero-delivery-pill">Local delivery</span>
-                <strong>Quick dispatch from Bhubaneswar</strong>
-                <small>Product, installation, and support in one streamlined flow.</small>
+                <span className="hero-delivery-pill">{config?.deliveryPill || 'Local delivery'}</span>
+                <strong>{config?.deliveryTitle || 'Quick dispatch from Bhubaneswar'}</strong>
+                <small>{config?.deliveryDescription || 'Product, installation, and support in one streamlined flow.'}</small>
               </div>
               <img src="/images/camigo-delivery-hero.png" alt="Camigo delivery partner with CCTV order" />
             </div>

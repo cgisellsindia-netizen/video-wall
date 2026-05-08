@@ -4,9 +4,6 @@ import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
 import Header from './components/Header';
-import HeroBanner from './components/HeroBanner';
-import CategoryGrid from './components/CategoryGrid';
-import SetupPackagesSection from './components/SetupPackagesSection';
 import ProductSection from './components/ProductSection';
 import ProductDetail from './components/ProductDetail';
 import CartDrawer from './components/CartDrawer';
@@ -29,10 +26,12 @@ import FloatingTracker from './components/FloatingTracker';
 import FloatingCheckoutBar from './components/FloatingCheckoutBar';
 import Footer from './components/Footer';
 import BottomNav from './components/BottomNav';
+import { HomepageBlocks } from './components/PageBuilderRenderer';
 import { API_URL } from './api';
 import { captureCustomerLocation, getSavedCustomerAreaName, getSavedCustomerLocation, resolveCustomerAreaName, saveCustomerAreaName, saveCustomerLocation } from './locationLock';
 import { isTrackableOrder } from './orderTracking';
 import { getDeliveryEstimate } from './deliveryZone';
+import { DEFAULT_PAGE_CONTENT, normalizePageContent } from './pageBuilder';
 import './App.css';
 
 const getRuntimeAppMode = () => {
@@ -217,7 +216,8 @@ function MainPage({
   savedProducts = [],
   savedProductIds = [],
   onToggleSaved,
-  deliveryEtaLabel = '16 mins'
+  deliveryEtaLabel = '16 mins',
+  pageContent = DEFAULT_PAGE_CONTENT
 }) {
   const setupProducts = useMemo(
     () => products.filter((product) => isSetupProduct(product)),
@@ -254,73 +254,22 @@ function MainPage({
   return (
     <>
       <main className="main-content">
-        {!searchQuery && <HeroBanner />}
-        {!searchQuery && <CategoryGrid categories={categories} />}
         {!searchQuery && (
-          <SetupPackagesSection
-            products={setupProducts}
-            onAdd={addToCart}
-            onRemove={removeFromCart}
+          <HomepageBlocks
+            pageContent={pageContent}
+            categories={categories}
+            setupProducts={setupProducts}
+            recentProducts={recentProducts}
+            savedProducts={savedProducts}
+            recommendedProducts={recommendedProducts}
+            bestsellingProducts={bestsellingProducts}
+            regularProducts={regularProducts}
             cartItems={cartItems}
+            addToCart={addToCart}
+            removeFromCart={removeFromCart}
             user={user}
             savedProductIds={savedProductIds}
             onToggleSaved={onToggleSaved}
-            deliveryEtaLabel={deliveryEtaLabel}
-          />
-        )}
-        {!searchQuery && recentProducts.filter((product) => !isSetupProduct(product)).length > 0 && (
-          <ProductSection
-            title="Buy Again"
-            products={recentProducts.filter((product) => !isSetupProduct(product))}
-            onAdd={addToCart}
-            onRemove={removeFromCart}
-            user={user}
-            cartItems={cartItems}
-            savedProductIds={savedProductIds}
-            onToggleSaved={onToggleSaved}
-            sectionTone="warm"
-            deliveryEtaLabel={deliveryEtaLabel}
-          />
-        )}
-        {!searchQuery && savedProducts.filter((product) => !isSetupProduct(product)).length > 0 && (
-          <ProductSection
-            title="Saved for Later"
-            products={savedProducts.filter((product) => !isSetupProduct(product))}
-            onAdd={addToCart}
-            onRemove={removeFromCart}
-            user={user}
-            cartItems={cartItems}
-            savedProductIds={savedProductIds}
-            onToggleSaved={onToggleSaved}
-            sectionTone="soft"
-            deliveryEtaLabel={deliveryEtaLabel}
-          />
-        )}
-        {!searchQuery && recommendedProducts.filter((product) => !isSetupProduct(product)).length > 0 && (
-          <ProductSection
-            title="Recommended for You"
-            products={recommendedProducts.filter((product) => !isSetupProduct(product))}
-            onAdd={addToCart}
-            onRemove={removeFromCart}
-            user={user}
-            cartItems={cartItems}
-            savedProductIds={savedProductIds}
-            onToggleSaved={onToggleSaved}
-            sectionTone="sky"
-            deliveryEtaLabel={deliveryEtaLabel}
-          />
-        )}
-        {!searchQuery && bestsellingProducts.filter((product) => !isSetupProduct(product)).length > 0 && (
-          <ProductSection
-            title="Most Loved CCTV Picks"
-            products={bestsellingProducts.filter((product) => !isSetupProduct(product))}
-            onAdd={addToCart}
-            onRemove={removeFromCart}
-            user={user}
-            cartItems={cartItems}
-            savedProductIds={savedProductIds}
-            onToggleSaved={onToggleSaved}
-            sectionTone="contrast"
             deliveryEtaLabel={deliveryEtaLabel}
           />
         )}
@@ -368,6 +317,7 @@ function AppContent() {
   const [appNotice, setAppNotice] = useState(null);
   const [customerOrders, setCustomerOrders] = useState([]);
   const [savedItems, setSavedItems] = useState([]);
+  const [pageContent, setPageContent] = useState(DEFAULT_PAGE_CONTENT);
   const [notificationPermission, setNotificationPermission] = useState(() => (
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
   ));
@@ -472,6 +422,14 @@ function AppContent() {
     } catch (e) {}
   };
 
+  const fetchPageContent = async () => {
+    try {
+      const res = await fetch(`${API_URL}/page-content`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setPageContent(normalizePageContent(data));
+    } catch (e) {}
+  };
+
   const setCartBusy = (productId, busy) => {
     const value = Number(productId);
     if (!Number.isFinite(value)) return;
@@ -518,6 +476,7 @@ function AppContent() {
 
       fetchCategories();
       fetchProducts();
+      fetchPageContent();
       if (!stopped) setAuthReady(true);
     };
 
@@ -1233,10 +1192,11 @@ function AppContent() {
               savedProductIds={savedProductIds}
               onToggleSaved={toggleSavedItem}
               deliveryEtaLabel={deliveryEtaLabel}
+              pageContent={pageContent}
             />
           </DeliveryOnlyRoute>
         } />
-        <Route path="/product/:id" element={<DeliveryOnlyRoute user={user}><ProductDetail products={products} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} user={user} onLogin={() => setLoginOpen(true)} priceForRole={priceForRole} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} /></DeliveryOnlyRoute>} />
+        <Route path="/product/:id" element={<DeliveryOnlyRoute user={user}><ProductDetail products={products} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} user={user} onLogin={() => setLoginOpen(true)} priceForRole={priceForRole} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} pageContent={pageContent} /></DeliveryOnlyRoute>} />
         <Route path="/category/:id" element={<DeliveryOnlyRoute user={user}><CategoryPage categories={categories} products={products} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} deliveryEtaLabel={deliveryEtaLabel} /></DeliveryOnlyRoute>} />
         <Route path="/orders" element={<DeliveryOnlyRoute user={user}><OrdersPage user={user} onLogin={() => setLoginOpen(true)} onUserUpdate={updateUserState} /></DeliveryOnlyRoute>} />
         <Route path="/saved" element={<DeliveryOnlyRoute user={user}><SavedItemsPage user={user} onLogin={() => setLoginOpen(true)} products={products} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} priceForRole={priceForRole} deliveryEtaLabel={deliveryEtaLabel} /></DeliveryOnlyRoute>} />
@@ -1246,7 +1206,7 @@ function AppContent() {
         <Route path="/contact" element={<ContactPage user={user} />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
-        <Route path="/admin" element={<AdminPage user={user} />} />
+        <Route path="/admin" element={<AdminPage user={user} pageContent={pageContent} onPageContentSaved={setPageContent} />} />
         <Route path="/shop" element={<DeliveryOnlyRoute user={user}><ShopPage products={products} categories={categories} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} deliveryEtaLabel={deliveryEtaLabel} /></DeliveryOnlyRoute>} />
         <Route path="/checkout" element={<DeliveryOnlyRoute user={user}><CheckoutPage user={user} liveCartItems={cartItems} onLogin={() => setLoginOpen(true)} onOrderPlaced={handleOrderPlaced} onUserUpdate={updateUserState} /></DeliveryOnlyRoute>} />
         <Route path="/tracking/:id" element={<TrackingPage />} />
