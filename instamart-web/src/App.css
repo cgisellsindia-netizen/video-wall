@@ -1036,6 +1036,8 @@
 .category-banner-track {
   display: flex;
   gap: var(--category-banner-gap);
+  padding-inline: calc((100% - var(--category-banner-card-width)) / 2);
+  box-sizing: border-box;
   transition: transform .55s ease;
   will-change: transform;
 }
