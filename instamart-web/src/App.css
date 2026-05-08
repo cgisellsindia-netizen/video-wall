@@ -2676,6 +2676,32 @@
 .checkout-summary { position: sticky; top: 92px; align-self: start; }
 .checkout-items { display: grid; gap: 10px; max-height: 260px; overflow: auto; margin-bottom: 14px; }
 .checkout-item, .summary-row, .summary-total { display: flex; justify-content: space-between; gap: 14px; }
+.checkout-item { align-items: center; }
+.checkout-item-copy { display: grid; gap: 8px; min-width: 0; }
+.checkout-item-copy > span { font-weight: 700; color: #0f172a; }
+.checkout-item-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid #dbe4f0;
+  width: fit-content;
+}
+.checkout-item-qty button {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: #e8eef8;
+  color: #123c88;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.checkout-item-qty strong { min-width: 14px; text-align: center; color: #0f172a; }
 .summary-row { padding: 8px 0; color: #64748b; }
 .summary-total { padding-top: 14px; border-top: 1px solid #edf1f6; font-size: 20px; font-weight: 900; }
 .installation-choice-card {

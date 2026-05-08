@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, CreditCard, MapPin, Search, Smartphone, Wrench, X, XCircle } from 'lucide-react';
+import { CheckCircle2, CreditCard, MapPin, Minus, Plus, Search, Smartphone, Wrench, X, XCircle } from 'lucide-react';
 import { API_URL } from '../api';
 import { captureCustomerLocation, getSavedCustomerLocation } from '../locationLock';
 import { checkServiceability, extractPincode } from '../deliveryZone';
@@ -328,6 +328,40 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
     }
   };
 
+  const handleSummaryQuantityChange = async (item, nextQuantity) => {
+    const safeQuantity = Math.max(0, Number(nextQuantity || 0));
+    const token = localStorage.getItem('token');
+    const nextCartItems = safeQuantity === 0
+      ? cartItems.filter((entry) => String(entry.id ?? entry.product_id ?? entry.name) !== String(item.id ?? item.product_id ?? item.name))
+      : cartItems.map((entry) => (
+          String(entry.id ?? entry.product_id ?? entry.name) === String(item.id ?? item.product_id ?? item.name)
+            ? { ...entry, quantity: safeQuantity }
+            : entry
+        ));
+
+    setCartItems(nextCartItems);
+    localStorage.setItem('cart_backup', JSON.stringify(nextCartItems));
+
+    if (!token || !item?.id) return;
+
+    try {
+      if (safeQuantity === 0) {
+        await fetch(`${API_URL}/cart/${item.id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } else {
+        await fetch(`${API_URL}/cart/${item.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ quantity: safeQuantity })
+        });
+      }
+    } catch (cartError) {
+      // Keep checkout responsive even if cart sync is delayed.
+    }
+  };
+
   const handlePlaceOrder = async () => {
     setError('');
     if (!user?.phone_verified) { setPhoneVerifyOpen(true); return; }
@@ -603,16 +637,27 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
         </section>
       </div>
 
-      <aside className="checkout-summary">
-        <h3>Order Summary</h3>
-        <div className="checkout-items">
-          {cartItems.map((item, i) => (
-            <div key={i} className="checkout-item">
-              <span>{item.name} x{item.quantity}</span>
-              <strong>Rs {item.price * item.quantity}</strong>
-            </div>
-          ))}
-        </div>
+        <aside className="checkout-summary">
+          <h3>Order Summary</h3>
+          <div className="checkout-items">
+            {cartItems.map((item, i) => (
+              <div key={i} className="checkout-item">
+                <div className="checkout-item-copy">
+                  <span>{item.name}</span>
+                  <div className="checkout-item-qty">
+                    <button type="button" onClick={() => handleSummaryQuantityChange(item, Number(item.quantity || 1) - 1)} aria-label={`Decrease quantity for ${item.name}`}>
+                      <Minus size={14} />
+                    </button>
+                    <strong>{item.quantity}</strong>
+                    <button type="button" onClick={() => handleSummaryQuantityChange(item, Number(item.quantity || 1) + 1)} aria-label={`Increase quantity for ${item.name}`}>
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                </div>
+                <strong>Rs {item.price * item.quantity}</strong>
+              </div>
+            ))}
+          </div>
         <div className="summary-row"><span>Subtotal</span><strong>Rs {subtotal}</strong></div>
         {promoDiscount > 0 && <div className="summary-row"><span>Discount</span><strong>- Rs {promoDiscount}</strong></div>}
         <div className="summary-row"><span>GST 18%</span><strong>Rs {gst}</strong></div>
