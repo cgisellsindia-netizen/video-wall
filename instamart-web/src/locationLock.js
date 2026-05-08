@@ -186,9 +186,10 @@ export const captureCustomerLocation = ({ lock = false, timeout = 10000, maximum
 export const searchCustomerLocations = async (query = '') => {
   const term = String(query || '').trim();
   if (term.length < 2) return [];
-  try {
-    const expandedQueries = expandLocationQueries(term);
-    if (GOOGLE_MAPS_API_KEY) {
+  const expandedQueries = expandLocationQueries(term);
+
+  if (GOOGLE_MAPS_API_KEY) {
+    try {
       const maps = await loadGoogleMapsPlaces();
       if (maps?.places?.AutocompleteService) {
         const autocompleteService = new maps.places.AutocompleteService();
@@ -226,7 +227,12 @@ export const searchCustomerLocations = async (query = '') => {
         })).filter((item) => item.label && Number.isFinite(item.lat) && Number.isFinite(item.lng));
         if (googleResults.length > 0 && data?.status === 'OK') return googleResults;
       }
+    } catch (error) {
+      // Fall through to OSM if Google Places/Geocoding fails in the browser.
     }
+  }
+
+  try {
     for (const expandedQuery of expandedQueries) {
       const fallbackResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(expandedQuery)}`, {
         headers: {
