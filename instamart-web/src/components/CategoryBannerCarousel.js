@@ -58,7 +58,7 @@ function CategoryBannerCarousel({ placementId, showEmptySlot = false }) {
       <div
         className="category-banner-track"
         style={{
-          transform: `translateX(calc(-${trackOffset} * (var(--category-banner-card-width) + var(--category-banner-gap))))`,
+          transform: `translateX(calc(var(--category-banner-side-peek) - ${trackOffset} * (var(--category-banner-card-width) + var(--category-banner-gap))))`,
         }}
       >
         {visibleBanners.map((banner, index) => (

@@ -1025,6 +1025,7 @@
 .category-banner-strip {
   --category-banner-gap: 12px;
   --category-banner-card-width: calc(100% - 56px);
+  --category-banner-side-peek: 28px;
   margin: 0 0 18px;
   padding: 12px;
   overflow: hidden;
@@ -1036,8 +1037,6 @@
 .category-banner-track {
   display: flex;
   gap: var(--category-banner-gap);
-  padding-inline: calc((100% - var(--category-banner-card-width)) / 2);
-  box-sizing: border-box;
   transition: transform .55s ease;
   will-change: transform;
 }
@@ -4647,6 +4646,7 @@
   .category-banner-strip {
     --category-banner-gap: 10px;
     --category-banner-card-width: calc(100% - 44px);
+    --category-banner-side-peek: 22px;
     border-radius: 18px;
     margin-bottom: 14px;
     padding: 10px;
