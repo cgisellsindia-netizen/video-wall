@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Heart, Minus, Plus, Star } from 'lucide-react';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
+import ProductImage from './ProductImage';
 
 function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [], categoryId = null, savedProductIds = [], onToggleSaved = null, sectionTone = 'neutral', deliveryEtaLabel = '16 mins' }) {
   const navigate = useNavigate();
@@ -78,11 +79,7 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
               onClick={() => navigate(`/product/${product.id}`)}
             >
               <div className="product-img-wrap">
-                {product.image ? (
-                  <img src={product.image} alt={product.name} loading="lazy" />
-                ) : (
-                  <div className="emoji">CCTV</div>
-                )}
+                <ProductImage src={product.image} alt={product.name} loading="lazy" fallbackContent="CCTV" />
                 {discount > 0 && (
                   <span className="product-corner-offer" aria-label={`${discount}% off`}>
                     <strong>{discount}%</strong>

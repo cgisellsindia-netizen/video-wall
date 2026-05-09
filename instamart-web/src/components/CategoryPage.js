@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Heart, Minus, Plus, Search, SlidersHorizontal, Star } from 'lucide-react';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
+import ProductImage from './ProductImage';
 
 function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null, deliveryEtaLabel = '16 mins' }) {
   const { id } = useParams();
@@ -235,7 +236,7 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
           return (
             <div key={product.id} className="product-card" onClick={() => navigate(`/product/${product.id}`)}>
               <div className="product-img-wrap">
-                {product.image ? <img src={product.image} alt={product.name} loading="lazy" /> : <div className="emoji">CCTV</div>}
+                <ProductImage src={product.image} alt={product.name} loading="lazy" fallbackContent="CCTV" />
                 {discount > 0 && (
                   <span className="product-corner-offer" aria-label={`${discount}% off`}>
                     <strong>{discount}%</strong>

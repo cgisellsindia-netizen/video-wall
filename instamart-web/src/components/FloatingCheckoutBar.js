@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
+import ProductImage from './ProductImage';
 
 function FloatingCheckoutBar({ cartCount, cartTotal, cartItems = [], onCartClick }) {
   const navigate = useNavigate();
@@ -20,7 +21,7 @@ function FloatingCheckoutBar({ cartCount, cartTotal, cartItems = [], onCartClick
           <small>{cartCount} ITEM{cartCount > 1 ? 'S' : ''}</small>
         </span>
         <span className="floating-checkout-thumb">
-          {firstItem?.image ? <img src={firstItem.image} alt="" /> : 'C'}
+          <ProductImage src={firstItem?.image} alt="" fallbackContent="C" />
         </span>
         <ChevronRight size={18} />
       </button>

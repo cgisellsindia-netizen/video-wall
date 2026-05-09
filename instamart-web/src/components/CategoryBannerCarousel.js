@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { API_URL } from '../api';
+import ProductImage from './ProductImage';
 
 function CategoryBannerCarousel({ placementId, showEmptySlot = false }) {
   const [banners, setBanners] = useState([]);
@@ -67,7 +68,7 @@ function CategoryBannerCarousel({ placementId, showEmptySlot = false }) {
             className="category-banner-slide"
             style={{ aspectRatio: `${banner.width || 1200} / ${banner.height || 320}` }}
           >
-            <img src={banner.image_url} alt="Category banner" />
+            <ProductImage src={banner.image_url} alt="Category banner" />
           </div>
         ))}
       </div>

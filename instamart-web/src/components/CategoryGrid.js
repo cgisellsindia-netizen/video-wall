@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
+import ProductImage from './ProductImage';
 
 const categoryImages = {
   'Night Color AHD Cameras': '/category-real/ahd-cameras.jpg',
@@ -27,7 +28,7 @@ function CategoryGrid({ categories, title = 'Shop by Category' }) {
         {categories.map(cat => (
           <div key={cat.id} className="category-card" onClick={() => navigate(`/category/${cat.id}`)}>
             <div className="category-img">
-              <img src={cat.image || categoryImages[cat.name] || '/category-real/accessories.jpg'} alt={cat.name} />
+              <ProductImage src={cat.image || categoryImages[cat.name]} fallbackSrc="/category-real/accessories.jpg" alt={cat.name} />
             </div>
           </div>
         ))}

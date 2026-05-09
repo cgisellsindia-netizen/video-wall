@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { BadgeCheck, CheckCircle2, Headphones, MapPin, Package, ShieldCheck, Truck } from 'lucide-react';
 import { API_URL } from '../api';
 import PhoneVerificationCard from './PhoneVerificationCard';
+import ProductImage from './ProductImage';
 import { formatOrderStatusLabel, isPaymentPendingOrder } from '../orderTracking';
 
 const formatWarrantyDate = (value) => {
@@ -624,7 +625,7 @@ function OrdersPage({ user, onLogin, onUserUpdate }) {
                           return (
                             <div key={item.id} className="order-warranty-item order-aftercare-item">
                               <div className="order-warranty-product">
-                                {item.image && <img src={item.image} alt={item.name} />}
+                                <ProductImage src={item.image} alt={item.name} fallbackContent="" />
                                 <div>
                                   <strong>{item.name}</strong>
                                   <span>Qty {item.quantity} • {item.warranty_years || 5} year warranty</span>

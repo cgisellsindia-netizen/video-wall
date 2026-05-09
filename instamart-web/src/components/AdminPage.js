@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, Shield, Users, ShoppingBag, Package, Plus, Trash2, Edit, MapPin, Truck, Sparkles, FolderOpen, Image as ImageIcon, ArrowUp, Copy, ExternalLink, Bike, CheckCircle2, Headphones } from 'lucide-react';
 import { API_URL } from '../api';
 import PageBuilderAdmin from './PageBuilderAdmin';
+import ProductImage from './ProductImage';
 
 function AdminPage({ user, pageContent, onPageContentSaved }) {
   const [users, setUsers] = useState([]);
@@ -1377,7 +1378,7 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
             {setupPackageDrafts.map((entry, index) => (
               <article key={entry.id || index} className="category-admin-card">
                 <div className="category-admin-preview-wrap">
-                  <img src={entry.image || '/category-real/accessories.jpg'} alt={entry.title || `Full setup ${index + 1}`} className="category-admin-preview" />
+              <ProductImage src={entry.image} fallbackSrc="/category-real/accessories.jpg" alt={entry.title || `Full setup ${index + 1}`} className="category-admin-preview" />
                 </div>
                 <div className="category-admin-body">
                   <div className="category-admin-topline">
@@ -1489,7 +1490,7 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
                         <div className="infinity-image-grid infinity-banner-grid">
                           {mediaBrowser.data.images.map(image => (
                             <button type="button" key={image.url} className="infinity-image-card" onClick={() => chooseInfinityImage(image.url)}>
-                              <img src={image.url} alt={image.name} loading="lazy" />
+                            <ProductImage src={image.url} alt={image.name} loading="lazy" />
                               <span>{image.name}</span>
                               <small>Use for setup</small>
                             </button>
@@ -1976,7 +1977,7 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
                   {lastAiBanners.map((banner, index) => (
                     <div key={`${banner.category_id}-${index}`} style={{ border: '1px solid #dbe7f5', borderRadius: 16, padding: 10, background: '#fff' }}>
                       <strong>{banner.category_name || `Banner ${index + 1}`}</strong>
-                      <img src={banner.image_url} alt={banner.category_name || 'Generated banner'} style={{ width: '100%', marginTop: 8, borderRadius: 14, objectFit: 'cover', aspectRatio: `${Number(aiBannerForm.width) || 1200} / ${Number(aiBannerForm.height) || 320}` }} />
+                          <ProductImage src={banner.image_url} alt={banner.category_name || 'Generated banner'} style={{ width: '100%', marginTop: 8, borderRadius: 14, objectFit: 'cover', aspectRatio: `${Number(aiBannerForm.width) || 1200} / ${Number(aiBannerForm.height) || 320}` }} />
                     </div>
                   ))}
                 </div>
@@ -2043,7 +2044,7 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
                     <div className="infinity-image-grid infinity-banner-grid">
                       {mediaBrowser.data.images.map(image => (
                         <button type="button" key={image.url} className="infinity-image-card" onClick={() => chooseInfinityImage(image.url)}>
-                          <img src={image.url} alt={image.name} loading="lazy" />
+                            <ProductImage src={image.url} alt={image.name} loading="lazy" />
                           <span>{image.name}</span>
                           <small>Use as banner</small>
                         </button>
@@ -2061,7 +2062,7 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
               <div className="form-group"><label>Active</label><select value={bannerForm.active ? '1' : '0'} onChange={e => setBannerForm(prev => ({ ...prev, active: e.target.value === '1' }))}><option value="1">Active</option><option value="0">Inactive</option></select></div>
               <div className="admin-image-preview">
                 <span>Banner preview</span>
-                <img src={bannerForm.image_url || '/images/cgi-hd3e.jpg'} alt="Banner preview" style={{ objectFit: 'cover', aspectRatio: `${Number(bannerForm.width) || 1200} / ${Number(bannerForm.height) || 320}` }} />
+                    <ProductImage src={bannerForm.image_url || '/images/cgi-hd3e.jpg'} alt="Banner preview" style={{ objectFit: 'cover', aspectRatio: `${Number(bannerForm.width) || 1200} / ${Number(bannerForm.height) || 320}` }} />
               </div>
               <button className="btn btn-primary" type="submit" disabled={bannerUploadBusy}>{bannerUploadBusy ? 'Loading banner...' : (editBanner ? 'Update Banner' : 'Add Banner')}</button>
               {editBanner && <button className="btn btn-outline" type="button" onClick={() => { setEditBanner(null); setBannerForm(emptyBanner); }}>Cancel</button>}
@@ -2129,7 +2130,7 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
                     {group.items.map(banner => (
                       <article key={banner.id} className="banner-admin-card">
                         <div className="banner-admin-preview-wrap">
-                          <img src={banner.image_url} alt={banner.category_name} className="banner-admin-preview" />
+                      <ProductImage src={banner.image_url} alt={banner.category_name} className="banner-admin-preview" />
                         </div>
                         <div className="banner-admin-card-body">
                           <div className="banner-admin-card-topline">
@@ -2182,7 +2183,7 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
               return (
                 <article key={category.id} className="category-admin-card">
                   <div className="category-admin-preview-wrap">
-                    <img src={previewImage} alt={draft.name || category.name} className="category-admin-preview" />
+                  <ProductImage src={previewImage} fallbackSrc="/category-real/accessories.jpg" alt={draft.name || category.name} className="category-admin-preview" />
                   </div>
                   <div className="category-admin-body">
                     <div className="category-admin-topline">
@@ -2261,7 +2262,7 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
                           <div className="infinity-image-grid">
                             {mediaBrowser.data.images.map(image => (
                               <button type="button" key={image.url} className="infinity-image-card" onClick={() => chooseInfinityImage(image.url)}>
-                                <img src={image.url} alt={image.name} loading="lazy" />
+                            <ProductImage src={image.url} alt={image.name} loading="lazy" />
                                 <span>{image.name}</span>
                                 <small>Use as tile photo</small>
                               </button>
@@ -2369,7 +2370,7 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
                       <div className="infinity-image-grid">
                         {mediaBrowser.data.images.map(image => (
                           <button type="button" key={image.url} className="infinity-image-card" onClick={() => chooseInfinityImage(image.url)}>
-                            <img src={image.url} alt={image.name} loading="lazy" />
+                            <ProductImage src={image.url} alt={image.name} loading="lazy" />
                             <span>{image.name}</span>
                             <small>{mediaBrowser.mode === 'cover' ? 'Use as cover' : 'Add to gallery'}</small>
                           </button>
@@ -2399,7 +2400,7 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
                 </div>
                 <div className="admin-image-preview">
                   <span>Image preview</span>
-                  <img src={(form.images && form.images[0]) || form.image || '/images/cgi-hd3e.jpg'} alt="Product preview" />
+                  <ProductImage src={(form.images && form.images[0]) || form.image || '/images/cgi-hd3e.jpg'} alt="Product preview" />
                 </div>
                 <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '10px' }}>
                   <button type="submit" className="btn btn-primary">{editProduct ? 'Update' : 'Create'}</button>

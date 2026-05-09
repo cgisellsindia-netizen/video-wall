@@ -5,12 +5,13 @@ import HeroBanner from './HeroBanner';
 import CategoryGrid from './CategoryGrid';
 import SetupPackagesSection from './SetupPackagesSection';
 import ProductSection from './ProductSection';
+import ProductImage from './ProductImage';
 
 function CustomBannerBlock({ block }) {
   if (!block?.image_url) return null;
   return (
     <section className="page-builder-banner" style={{ '--builder-banner-height': `${Math.max(120, Number(block.height || 220))}px` }}>
-      <img src={block.image_url} alt={block.title || 'Banner'} />
+      <ProductImage src={block.image_url} alt={block.title || 'Banner'} />
       {(block.title || block.subtitle || block.button_label) && (
         <div className="page-builder-banner-overlay">
           {block.title && <strong>{block.title}</strong>}
@@ -185,13 +186,13 @@ function ProductHeroBlock({
           </div>
           <div className={gallery.length > 1 ? 'product-stage-visuals has-gallery' : 'product-stage-visuals single-image'}>
             <div className="product-stage-main-shot marketplace-main-shot">
-              {activeImage ? <img src={activeImage} alt={product.name} /> : <div className="emoji" style={{ fontSize: '120px' }}>CCTV</div>}
+              <ProductImage src={activeImage} alt={product.name} loading="eager" fallbackContent="CCTV" />
             </div>
             {gallery.length > 1 && (
               <div className="product-gallery-thumbs product-gallery-thumbs-under">
                 {gallery.map((image) => (
                   <button key={image} type="button" className={image === activeImage ? 'product-thumb active' : 'product-thumb'} onClick={() => setActiveImage(image)}>
-                    <img src={image} alt="" />
+                    <ProductImage src={image} alt="" />
                   </button>
                 ))}
               </div>
@@ -410,7 +411,7 @@ export function ProductPageBlocks({
               <div className="related-product-grid">
                 {relatedProducts.map((item) => (
                   <button key={item.id} className="related-product-card" onClick={() => navigate(`/product/${item.id}`)}>
-                    <img src={item.image} alt={item.name} />
+                <ProductImage src={item.image} alt={item.name} />
                     <div className="related-product-body">
                       <small>{item.unit}</small>
                       <strong>{item.name}</strong>

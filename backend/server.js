@@ -1462,6 +1462,53 @@ const mediaLibraryPublicUrl = (dir, filename) => {
   return `${MEDIA_LIBRARY_PUBLIC_BASE}/${encodedPath}`;
 };
 
+const mediaLibraryContentTypes = {
+  '.avif': 'image/avif',
+  '.gif': 'image/gif',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp'
+};
+
+const mediaLibraryRemotePathFromPublicUrl = (value = '') => {
+  if (!MEDIA_LIBRARY_PUBLIC_BASE) throw new Error('Media library public base is not configured');
+  let parsedUrl;
+  let parsedBase;
+  try {
+    parsedUrl = new URL(String(value || '').trim());
+    parsedBase = new URL(MEDIA_LIBRARY_PUBLIC_BASE);
+  } catch (error) {
+    throw new Error('Invalid media URL');
+  }
+
+  if (parsedUrl.origin !== parsedBase.origin) {
+    throw new Error('Media URL is outside the configured Camigo media library');
+  }
+
+  const decodedParts = parsedUrl.pathname
+    .split('/')
+    .filter(Boolean)
+    .map(part => decodeURIComponent(part));
+  if (!decodedParts.length || decodedParts.some(part => part === '..' || part.includes('\0') || part.includes('/'))) {
+    throw new Error('Invalid media path');
+  }
+
+  const filename = decodedParts[decodedParts.length - 1];
+  const extension = path.posix.extname(filename).toLowerCase();
+  if (!mediaLibraryImageExtensions.has(extension)) {
+    throw new Error('Unsupported media file type');
+  }
+
+  const dir = normalizeMediaLibraryDir(decodedParts.slice(0, -1).join('/'));
+  return {
+    filename,
+    extension,
+    remotePath: path.posix.join(mediaLibraryRemoteDir(dir), filename)
+  };
+};
+
 const normalizeCatalogBackupRemotePath = () => {
   const raw = String(MEDIA_MANIFEST_FTP_PATH || '/htdocs/camigo-catalog-backup.json').replaceAll('\\', '/');
   const prefixed = raw.startsWith('/') ? raw : `/${raw}`;
@@ -4974,6 +5021,35 @@ app.get('/api/admin/media/library', authenticateToken, requireAdmin, async (req,
     });
   } catch (error) {
     res.status(500).json({ error: error.message || 'Could not browse InfinityFree media library.' });
+  } finally {
+    if (client) client.close();
+  }
+});
+
+app.get('/api/media/proxy', async (req, res) => {
+  if (!hasCatalogFtpConfig) {
+    return res.status(503).json({ error: 'Media proxy is not configured' });
+  }
+
+  let client;
+  try {
+    const mediaFile = mediaLibraryRemotePathFromPublicUrl(req.query.url || '');
+    client = await createCatalogFtpClient();
+    const chunks = [];
+    const collector = new Writable({
+      write(chunk, encoding, callback) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
+        callback();
+      }
+    });
+    await client.downloadTo(collector, mediaFile.remotePath);
+    const body = Buffer.concat(chunks);
+    res.setHeader('Content-Type', mediaLibraryContentTypes[mediaFile.extension] || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Content-Length', body.length);
+    res.send(body);
+  } catch (error) {
+    res.status(404).json({ error: error.message || 'Media file not found' });
   } finally {
     if (client) client.close();
   }

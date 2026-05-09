@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Minus, Plus, ShoppingBag } from 'lucide-react';
+import ProductImage from './ProductImage';
 
 function CartDrawer({ open, onClose, items = [], total = 0, onUpdate, onAdd, onRemove, user }) {
   const [checkingOut, setCheckingOut] = useState(false);
@@ -44,7 +45,7 @@ function CartDrawer({ open, onClose, items = [], total = 0, onUpdate, onAdd, onR
           ) : (
             items.map(item => (
               <div key={item.id} className="cart-item">
-                <div className="cart-item-img">{item.image ? <img src={item.image} alt={item.name} /> : 'CCTV'}</div>
+                <div className="cart-item-img"><ProductImage src={item.image} alt={item.name} fallbackContent="CCTV" /></div>
                 <div className="cart-item-info">
                   <div className="cart-item-name">{item.name}</div>
                   <div className="cart-item-weight">{item.unit}</div>

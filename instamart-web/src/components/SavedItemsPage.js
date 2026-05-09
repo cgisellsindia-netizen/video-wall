@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Heart, Minus, Plus, Search, ShoppingCart, Star } from 'lucide-react';
+import ProductImage from './ProductImage';
 
 function SavedItemsPage({
   user,
@@ -83,7 +84,7 @@ function SavedItemsPage({
             return (
               <div key={product.id} className="product-card" onClick={() => navigate(`/product/${product.id}`)}>
               <div className="product-img-wrap">
-                {product.image ? <img src={product.image} alt={product.name} loading="lazy" /> : <div className="emoji">CCTV</div>}
+                <ProductImage src={product.image} alt={product.name} loading="lazy" fallbackContent="CCTV" />
                 {discount > 0 && (
                   <span className="product-corner-offer" aria-label={`${discount}% off`}>
                     <strong>{discount}%</strong>
