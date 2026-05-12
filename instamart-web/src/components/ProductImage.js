@@ -1,37 +1,67 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { API_URL } from '../api';
-
-const rasterExtensions = ['webp', 'jpg', 'jpeg', 'png'];
+const resolvedSourceCache = new Map();
 
 const isEmbeddedImage = (value = '') => /^(data|blob):/i.test(String(value || '').trim());
 
-const proxiedMediaSource = (value = '') => {
+const splitSourceParts = (value = '') => {
   const cleanValue = String(value || '').trim();
+  const match = cleanValue.match(/^([^?#]*)([?#].*)?$/);
+  return {
+    path: match?.[1] || '',
+    suffix: match?.[2] || ''
+  };
+};
+
+const normalizePathSegments = (pathname = '') => pathname
+  .split('/')
+  .map((segment) => {
+    if (!segment) return segment;
+    try {
+      return encodeURIComponent(decodeURIComponent(segment));
+    } catch (error) {
+      return encodeURIComponent(segment);
+    }
+  })
+  .join('/');
+
+const normalizeImageSource = (value = '') => {
+  const cleanValue = String(value || '').trim();
+  if (!cleanValue || isEmbeddedImage(cleanValue)) return cleanValue;
+
+  if (/^https?:\/\//i.test(cleanValue)) {
+    try {
+      const parsed = new URL(cleanValue);
+      parsed.pathname = normalizePathSegments(parsed.pathname);
+      return parsed.toString();
+    } catch (error) {
+      return cleanValue;
+    }
+  }
+
+  const { path, suffix } = splitSourceParts(cleanValue);
+  return `${normalizePathSegments(path)}${suffix}`;
+};
+
+const proxiedMediaSource = (value = '') => {
+  const cleanValue = normalizeImageSource(value);
   if (!cleanValue || isEmbeddedImage(cleanValue) || !/^https?:\/\//i.test(cleanValue)) return '';
   return `${API_URL}/media/proxy?url=${encodeURIComponent(cleanValue)}`;
 };
 
 const buildFallbackSources = (src, fallbackSrc = '') => {
-  const cleanSrc = String(src || '').trim();
+  const cleanSrc = normalizeImageSource(src);
+  const cleanFallbackSrc = normalizeImageSource(fallbackSrc);
   const sources = [];
   const addSource = (value) => {
-    const cleanValue = String(value || '').trim();
+    const cleanValue = normalizeImageSource(value);
     if (cleanValue && !sources.includes(cleanValue)) sources.push(cleanValue);
   };
 
+  if (resolvedSourceCache.has(cleanSrc)) addSource(resolvedSourceCache.get(cleanSrc));
   addSource(cleanSrc);
-
-  if (cleanSrc && !isEmbeddedImage(cleanSrc)) {
-    const [pathPart, suffix = ''] = cleanSrc.split(/([?#].*)/, 2);
-    const match = pathPart.match(/^(.*)\.([a-z0-9]+)$/i);
-    if (match && rasterExtensions.includes(match[2].toLowerCase())) {
-      rasterExtensions.forEach((extension) => addSource(`${match[1]}.${extension}${suffix}`));
-    }
-  }
-
-  sources.slice().forEach((source) => addSource(proxiedMediaSource(source)));
-
-  addSource(fallbackSrc);
+  addSource(proxiedMediaSource(cleanSrc));
+  addSource(cleanFallbackSrc);
   return sources;
 };
 
@@ -41,9 +71,13 @@ function ProductImage({
   alt = '',
   className = '',
   loading = 'lazy',
+  decoding = 'async',
   fallbackContent = 'CCTV',
+  onLoad,
+  onError,
   ...imgProps
 }) {
+  const sourceKey = normalizeImageSource(src);
   const sources = useMemo(() => buildFallbackSources(src, fallbackSrc), [src, fallbackSrc]);
   const [sourceIndex, setSourceIndex] = useState(0);
 
@@ -63,8 +97,14 @@ function ProductImage({
       alt={alt}
       className={className}
       loading={loading}
+      decoding={decoding}
       {...imgProps}
-      onError={() => {
+      onLoad={(event) => {
+        if (sourceKey && currentSrc) resolvedSourceCache.set(sourceKey, currentSrc);
+        if (typeof onLoad === 'function') onLoad(event);
+      }}
+      onError={(event) => {
+        if (typeof onError === 'function') onError(event);
         setSourceIndex((currentIndex) => (
           currentIndex + 1 < sources.length ? currentIndex + 1 : sources.length
         ));
