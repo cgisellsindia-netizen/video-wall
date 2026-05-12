@@ -58,7 +58,15 @@ function HeroBanner({ config = null }) {
                 <strong>{config?.deliveryTitle || 'Quick dispatch from Bhubaneswar'}</strong>
                 <small>{config?.deliveryDescription || 'Product, installation, and support in one streamlined flow.'}</small>
               </div>
-              <img src="/images/camigo-delivery-hero.png" alt="Camigo delivery partner with CCTV order" />
+              <img
+                src="/images/camigo-delivery-hero.png"
+                alt="Camigo delivery partner with CCTV order"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                width="447"
+                height="558"
+              />
             </div>
           </div>
         </div>
