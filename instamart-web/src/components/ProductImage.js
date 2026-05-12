@@ -60,8 +60,14 @@ const buildFallbackSources = (src, fallbackSrc = '') => {
 
   if (resolvedSourceCache.has(cleanSrc)) addSource(resolvedSourceCache.get(cleanSrc));
   if (cleanSrc) {
-    addSource(cleanSrc);
-    addSource(proxiedMediaSource(cleanSrc));
+    const prefersProxy = /^https?:\/\//i.test(cleanSrc);
+    if (prefersProxy) {
+      addSource(proxiedMediaSource(cleanSrc));
+      addSource(cleanSrc);
+    } else {
+      addSource(cleanSrc);
+      addSource(proxiedMediaSource(cleanSrc));
+    }
   } else {
     addSource(cleanFallbackSrc);
   }
