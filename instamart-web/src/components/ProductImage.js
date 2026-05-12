@@ -81,6 +81,7 @@ function ProductImage({
   ...imgProps
 }) {
   const sourceKey = normalizeImageSource(src);
+  const fallbackKey = normalizeImageSource(fallbackSrc);
   const sources = useMemo(() => buildFallbackSources(src, fallbackSrc), [src, fallbackSrc]);
   const [sourceIndex, setSourceIndex] = useState(0);
 
@@ -103,7 +104,11 @@ function ProductImage({
       decoding={decoding}
       {...imgProps}
       onLoad={(event) => {
-        if (sourceKey && currentSrc) resolvedSourceCache.set(sourceKey, currentSrc);
+        const canCacheResolvedSource = sourceKey
+          && currentSrc
+          && currentSrc !== fallbackKey
+          && currentSrc !== proxiedMediaSource(fallbackKey);
+        if (canCacheResolvedSource) resolvedSourceCache.set(sourceKey, currentSrc);
         if (typeof onLoad === 'function') onLoad(event);
       }}
       onError={(event) => {
