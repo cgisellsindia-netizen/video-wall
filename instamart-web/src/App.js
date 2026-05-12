@@ -256,6 +256,9 @@ function MainPage({
     ...cat,
     products: filteredProducts.filter(p => p.category_id === cat.id)
   })).filter(c => c.products.length > 0);
+  const homepageHasCategoryFeeds = Boolean(
+    pageContent?.homepage?.blocks?.some((block) => block?.visible !== false && block?.type === 'category_feeds')
+  );
 
   return (
     <>
@@ -298,7 +301,7 @@ function MainPage({
             </section>
           )
         ) : (
-          productsByCategory.map(cat => (
+          homepageHasCategoryFeeds ? null : productsByCategory.map(cat => (
             <ProductSection key={cat.id} title={cat.name} categoryId={cat.id} products={cat.products} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={onToggleSaved} sectionTone="neutral" deliveryEtaLabel={deliveryEtaLabel} />
           ))
         )}
