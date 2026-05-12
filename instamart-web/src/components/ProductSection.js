@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Heart, Minus, Plus, Star } from 'lucide-react';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
 import ProductImage from './ProductImage';
+import { buildProductImageSources, getProductFallbackImage } from '../imageFallbacks';
 
 function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [], categoryId = null, savedProductIds = [], onToggleSaved = null, sectionTone = 'neutral', deliveryEtaLabel = '16 mins' }) {
   const navigate = useNavigate();
@@ -81,6 +82,8 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
               <div className="product-img-wrap">
                 <ProductImage
                   src={product.image}
+                  sources={buildProductImageSources(product)}
+                  fallbackSrc={getProductFallbackImage(product)}
                   alt={product.name}
                   loading={index < 4 ? 'eager' : 'lazy'}
                   fetchPriority={index < 2 ? 'high' : 'auto'}

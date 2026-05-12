@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Heart, Minus, Plus, Star } from 'lucide-react';
 import { API_URL } from '../api';
 import ProductImage from './ProductImage';
+import { buildProductImageSources, getProductFallbackImage } from '../imageFallbacks';
 
 function SetupPackagesSection({
   products = [],
@@ -133,6 +134,8 @@ function SetupPackagesSection({
               <div className="product-img-wrap">
                 <ProductImage
                   src={product.image}
+                  sources={buildProductImageSources(product)}
+                  fallbackSrc={getProductFallbackImage(product)}
                   alt={product.name}
                   loading={index < 3 ? 'eager' : 'lazy'}
                   fetchPriority={index < 2 ? 'high' : 'auto'}

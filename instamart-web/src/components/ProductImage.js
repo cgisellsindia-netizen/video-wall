@@ -49,33 +49,39 @@ const proxiedMediaSource = (value = '') => {
   return `${API_URL}/media/proxy?url=${encodeURIComponent(cleanValue)}`;
 };
 
-const buildFallbackSources = (src, fallbackSrc = '') => {
-  const cleanSrc = normalizeImageSource(src);
+const buildFallbackSources = (src, extraSources = [], fallbackSrc = '') => {
+  const cleanExtraSources = Array.isArray(extraSources) ? extraSources : [extraSources];
   const cleanFallbackSrc = normalizeImageSource(fallbackSrc);
   const sources = [];
+  const candidateKeys = [];
   const addSource = (value) => {
     const cleanValue = normalizeImageSource(value);
     if (cleanValue && !sources.includes(cleanValue)) sources.push(cleanValue);
   };
 
-  if (resolvedSourceCache.has(cleanSrc)) addSource(resolvedSourceCache.get(cleanSrc));
-  if (cleanSrc) {
-    const prefersProxy = /^https?:\/\//i.test(cleanSrc);
+  [src, ...cleanExtraSources].forEach((candidate) => {
+    const cleanCandidate = normalizeImageSource(candidate);
+    if (!cleanCandidate || candidateKeys.includes(cleanCandidate)) return;
+    candidateKeys.push(cleanCandidate);
+    if (resolvedSourceCache.has(cleanCandidate)) addSource(resolvedSourceCache.get(cleanCandidate));
+    const prefersProxy = /^https?:\/\//i.test(cleanCandidate);
     if (prefersProxy) {
-      addSource(proxiedMediaSource(cleanSrc));
-      addSource(cleanSrc);
+      addSource(proxiedMediaSource(cleanCandidate));
+      addSource(cleanCandidate);
     } else {
-      addSource(cleanSrc);
-      addSource(proxiedMediaSource(cleanSrc));
+      addSource(cleanCandidate);
+      addSource(proxiedMediaSource(cleanCandidate));
     }
-  } else {
-    addSource(cleanFallbackSrc);
-  }
-  return sources;
+  });
+
+  addSource(cleanFallbackSrc);
+
+  return { sources, candidateKeys };
 };
 
 function ProductImage({
   src,
+  sources = [],
   fallbackSrc = '/images/cgi-hd3e.jpg',
   alt = '',
   className = '',
@@ -88,14 +94,15 @@ function ProductImage({
 }) {
   const sourceKey = normalizeImageSource(src);
   const fallbackKey = normalizeImageSource(fallbackSrc);
-  const sources = useMemo(() => buildFallbackSources(src, fallbackSrc), [src, fallbackSrc]);
+  const sourcePlan = useMemo(() => buildFallbackSources(src, sources, fallbackSrc), [src, sources, fallbackSrc]);
+  const sourceList = sourcePlan.sources;
   const [sourceIndex, setSourceIndex] = useState(0);
 
   useEffect(() => {
     setSourceIndex(0);
-  }, [sources.join('|')]);
+  }, [sourceList.join('|')]);
 
-  const currentSrc = sources[sourceIndex];
+  const currentSrc = sourceList[sourceIndex];
 
   if (!currentSrc) {
     return <div className={className ? `${className} emoji` : 'emoji'}>{fallbackContent}</div>;
@@ -114,13 +121,15 @@ function ProductImage({
           && currentSrc
           && currentSrc !== fallbackKey
           && currentSrc !== proxiedMediaSource(fallbackKey);
-        if (canCacheResolvedSource) resolvedSourceCache.set(sourceKey, currentSrc);
+        if (canCacheResolvedSource) {
+          sourcePlan.candidateKeys.forEach((candidateKey) => resolvedSourceCache.set(candidateKey, currentSrc));
+        }
         if (typeof onLoad === 'function') onLoad(event);
       }}
       onError={(event) => {
         if (typeof onError === 'function') onError(event);
         setSourceIndex((currentIndex) => (
-          currentIndex + 1 < sources.length ? currentIndex + 1 : sources.length
+          currentIndex + 1 < sourceList.length ? currentIndex + 1 : sourceList.length
         ));
       }}
     />

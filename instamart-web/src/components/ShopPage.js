@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Filter, Heart, Minus, Plus, Search, SlidersHorizontal, Star } from 'lucide-react';
 import ProductImage from './ProductImage';
+import { buildProductImageSources, getProductFallbackImage } from '../imageFallbacks';
 
 function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null, deliveryEtaLabel = '16 mins' }) {
   const [selectedCat, setSelectedCat] = useState('all');
@@ -196,7 +197,14 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
           return (
             <div key={product.id} className="product-card" onClick={() => navigate(`/product/${product.id}`)}>
               <div className="product-img-wrap">
-                <ProductImage src={product.image} alt={product.name} loading="lazy" fallbackContent="PROD" />
+                <ProductImage
+                  src={product.image}
+                  sources={buildProductImageSources(product)}
+                  fallbackSrc={getProductFallbackImage(product)}
+                  alt={product.name}
+                  loading="lazy"
+                  fallbackContent="PROD"
+                />
                 {discount > 0 && (
                   <span className="product-corner-offer" aria-label={`${discount}% off`}>
                     <strong>{discount}%</strong>
