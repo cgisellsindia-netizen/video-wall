@@ -79,7 +79,13 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
               onClick={() => navigate(`/product/${product.id}`)}
             >
               <div className="product-img-wrap">
-                <ProductImage src={product.image} alt={product.name} loading="lazy" fallbackContent="CCTV" />
+                <ProductImage
+                  src={product.image}
+                  alt={product.name}
+                  loading={index < 4 ? 'eager' : 'lazy'}
+                  fetchPriority={index < 2 ? 'high' : 'auto'}
+                  fallbackContent="CCTV"
+                />
                 {discount > 0 && (
                   <span className="product-corner-offer" aria-label={`${discount}% off`}>
                     <strong>{discount}%</strong>

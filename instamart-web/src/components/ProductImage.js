@@ -59,9 +59,12 @@ const buildFallbackSources = (src, fallbackSrc = '') => {
   };
 
   if (resolvedSourceCache.has(cleanSrc)) addSource(resolvedSourceCache.get(cleanSrc));
-  addSource(cleanSrc);
-  addSource(proxiedMediaSource(cleanSrc));
-  addSource(cleanFallbackSrc);
+  if (cleanSrc) {
+    addSource(cleanSrc);
+    addSource(proxiedMediaSource(cleanSrc));
+  } else {
+    addSource(cleanFallbackSrc);
+  }
   return sources;
 };
 

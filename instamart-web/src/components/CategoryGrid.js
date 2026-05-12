@@ -28,7 +28,13 @@ function CategoryGrid({ categories, title = 'Shop by Category' }) {
         {categories.map(cat => (
           <div key={cat.id} className="category-card" onClick={() => navigate(`/category/${cat.id}`)}>
             <div className="category-img">
-              <ProductImage src={cat.image || categoryImages[cat.name]} fallbackSrc="/category-real/accessories.jpg" alt={cat.name} />
+              <ProductImage
+                src={cat.image || categoryImages[cat.name]}
+                fallbackSrc={cat.image ? '' : '/category-real/accessories.jpg'}
+                alt={cat.name}
+                loading="eager"
+                fetchPriority="high"
+              />
             </div>
           </div>
         ))}
