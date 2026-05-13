@@ -107,11 +107,11 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
   ].filter(Boolean).length;
   const seoProducts = categoryProducts.slice(0, 10);
   const seoTitle = category?.name
-    ? `${category.name} | Camigo CCTV Category`
+    ? `${category.name} in Bhubaneswar and Odisha | Camigo CCTV Category`
     : 'Camigo CCTV Category';
   const seoDescription = category?.name
-    ? `Browse ${categoryProducts.length} ${category.name} products on Camigo with fast CCTV dispatch, installation support, and local delivery options from Bhubaneswar.`
-    : 'Browse CCTV products on Camigo with fast dispatch and installation support.';
+    ? `Browse ${categoryProducts.length} ${category.name} products on Camigo for CCTV camera buyers in Bhubaneswar and Odisha, with installation support and local delivery options.`
+    : 'Browse CCTV products on Camigo for Bhubaneswar and Odisha with fast dispatch and installation support.';
   const canonicalUrl = `https://getcamigo.in/category/${categoryId}`;
   const seoImage = seoProducts[0]?.image || 'https://getcamigo.in/camigo-logo.svg';
 

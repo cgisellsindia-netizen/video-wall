@@ -65,11 +65,11 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
     ? null
     : categories.find((category) => String(category.id) === String(selectedCat));
   const seoTitle = activeCategory
-    ? `${activeCategory.name} | Camigo Shop`
-    : 'Shop CCTV Cameras, DVRs, NVRs and Accessories | Camigo';
+    ? `${activeCategory.name} in Bhubaneswar and Odisha | Camigo Shop`
+    : 'Shop CCTV Cameras in Bhubaneswar and Odisha | Camigo';
   const seoDescription = activeCategory
-    ? `Explore ${filtered.length} products in ${activeCategory.name} on Camigo with CCTV dispatch, installation support, and local delivery from Bhubaneswar.`
-    : `Browse ${filtered.length} CCTV products, setup packages, recorders, switches, and accessories on Camigo with fast local dispatch and installation support.`;
+    ? `Explore ${filtered.length} ${activeCategory.name} products on Camigo for Bhubaneswar and Odisha CCTV buyers, with local dispatch, CCTV installation support, and fast delivery options.`
+    : `Browse ${filtered.length} CCTV products, IP cameras, dome cameras, bullet cameras, PTZ cameras, DVRs, NVRs, setup packages, and accessories on Camigo for Bhubaneswar and Odisha.`;
   const canonicalUrl = activeCategory
     ? `https://getcamigo.in/shop?category=${activeCategory.id}`
     : 'https://getcamigo.in/shop';

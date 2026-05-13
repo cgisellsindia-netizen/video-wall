@@ -296,10 +296,18 @@ function MainPage({
       answer: 'Yes. Camigo supports dealer and distributor-style buying flows with trade-friendly product sourcing and support.'
     }
   ]), []);
+  const localSeoTopics = useMemo(() => ([
+    'CCTV camera dealer in Bhubaneswar',
+    'CCTV installation in Bhubaneswar',
+    'Security camera installation in Odisha',
+    'IP camera, PTZ camera, dome camera, and bullet camera supply',
+    'DVR, NVR, PoE switch, SMPS, and CCTV accessories in Odisha',
+    'Home, office, shop, warehouse, and apartment CCTV setup support'
+  ]), []);
 
   usePageSeo({
-    title: 'Camigo | Fast CCTV Delivery and Installation',
-    description: 'Shop CCTV cameras, DVRs, NVRs, PoE switches, accessories, and setup packages on Camigo with fast dispatch and installation support from Bhubaneswar.',
+    title: 'CCTV Camera in Bhubaneswar | CCTV Installation in Odisha | Camigo',
+    description: 'Buy CCTV cameras in Bhubaneswar and Odisha with Camigo. Shop IP cameras, dome cameras, bullet cameras, PTZ cameras, DVRs, NVRs, PoE switches, and get CCTV installation support in Bhubaneswar.',
     canonicalUrl: 'https://getcamigo.in/',
     image: 'https://getcamigo.in/camigo-logo.svg',
     schema: {
@@ -320,8 +328,8 @@ function MainPage({
           '@type': 'CollectionPage',
           '@id': 'https://getcamigo.in/#homepage',
           url: 'https://getcamigo.in/',
-          name: 'Camigo Homepage',
-          description: 'Homepage for Camigo CCTV cameras, setup packages, recorders, switches, and accessories.',
+          name: 'Camigo CCTV Cameras Bhubaneswar Odisha',
+          description: 'CCTV camera dealer and installation support page for Bhubaneswar and Odisha with IP cameras, PTZ cameras, DVRs, NVRs, switches, and accessories.',
           mainEntity: {
             '@type': 'ItemList',
             itemListElement: featuredHomepageProducts.map((product, index) => ({
@@ -342,6 +350,22 @@ function MainPage({
               text: item.answer
             }
           }))
+        },
+        {
+          '@type': 'LocalBusiness',
+          name: 'Camigo',
+          url: 'https://getcamigo.in/',
+          image: 'https://getcamigo.in/camigo-logo.svg',
+          description: 'CCTV camera shop, CCTV dealer, and CCTV installation support service for Bhubaneswar and Odisha.',
+          areaServed: ['Bhubaneswar', 'Odisha', 'Cuttack', 'Khordha'],
+          address: {
+            '@type': 'PostalAddress',
+            streetAddress: 'Swarnapuri Rd, Bajrang Vihar, Patia',
+            addressLocality: 'Bhubaneswar',
+            addressRegion: 'Odisha',
+            postalCode: '751024',
+            addressCountry: 'IN'
+          }
         }
       ]
     }
@@ -422,6 +446,25 @@ function MainPage({
                     ))}
                   </div>
                 </div>
+              </div>
+            </div>
+          </section>
+        )}
+        {!searchQuery && (
+          <section className="category-section">
+            <div className="seo-link-hub local-seo-hub">
+              <div className="section-header">
+                <h2 className="section-title">CCTV Cameras and Installation in Bhubaneswar and Odisha</h2>
+              </div>
+              <p className="seo-link-hub-copy">
+                Camigo serves customers searching for CCTV cameras in Bhubaneswar, CCTV installation in Bhubaneswar,
+                security camera installation in Odisha, IP camera dealers, PTZ camera suppliers, DVR and NVR dealers,
+                and complete CCTV setup packages for homes, offices, shops, apartments, and warehouses.
+              </p>
+              <div className="local-seo-topic-list">
+                {localSeoTopics.map((topic) => (
+                  <span key={topic} className="seo-link-chip subtle">{topic}</span>
+                ))}
               </div>
             </div>
           </section>

@@ -118,6 +118,14 @@
   font-size: 14px;
   line-height: 1.6;
 }
+.local-seo-hub .seo-link-hub-copy {
+  max-width: 980px;
+}
+.local-seo-topic-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 .seo-link-hub-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -4,8 +4,8 @@ import usePageSeo from '../usePageSeo';
 
 function AboutPage() {
   usePageSeo({
-    title: 'About Camigo | CCTV Delivery, Installation and Support',
-    description: 'Learn about Camigo, our CCTV product catalog, installation support, local dispatch from Bhubaneswar, and how we help homes, offices, shops, and installers.',
+    title: 'About Camigo | CCTV Dealer and Installation Support in Bhubaneswar',
+    description: 'Learn about Camigo, our CCTV product catalog, CCTV camera supply, installation support in Bhubaneswar, and how we help homes, offices, shops, warehouses, and installers across Odisha.',
     canonicalUrl: 'https://getcamigo.in/about-camigo',
     image: 'https://getcamigo.in/camigo-logo.svg',
     schema: {
@@ -15,7 +15,7 @@ function AboutPage() {
           '@type': 'AboutPage',
           name: 'About Camigo',
           url: 'https://getcamigo.in/about-camigo',
-          description: 'About Camigo CCTV delivery, installation, and support services.'
+          description: 'About Camigo CCTV delivery, CCTV camera dealer services, installation, and support in Bhubaneswar and Odisha.'
         },
         {
           '@type': 'BreadcrumbList',
@@ -58,6 +58,15 @@ function AboutPage() {
           recorders, PoE switches, power supplies, accessories, and bundled setup packages with quick dispatch
           and support from Bhubaneswar.
         </p>
+
+        <section className="policy-section">
+          <h2>Local CCTV search coverage</h2>
+          <p>
+            Camigo is built to serve customers searching for CCTV camera dealers in Bhubaneswar, CCTV installation
+            in Bhubaneswar, security camera installation in Odisha, IP camera suppliers, PTZ camera dealers,
+            dome camera and bullet camera sellers, and DVR or NVR setup support for homes and businesses.
+          </p>
+        </section>
 
         <section className="policy-section">
           <h2>What Camigo provides</h2>
