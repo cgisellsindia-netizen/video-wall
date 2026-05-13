@@ -13,6 +13,7 @@ import AdminPage from './components/AdminPage';
 import ContactPage from './components/ContactPage';
 import PrivacyPolicyPage from './components/PrivacyPolicyPage';
 import TermsOfServicePage from './components/TermsOfServicePage';
+import ReturnsPolicyPage from './components/ReturnsPolicyPage';
 import DealerDashboard from './components/DealerDashboard';
 import InstallationPage from './components/InstallationPage';
 import ShopPage from './components/ShopPage';
@@ -1207,6 +1208,7 @@ function AppContent() {
         <Route path="/contact" element={<ContactPage user={user} />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+        <Route path="/returns-policy" element={<ReturnsPolicyPage />} />
         <Route path="/admin" element={<AdminPage user={user} pageContent={pageContent} onPageContentSaved={setPageContent} />} />
         <Route path="/shop" element={<DeliveryOnlyRoute user={user}><ShopPage products={products} categories={categories} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} deliveryEtaLabel={deliveryEtaLabel} /></DeliveryOnlyRoute>} />
         <Route path="/checkout" element={<DeliveryOnlyRoute user={user}><CheckoutPage user={user} liveCartItems={cartItems} onLogin={() => setLoginOpen(true)} onOrderPlaced={handleOrderPlaced} onUserUpdate={updateUserState} /></DeliveryOnlyRoute>} />
