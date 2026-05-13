@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle2, CreditCard, MapPin, Minus, Plus, Search, Smartphone, Wrench, X, XCircle } from 'lucide-react';
 import { API_URL } from '../api';
 import { captureCustomerLocation, getSavedCustomerLocation } from '../locationLock';
@@ -7,6 +7,7 @@ import { checkServiceability, extractPincode } from '../deliveryZone';
 import PhoneVerificationCard from './PhoneVerificationCard';
 
 function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItems = [] }) {
+  const location = useLocation();
   const [cartItems, setCartItems] = useState(() => {
     try {
       const savedCart = JSON.parse(localStorage.getItem('cart_backup') || '[]');
@@ -40,6 +41,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
   const [addressSaving, setAddressSaving] = useState(false);
   const [codEnabled, setCodEnabled] = useState(false);
   const navigate = useNavigate();
+  const directBuyItem = location.state?.directBuyItem || null;
 
   useEffect(() => {
     setPhone(user?.phone_verified ? user?.phone || '' : '');
@@ -58,11 +60,12 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
   }, [user, onLogin]);
 
   useEffect(() => {
+    if (directBuyItem) return;
     setCartItems(Array.isArray(liveCartItems) ? liveCartItems : []);
     if (Array.isArray(liveCartItems) && liveCartItems.length) {
       localStorage.setItem('cart_backup', JSON.stringify(liveCartItems));
     }
-  }, [liveCartItems]);
+  }, [liveCartItems, directBuyItem]);
 
   useEffect(() => {
     fetch(`${API_URL}/store-settings`)
@@ -74,6 +77,10 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
   }, []);
 
   useEffect(() => {
+    if (directBuyItem) {
+      setCartItems([{ ...directBuyItem, quantity: Math.max(1, Number(directBuyItem.quantity || 1)) }]);
+      return;
+    }
     if (!user) return;
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -91,7 +98,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
         setAddressBook(Array.isArray(addressData) ? addressData : []);
       })
       .catch(() => {});
-  }, [user]);
+  }, [user, directBuyItem]);
 
   useEffect(() => {
     let active = true;

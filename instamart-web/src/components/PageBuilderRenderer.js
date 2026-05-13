@@ -222,6 +222,21 @@ function ProductHeroBlock({
     }
     if (!isOutOfStock) onAdd(product);
   };
+  const handleBuyNow = () => {
+    if (!user) {
+      onLogin();
+      return;
+    }
+    if (isOutOfStock) return;
+    navigate('/checkout', {
+      state: {
+        directBuyItem: {
+          ...product,
+          quantity: 1
+        }
+      }
+    });
+  };
 
   return (
     <section className="product-hero-shell">
@@ -315,7 +330,7 @@ function ProductHeroBlock({
                 <ShoppingCart size={20} /> Add to cart
               </button>
             )}
-            <button className="product-secondary-action" onClick={() => navigate('/checkout')} disabled={isOutOfStock}>
+            <button className="product-secondary-action" onClick={handleBuyNow} disabled={isOutOfStock}>
               <Zap size={19} /> Buy now
             </button>
           </div>
