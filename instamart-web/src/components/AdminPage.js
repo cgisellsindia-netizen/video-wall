@@ -166,8 +166,13 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
         badge: entry.badge || '',
         image: entry.image || '',
         price: String(entry.price ?? ''),
+        mrp: String(entry.mrp ?? entry.price ?? ''),
         product_id: String(entry.product_id ?? ''),
-        category_id: String(entry.category_id ?? 1)
+        category_id: String(entry.category_id ?? 1),
+        description: entry.description || '',
+        stock: String(entry.stock ?? 25),
+        unit: entry.unit || '1 Setup',
+        warranty_years: String(entry.warranty_years ?? 5)
       }))
     );
   }, [setupPackages]);
@@ -823,8 +828,13 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
         badge: '',
         image: '',
         price: '',
+        mrp: '',
         product_id: '',
-        category_id: defaultCategoryId
+        category_id: defaultCategoryId,
+        description: '',
+        stock: '25',
+        unit: '1 Setup',
+        warranty_years: '5'
       }
     ]));
     setMessage('New full setup draft added. Fill in the details and save.');
@@ -843,6 +853,7 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
       badge: String(entry.badge || '').trim(),
       image: String(entry.image || '').trim(),
       price: Math.max(0, Math.round(Number(entry.price || 0))),
+      mrp: Math.max(0, Math.round(Number(entry.mrp || entry.price || 0))),
       product_id: (() => {
         const value = Number(entry.product_id || 0);
         return Number.isInteger(value) && value > 0 ? value : null;
@@ -850,7 +861,11 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
       category_id: (() => {
         const value = Number(entry.category_id || 1);
         return Number.isInteger(value) && value > 0 ? value : 1;
-      })()
+      })(),
+      description: String(entry.description || '').trim(),
+      stock: Math.max(0, Math.round(Number(entry.stock || 0))),
+      unit: String(entry.unit || '1 Setup').trim() || '1 Setup',
+      warranty_years: Math.max(1, Math.round(Number(entry.warranty_years || 5)))
     }));
 
     if (payload.some(entry => !entry.title || !entry.image || !Number.isFinite(entry.price) || entry.price <= 0)) {
@@ -1419,6 +1434,14 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
                       />
                     </div>
                     <div className="form-group">
+                      <label>MRP</label>
+                      <input
+                        type="number"
+                        value={entry.mrp}
+                        onChange={e => setSetupPackageDrafts(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, mrp: e.target.value } : item))}
+                      />
+                    </div>
+                    <div className="form-group">
                       <label>Product Category</label>
                       <select
                         value={entry.category_id}
@@ -1438,12 +1461,44 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
                         onChange={e => setSetupPackageDrafts(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, subtitle: e.target.value } : item))}
                       />
                     </div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label>Product Details / Description</label>
+                      <input
+                        value={entry.description}
+                        onChange={e => setSetupPackageDrafts(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, description: e.target.value } : item))}
+                        placeholder="Product details shown on the package product page"
+                      />
+                    </div>
                     <div className="form-group">
                       <label>Badge</label>
                       <input
                         value={entry.badge}
                         onChange={e => setSetupPackageDrafts(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, badge: e.target.value } : item))}
                         placeholder="Most popular"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Stock</label>
+                      <input
+                        type="number"
+                        value={entry.stock}
+                        onChange={e => setSetupPackageDrafts(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, stock: e.target.value } : item))}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Unit</label>
+                      <input
+                        value={entry.unit}
+                        onChange={e => setSetupPackageDrafts(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, unit: e.target.value } : item))}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Warranty Years</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={entry.warranty_years}
+                        onChange={e => setSetupPackageDrafts(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, warranty_years: e.target.value } : item))}
                       />
                     </div>
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}>

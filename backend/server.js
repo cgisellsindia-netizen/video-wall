@@ -290,8 +290,13 @@ const sanitizeSetupPackage = (entry = {}, index = 0) => {
   const badge = String(entry?.badge || fallback?.badge || '').trim();
   const image = String(entry?.image || fallback?.image || '/category-real/accessories.jpg').trim();
   const price = Math.max(0, Math.round(Number(entry?.price ?? fallback?.price ?? 0)));
+  const mrp = Math.max(price, Math.round(Number(entry?.mrp ?? entry?.price ?? fallback?.price ?? 0)));
   const productId = Number(entry?.product_id ?? entry?.linked_product_id ?? fallback?.product_id ?? 0);
   const categoryId = Number(entry?.category_id ?? fallback?.category_id ?? 1);
+  const description = String(entry?.description || entry?.subtitle || fallback?.subtitle || '').trim();
+  const stock = Math.max(0, Math.round(Number(entry?.stock ?? 25)));
+  const unit = String(entry?.unit || '1 Setup').trim() || '1 Setup';
+  const warrantyYears = Math.max(1, Math.round(Number(entry?.warranty_years ?? 5)));
   return {
     id: normalizeSetupPackageId(entry?.id || title, index),
     title,
@@ -299,8 +304,13 @@ const sanitizeSetupPackage = (entry = {}, index = 0) => {
     badge,
     image,
     price,
+    mrp,
     product_id: Number.isInteger(productId) && productId > 0 ? productId : null,
-    category_id: Number.isInteger(categoryId) && categoryId > 0 ? categoryId : 1
+    category_id: Number.isInteger(categoryId) && categoryId > 0 ? categoryId : 1,
+    description,
+    stock,
+    unit,
+    warranty_years: warrantyYears
   };
 };
 
@@ -954,37 +964,57 @@ const buildSetupPackageProductDraft = (entry = {}) => {
   const subtitle = String(entry.subtitle || '').trim();
   return {
     name: title,
-    description: subtitle || `${title} full setup package from Camigo.`,
+    description: String(entry.description || '').trim() || subtitle || `${title} full setup package from Camigo.`,
     price: Math.max(0, Math.round(Number(entry.price || 0))),
-    mrp: Math.max(0, Math.round(Number(entry.price || 0))),
+    mrp: Math.max(0, Math.round(Number(entry.mrp || entry.price || 0))),
     image: String(entry.image || '/category-real/accessories.jpg').trim(),
     category_id: Number(entry.category_id || 1),
-    stock: 25,
-    unit: '1 Setup',
+    stock: Math.max(0, Math.round(Number(entry.stock || 25))),
+    unit: String(entry.unit || '1 Setup').trim() || '1 Setup',
     discount_percent: 0,
     dealer_price: null,
     distributor_price: null,
-    warranty_years: 5
+    warranty_years: Math.max(1, Math.round(Number(entry.warranty_years || 5)))
+  };
+};
+
+const mergeSetupPackageWithProduct = (entry = {}, product = null) => {
+  if (!product) return entry;
+  return {
+    ...entry,
+    image: String(entry.image || product.image || '/category-real/accessories.jpg').trim(),
+    price: Math.max(0, Math.round(Number(entry.price || product.price || 0))),
+    mrp: Math.max(
+      Math.round(Number(entry.price || product.price || 0)),
+      Math.round(Number(entry.mrp || product.mrp || entry.price || product.price || 0))
+    ),
+    category_id: Number(entry.category_id || product.category_id || 1),
+    description: String(entry.description || product.description || entry.subtitle || '').trim(),
+    stock: Math.max(0, Math.round(Number(entry.stock ?? product.stock ?? 25))),
+    unit: String(entry.unit || product.unit || '1 Setup').trim() || '1 Setup',
+    warranty_years: Math.max(1, Math.round(Number(entry.warranty_years || product.warranty_years || 5)))
   };
 };
 
 const syncSetupPackageProducts = async (entries = []) => {
   const nextPackages = [];
   for (let index = 0; index < entries.length; index += 1) {
-    const entry = sanitizeSetupPackage(entries[index], index);
-    const draft = buildSetupPackageProductDraft(entry);
+    let entry = sanitizeSetupPackage(entries[index], index);
     let productId = Number(entry.product_id || 0);
     let existingProduct = null;
 
     if (productId > 0) {
-      existingProduct = await dbGetAsync('SELECT id FROM products WHERE id = ?', [productId]);
+      existingProduct = await dbGetAsync('SELECT * FROM products WHERE id = ?', [productId]);
     }
     if (!existingProduct) {
       existingProduct = await dbGetAsync(
-        'SELECT id FROM products WHERE lower(name) = lower(?) ORDER BY id ASC LIMIT 1',
-        [draft.name]
+        'SELECT * FROM products WHERE lower(name) = lower(?) ORDER BY id ASC LIMIT 1',
+        [entry.title]
       );
     }
+
+    entry = mergeSetupPackageWithProduct(entry, existingProduct);
+    const draft = buildSetupPackageProductDraft(entry);
 
     if (existingProduct?.id) {
       productId = Number(existingProduct.id);
