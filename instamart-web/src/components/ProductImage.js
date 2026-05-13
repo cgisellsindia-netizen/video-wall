@@ -141,7 +141,7 @@ function ProductImage({
           && currentSrc !== fallbackKey
           && currentSrc !== proxiedMediaSource(fallbackKey);
         if (canCacheResolvedSource) {
-          sourcePlan.candidateKeys.forEach((candidateKey) => resolvedSourceCache.set(candidateKey, currentSrc));
+          resolvedSourceCache.set(sourceKey, currentSrc);
         }
         if (typeof onLoad === 'function') onLoad(event);
       }}
