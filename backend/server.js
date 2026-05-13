@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
+const sharp = require('sharp');
 const { Readable, Writable } = require('stream');
 const admin = require('firebase-admin');
 const ftp = require('basic-ftp');
@@ -2967,6 +2968,42 @@ const notifyOrderStatusChange = (orderId, status) => {
     delivered: 'Order delivered',
     rejected: 'Order update'
   };
+
+const buildProductGallery = (product = {}, groupedImages = {}) => {
+  const merged = [
+    ...(Array.isArray(groupedImages[product.id]) ? groupedImages[product.id] : []),
+    product.image
+  ]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  return merged.filter((value, index) => merged.indexOf(value) === index);
+};
+
+const merchantFeedImageUrl = (productId, imageIndex = 0) =>
+  `${publicServerBaseUrl}/merchant-feed/images/${encodeURIComponent(String(productId))}/${encodeURIComponent(String(imageIndex))}.jpg`;
+
+const merchantImageAllowedHosts = new Set([
+  'camigo.ct.ws',
+  'getcamigo.in',
+  'www.getcamigo.in',
+  'camigo-store.onrender.com'
+]);
+
+const resolveMerchantSourceImageUrl = (value = '') => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+  if (raw.startsWith('/')) return `${publicServerBaseUrl}${raw}`;
+  return '';
+};
+
+const assertMerchantImageHostAllowed = (imageUrl = '') => {
+  const parsed = new URL(imageUrl);
+  if (!merchantImageAllowedHosts.has(parsed.hostname)) {
+    throw new Error(`Merchant image host not allowed: ${parsed.hostname}`);
+  }
+  return parsed;
+};
   const messages = {
     accepted: 'A delivery partner accepted your Camigo order.',
     arrived_at_store: 'Your delivery partner has reached the Camigo store/hub.',
@@ -3282,6 +3319,61 @@ app.get('/api/products/:id', (req, res) => {
   });
 });
 
+app.get('/merchant-feed/images/:productId/:imageIndex.jpg', async (req, res) => {
+  try {
+    const productId = Number(req.params.productId);
+    const imageIndex = Number(req.params.imageIndex || 0);
+    if (!Number.isFinite(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'Invalid product id' });
+    }
+    if (!Number.isFinite(imageIndex) || imageIndex < 0 || imageIndex > 9) {
+      return res.status(400).json({ error: 'Invalid image index' });
+    }
+
+    const product = await dbGetAsync('SELECT id, image FROM products WHERE id = ?', [productId]);
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    const rows = await dbAllAsync(
+      `SELECT image_url
+       FROM product_images
+       WHERE product_id = ?
+       ORDER BY sort_order ASC, id ASC`,
+      [productId]
+    );
+    const grouped = {
+      [productId]: rows.map((row) => row.image_url)
+    };
+    const gallery = buildProductGallery(product, grouped);
+    const rawImageUrl = gallery[imageIndex] || gallery[0];
+    const sourceImageUrl = resolveMerchantSourceImageUrl(rawImageUrl);
+    if (!sourceImageUrl) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+
+    assertMerchantImageHostAllowed(sourceImageUrl);
+    const upstream = await fetch(sourceImageUrl, { redirect: 'follow' });
+    if (!upstream.ok) {
+      return res.status(404).json({ error: 'Source image unavailable' });
+    }
+
+    const arrayBuffer = await upstream.arrayBuffer();
+    const sourceBuffer = Buffer.from(arrayBuffer);
+    const jpegBuffer = await sharp(sourceBuffer, { failOn: 'none' })
+      .flatten({ background: '#ffffff' })
+      .jpeg({ quality: 90, mozjpeg: true })
+      .toBuffer();
+
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Content-Length', jpegBuffer.length);
+    res.send(jpegBuffer);
+  } catch (error) {
+    res.status(404).json({ error: error.message || 'Merchant image not available' });
+  }
+});
+
 app.get(['/merchant-feed.xml', '/api/merchant-feed.xml'], async (req, res) => {
   try {
     const products = await dbAllAsync(
@@ -3295,13 +3387,17 @@ app.get(['/merchant-feed.xml', '/api/merchant-feed.xml'], async (req, res) => {
       const availability = Number(product.stock || 0) > 0 ? 'in stock' : 'out of stock';
       const cleanDescription = String(product.description || product.name || '').replace(/\s+/g, ' ').trim();
       const productUrl = `${publicStorefrontUrl}/product/${product.id}`;
-      const additionalImages = product.images.slice(1, 10).map((image) => `\n      <g:additional_image_link>${xmlEscape(image)}</g:additional_image_link>`).join('');
+      const primaryImage = merchantFeedImageUrl(product.id, 0);
+      const additionalImages = product.images
+        .slice(1, 10)
+        .map((_, index) => `\n      <g:additional_image_link>${xmlEscape(merchantFeedImageUrl(product.id, index + 1))}</g:additional_image_link>`)
+        .join('');
       return `  <item>
       <g:id>${xmlEscape(String(product.id))}</g:id>
       <title>${xmlEscape(product.name)}</title>
       <description>${xmlEscape(cleanDescription)}</description>
       <link>${xmlEscape(productUrl)}</link>
-      <g:image_link>${xmlEscape(product.image || `${publicStorefrontUrl}/camigo-logo.svg`)}</g:image_link>${additionalImages}
+      <g:image_link>${xmlEscape(primaryImage)}</g:image_link>${additionalImages}
       <g:availability>${availability}</g:availability>
       <g:price>${Number(product.price || 0).toFixed(2)} INR</g:price>
       <g:condition>new</g:condition>
