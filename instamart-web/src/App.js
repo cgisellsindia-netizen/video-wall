@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { HashRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
@@ -47,19 +47,11 @@ const getRuntimeAppMode = () => {
 const APP_MODE = getRuntimeAppMode();
 
 function DeliveryOnlyRoute({ user, children }) {
-  useEffect(() => {
-    if (user?.role === 'delivery_partner') {
-      window.location.hash = '#/delivery-partner';
-    } else if (user?.role === 'installer') {
-      window.location.hash = '#/installer';
-    }
-  }, [user]);
-
   if (user?.role === 'delivery_partner') {
-    return <DeliveryPartnerPage user={user} authReady={true} onLogin={() => {}} />;
+    return <Navigate to="/delivery-partner" replace />;
   }
   if (user?.role === 'installer') {
-    return <InstallerPage user={user} authReady={true} onLogin={() => {}} />;
+    return <Navigate to="/installer" replace />;
   }
 
   return children;
@@ -98,7 +90,7 @@ class ErrorBoundary extends React.Component {
     }
     const params = new URLSearchParams(window.location.search);
     params.set('reset', String(Date.now()));
-    window.location.replace(`${window.location.pathname}?${params.toString()}${window.location.hash || ''}`);
+    window.location.replace(`${window.location.pathname}?${params.toString()}`);
   };
 
   render() {
@@ -565,7 +557,7 @@ function AppContent() {
           });
           phoneNotice.onclick = () => {
             window.focus();
-            if (notice.product_id) window.location.hash = `#/product/${notice.product_id}`;
+            if (notice.product_id) window.location.assign(`/product/${notice.product_id}`);
             phoneNotice.close();
           };
           localStorage.setItem(`camigo_phone_notice_${notice.id}`, '1');

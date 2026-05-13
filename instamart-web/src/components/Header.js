@@ -120,7 +120,7 @@ function Header({
             <div className="header-actions">
               {user ? (
                 <>
-                  {user.role === 'admin' && <a className="header-btn admin-shortcut" href="/#/admin"><Shield size={18} /><span>Admin</span></a>}
+                  {user.role === 'admin' && <a className="header-btn admin-shortcut" href="/admin"><Shield size={18} /><span>Admin</span></a>}
                   <div className={`profile-menu ${profileOpen ? 'open' : ''}`} ref={profileMenuRef}>
                     <button
                       className="header-btn profile-icon-btn"
@@ -132,8 +132,8 @@ function Header({
                     </button>
                     <div className="profile-dropdown">
                       <span className="profile-dropdown-name">{displayName}</span>
-                      <a href="/#/orders" onClick={() => setProfileOpen(false)}>Orders</a>
-                      <a href="/#/saved" onClick={() => setProfileOpen(false)}>Saved</a>
+                      <a href="/orders" onClick={() => setProfileOpen(false)}>Orders</a>
+                      <a href="/saved" onClick={() => setProfileOpen(false)}>Saved</a>
                       <button type="button" onClick={onLogout}><LogOut size={16} /><span>Logout</span></button>
                     </div>
                   </div>
@@ -144,13 +144,13 @@ function Header({
             </div>
           </div>
           <nav className="desktop-nav">
-            {!isOpsMode && <a href="/#/shop">Shop</a>}
-            {!isOpsMode && <a href="/#/orders">Orders</a>}
-            {!isOpsMode && <a href="/#/saved">Saved</a>}
-            {(user?.role === 'dealer' || user?.role === 'distributor') && <a href="/#/dealer">Trade Panel</a>}
-            {isDeliveryPartner && <a href="/#/delivery-partner">Delivery Panel</a>}
-            {isInstaller && <a href="/#/installer">Installer Panel</a>}
-            {user?.role === 'admin' && <a href="/#/admin">Admin</a>}
+            {!isOpsMode && <a href="/shop">Shop</a>}
+            {!isOpsMode && <a href="/orders">Orders</a>}
+            {!isOpsMode && <a href="/saved">Saved</a>}
+            {(user?.role === 'dealer' || user?.role === 'distributor') && <a href="/dealer">Trade Panel</a>}
+            {isDeliveryPartner && <a href="/delivery-partner">Delivery Panel</a>}
+            {isInstaller && <a href="/installer">Installer Panel</a>}
+            {user?.role === 'admin' && <a href="/admin">Admin</a>}
           </nav>
           {!isOpsMode && <div className="search-bar">
             <Search size={18} className="search-icon" />

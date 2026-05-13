@@ -139,6 +139,10 @@ const publicServerBaseUrl = (
   process.env.RENDER_EXTERNAL_URL ||
   'https://camigo-store.onrender.com'
 ).replace(/\/+$/, '');
+const publicStorefrontUrl = (
+  process.env.PUBLIC_STOREFRONT_URL ||
+  'https://getcamigo.in'
+).replace(/\/+$/, '');
 const normalizePublicUrl = (value = '') => String(value || '').trim().replace(/\/+$/, '');
 const catalogRestoreUrlWarning = () => {
   if (!MEDIA_MANIFEST_URL || !MEDIA_MANIFEST_EXPECTED_URL) return '';
@@ -2782,6 +2786,53 @@ const attachProductImages = (products, res, single = false) => {
   );
 };
 
+const buildEnrichedProductsWithImages = async (products = []) => {
+  const list = Array.isArray(products) ? products : [];
+  if (!list.length) return [];
+  const placeholders = list.map(() => '?').join(',');
+  const rows = await dbAllAsync(
+    `SELECT product_id, image_url, sort_order
+     FROM product_images
+     WHERE product_id IN (${placeholders})
+     ORDER BY sort_order ASC, id ASC`,
+    list.map((product) => product.id)
+  );
+  const grouped = rows.reduce((map, row) => {
+    map[row.product_id] = map[row.product_id] || [];
+    map[row.product_id].push(row.image_url);
+    return map;
+  }, {});
+  return list.map((product) => {
+    const merged = [
+      ...(Array.isArray(grouped[product.id]) ? grouped[product.id] : []),
+      product.image
+    ]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+    const gallery = merged.filter((value, index) => merged.indexOf(value) === index);
+    return {
+      ...product,
+      image: gallery[0] || product.image,
+      images: gallery,
+      ...buildSyntheticProductRating(product)
+    };
+  });
+};
+
+const xmlEscape = (value = '') => String(value || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&apos;');
+
+const merchantCategoryForProduct = (product = {}) => {
+  const text = `${product.category_name || ''} ${product.name || ''} ${product.description || ''}`.toLowerCase();
+  if (text.includes('dvr') || text.includes('nvr')) return 'Electronics > Video > Video Players & Recorders';
+  if (text.includes('switch') || text.includes('smps') || text.includes('accessor') || text.includes('cable')) return 'Electronics > Electronics Accessories';
+  return 'Electronics > Video > Surveillance Cameras';
+};
+
 const saveProductImages = (productId, image, images, callback) => {
   const gallery = (Array.isArray(images) ? images : [])
     .map(item => String(item || '').trim())
@@ -3229,6 +3280,53 @@ app.get('/api/products/:id', (req, res) => {
     if (!row) return res.status(404).json({ error: 'Product not found' });
     attachProductImages(row, res, true);
   });
+});
+
+app.get(['/merchant-feed.xml', '/api/merchant-feed.xml'], async (req, res) => {
+  try {
+    const products = await dbAllAsync(
+      `SELECT p.*, c.name as category_name
+       FROM products p
+       LEFT JOIN categories c ON p.category_id = c.id
+       WHERE COALESCE(p.price, 0) > 0`
+    );
+    const enrichedProducts = await buildEnrichedProductsWithImages(products);
+    const itemsXml = enrichedProducts.map((product) => {
+      const availability = Number(product.stock || 0) > 0 ? 'in stock' : 'out of stock';
+      const cleanDescription = String(product.description || product.name || '').replace(/\s+/g, ' ').trim();
+      const productUrl = `${publicStorefrontUrl}/product/${product.id}`;
+      const additionalImages = product.images.slice(1, 10).map((image) => `\n      <g:additional_image_link>${xmlEscape(image)}</g:additional_image_link>`).join('');
+      return `  <item>
+      <g:id>${xmlEscape(String(product.id))}</g:id>
+      <title>${xmlEscape(product.name)}</title>
+      <description>${xmlEscape(cleanDescription)}</description>
+      <link>${xmlEscape(productUrl)}</link>
+      <g:image_link>${xmlEscape(product.image || `${publicStorefrontUrl}/camigo-logo.svg`)}</g:image_link>${additionalImages}
+      <g:availability>${availability}</g:availability>
+      <g:price>${Number(product.price || 0).toFixed(2)} INR</g:price>
+      <g:condition>new</g:condition>
+      <g:brand>Camigo</g:brand>
+      <g:google_product_category>${xmlEscape(merchantCategoryForProduct(product))}</g:google_product_category>
+      <g:product_type>${xmlEscape(product.category_name || 'CCTV & Security')}</g:product_type>
+      <g:identifier_exists>no</g:identifier_exists>
+      <g:mpn>${xmlEscape(String(product.id))}</g:mpn>
+    </item>`;
+    }).join('\n');
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
+<channel>
+  <title>Camigo Product Feed</title>
+  <link>${xmlEscape(publicStorefrontUrl)}</link>
+  <description>Camigo CCTV cameras, recorders, accessories, and setup packages</description>
+${itemsXml}
+</channel>
+</rss>`;
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.send(xml);
+  } catch (error) {
+    res.status(500).send(`<?xml version="1.0" encoding="UTF-8"?><error>${xmlEscape(error.message || 'Feed generation failed')}</error>`);
+  }
 });
 
 app.get('/api/serviceability', (req, res) => {

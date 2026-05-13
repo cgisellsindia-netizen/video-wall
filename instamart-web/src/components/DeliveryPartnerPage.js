@@ -366,7 +366,7 @@ function DeliveryPartnerPage({ user, authReady = true, onLogin }) {
         )}
       </section>
 
-      <a className="partner-support" href="/#/contact">
+      <a className="partner-support" href="/contact">
         <Headphones size={18} /> Support
       </a>
     </main>

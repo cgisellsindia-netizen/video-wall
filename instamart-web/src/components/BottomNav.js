@@ -11,8 +11,8 @@ function BottomNav({ cartCount, onCartClick, user }) {
       ? '/delivery-partner'
       : user?.role === 'installer'
         ? '/installer'
-      : '/#/orders';
-  const accountPath = accountLink.replace('/#', '');
+        : '/orders';
+  const accountPath = accountLink;
   const itemClass = (path) => location.pathname === path ? 'bottom-nav-item active' : 'bottom-nav-item';
 
   useEffect(() => {

@@ -55,6 +55,84 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
       .slice(0, 6)
   ), [product?.description]);
 
+  useEffect(() => {
+    if (!product) return undefined;
+    const siteUrl = 'https://getcamigo.in';
+    const currentUrl = `${siteUrl}/product/${productId}`;
+    const title = `${product.name} | Camigo`;
+    const description = String(product.description || 'Buy CCTV products from Camigo with fast dispatch and installation support.').slice(0, 160);
+    const existingCanonical = document.querySelector('link[rel="canonical"]');
+    const previousCanonical = existingCanonical?.getAttribute('href') || '';
+    const previousTitle = document.title;
+    const previousDescription = document.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+    const previousOgTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content') || '';
+    const previousOgDescription = document.querySelector('meta[property="og:description"]')?.getAttribute('content') || '';
+    const previousOgUrl = document.querySelector('meta[property="og:url"]')?.getAttribute('content') || '';
+    const previousOgImage = document.querySelector('meta[property="og:image"]')?.getAttribute('content') || '';
+
+    const ensureMeta = (selector, attr, value) => {
+      let node = document.head.querySelector(selector);
+      if (!node) {
+        node = document.createElement('meta');
+        const match = selector.match(/\[(.*?)="(.*?)"\]/);
+        if (match) node.setAttribute(match[1], match[2]);
+        document.head.appendChild(node);
+      }
+      node.setAttribute(attr, value);
+      return node;
+    };
+
+    document.title = title;
+    if (existingCanonical) existingCanonical.setAttribute('href', currentUrl);
+    ensureMeta('meta[name="description"]', 'content', description);
+    ensureMeta('meta[property="og:title"]', 'content', title);
+    ensureMeta('meta[property="og:description"]', 'content', description);
+    ensureMeta('meta[property="og:url"]', 'content', currentUrl);
+    ensureMeta('meta[property="og:image"]', 'content', gallery[0] || `${siteUrl}/camigo-logo.svg`);
+
+    const schemaNode = document.createElement('script');
+    schemaNode.type = 'application/ld+json';
+    schemaNode.dataset.camigoSchema = 'product';
+    schemaNode.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: product.name,
+      description,
+      image: gallery,
+      sku: String(product.id),
+      brand: {
+        '@type': 'Brand',
+        name: 'Camigo'
+      },
+      mpn: String(product.id),
+      offers: {
+        '@type': 'Offer',
+        url: currentUrl,
+        priceCurrency: 'INR',
+        price: Number(product.price || 0).toFixed(2),
+        availability: Number(product.stock || 0) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        itemCondition: 'https://schema.org/NewCondition'
+      },
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: Number(product.rating_average || 4.6).toFixed(1),
+        reviewCount: Number(product.rating_count || 1)
+      }
+    });
+    document.head.appendChild(schemaNode);
+
+    return () => {
+      document.title = previousTitle;
+      if (existingCanonical) existingCanonical.setAttribute('href', previousCanonical);
+      ensureMeta('meta[name="description"]', 'content', previousDescription);
+      ensureMeta('meta[property="og:title"]', 'content', previousOgTitle);
+      ensureMeta('meta[property="og:description"]', 'content', previousOgDescription);
+      ensureMeta('meta[property="og:url"]', 'content', previousOgUrl);
+      ensureMeta('meta[property="og:image"]', 'content', previousOgImage);
+      schemaNode.remove();
+    };
+  }, [gallery, product, productId]);
+
   if (loading) {
     return <div className="container" style={{ padding: '48px 16px' }}><h2 className="section-title">Loading product...</h2></div>;
   }
