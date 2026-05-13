@@ -43,6 +43,14 @@ const normalizeImageSource = (value = '') => {
   return `${normalizePathSegments(path)}${suffix}`;
 };
 
+const buildWebpVariant = (value = '') => {
+  const cleanValue = normalizeImageSource(value);
+  if (!cleanValue || isEmbeddedImage(cleanValue)) return '';
+  const { path, suffix } = splitSourceParts(cleanValue);
+  if (!/\.png$/i.test(path)) return '';
+  return `${path.replace(/\.png$/i, '.webp')}${suffix}`;
+};
+
 const proxiedMediaSource = (value = '') => {
   const cleanValue = normalizeImageSource(value);
   if (!cleanValue || isEmbeddedImage(cleanValue) || !/^https?:\/\//i.test(cleanValue)) return '';
@@ -64,11 +72,15 @@ const buildFallbackSources = (src, extraSources = [], fallbackSrc = '') => {
     if (!cleanCandidate || candidateKeys.includes(cleanCandidate)) return;
     candidateKeys.push(cleanCandidate);
     if (resolvedSourceCache.has(cleanCandidate)) addSource(resolvedSourceCache.get(cleanCandidate));
+    const webpVariant = buildWebpVariant(cleanCandidate);
     const prefersProxy = /^https?:\/\//i.test(cleanCandidate);
     if (prefersProxy) {
+      addSource(proxiedMediaSource(webpVariant));
+      addSource(webpVariant);
       addSource(proxiedMediaSource(cleanCandidate));
       addSource(cleanCandidate);
     } else {
+      addSource(webpVariant);
       addSource(cleanCandidate);
       addSource(proxiedMediaSource(cleanCandidate));
     }
