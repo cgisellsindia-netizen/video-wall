@@ -43,9 +43,11 @@ const normalizeImageSource = (value = '') => {
   return `${normalizePathSegments(path)}${suffix}`;
 };
 
+const isRemoteSource = (value = '') => /^https?:\/\//i.test(String(value || '').trim());
+
 const buildWebpVariant = (value = '') => {
   const cleanValue = normalizeImageSource(value);
-  if (!cleanValue || isEmbeddedImage(cleanValue)) return '';
+  if (!cleanValue || isEmbeddedImage(cleanValue) || isRemoteSource(cleanValue)) return '';
   const { path, suffix } = splitSourceParts(cleanValue);
   if (!/\.png$/i.test(path)) return '';
   return `${path.replace(/\.png$/i, '.webp')}${suffix}`;
@@ -73,10 +75,8 @@ const buildFallbackSources = (src, extraSources = [], fallbackSrc = '') => {
     candidateKeys.push(cleanCandidate);
     if (resolvedSourceCache.has(cleanCandidate)) addSource(resolvedSourceCache.get(cleanCandidate));
     const webpVariant = buildWebpVariant(cleanCandidate);
-    const prefersProxy = /^https?:\/\//i.test(cleanCandidate);
+    const prefersProxy = isRemoteSource(cleanCandidate);
     if (prefersProxy) {
-      addSource(proxiedMediaSource(webpVariant));
-      addSource(webpVariant);
       addSource(proxiedMediaSource(cleanCandidate));
       addSource(cleanCandidate);
     } else {
