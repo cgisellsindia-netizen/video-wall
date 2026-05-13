@@ -30,6 +30,7 @@ import FloatingTracker from './components/FloatingTracker';
 import FloatingCheckoutBar from './components/FloatingCheckoutBar';
 import Footer from './components/Footer';
 import BottomNav from './components/BottomNav';
+import FaqSection from './components/FaqSection';
 import { HomepageBlocks } from './components/PageBuilderRenderer';
 import { API_URL } from './api';
 import { captureCustomerLocation, getSavedCustomerAreaName, getSavedCustomerLocation, resolveCustomerAreaName, saveCustomerAreaName, saveCustomerLocation } from './locationLock';
@@ -277,6 +278,24 @@ function MainPage({
       .slice(0, 8),
     [categories, regularProducts]
   );
+  const homepageFaqs = useMemo(() => ([
+    {
+      question: 'What can I buy on Camigo?',
+      answer: 'Camigo offers CCTV cameras, DVRs, NVRs, PoE switches, accessories, SMPS units, and complete setup packages for homes, shops, offices, and installers.'
+    },
+    {
+      question: 'Does Camigo support installation?',
+      answer: 'Yes. Camigo supports CCTV installation workflows and setup coordination for eligible service areas, depending on location and order type.'
+    },
+    {
+      question: 'How is delivery time decided?',
+      answer: 'Delivery timing depends on the customer location, product availability, and whether the order qualifies for local fast dispatch or courier fulfillment.'
+    },
+    {
+      question: 'Can dealers or distributors order from Camigo?',
+      answer: 'Yes. Camigo supports dealer and distributor-style buying flows with trade-friendly product sourcing and support.'
+    }
+  ]), []);
 
   usePageSeo({
     title: 'Camigo | Fast CCTV Delivery and Installation',
@@ -312,6 +331,17 @@ function MainPage({
               name: product.name
             }))
           }
+        },
+        {
+          '@type': 'FAQPage',
+          mainEntity: homepageFaqs.map((item) => ({
+            '@type': 'Question',
+            name: item.question,
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: item.answer
+            }
+          }))
         }
       ]
     }
@@ -394,6 +424,15 @@ function MainPage({
                 </div>
               </div>
             </div>
+          </section>
+        )}
+        {!searchQuery && (
+          <section className="category-section">
+            <FaqSection
+              title="Camigo CCTV Buying FAQs"
+              eyebrow="Help before you buy"
+              items={homepageFaqs}
+            />
           </section>
         )}
       </main>

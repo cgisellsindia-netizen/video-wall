@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Wrench, Calendar, Clock, MapPin, Phone, CheckCircle } from 'lucide-react';
+import usePageSeo from '../usePageSeo';
+import FaqSection from './FaqSection';
 
 function InstallationPage({ user, onLogin }) {
   const [form, setForm] = useState({
@@ -15,6 +17,61 @@ function InstallationPage({ user, onLogin }) {
   });
   const [submitted, setSubmitted] = useState(false);
   const navigate = useNavigate();
+  const installationFaqs = useMemo(() => ([
+    {
+      question: 'How do I book CCTV installation through Camigo?',
+      answer: 'You can book installation by logging in, filling the installation form, selecting a preferred date and time, and submitting your contact and site details.'
+    },
+    {
+      question: 'Does Camigo provide same-day CCTV installation?',
+      answer: 'Same-day installation may be available for eligible orders and locations when booking happens early enough and service capacity is available.'
+    },
+    {
+      question: 'What information should I provide before installation?',
+      answer: 'Customers should provide site address, preferred date and time, number of cameras, property type, and any setup notes that affect installation planning.'
+    }
+  ]), []);
+
+  usePageSeo({
+    title: 'Book CCTV Installation | Camigo',
+    description: 'Book CCTV installation with Camigo for homes, offices, shops, and project sites, with setup support and service coordination.',
+    canonicalUrl: 'https://getcamigo.in/install',
+    image: 'https://getcamigo.in/camigo-logo.svg',
+    schema: {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'Service',
+          serviceType: 'CCTV Installation Booking',
+          provider: {
+            '@type': 'Organization',
+            name: 'Camigo',
+            url: 'https://getcamigo.in/'
+          },
+          areaServed: 'Bhubaneswar',
+          url: 'https://getcamigo.in/install'
+        },
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://getcamigo.in/' },
+            { '@type': 'ListItem', position: 2, name: 'Installation', item: 'https://getcamigo.in/install' }
+          ]
+        },
+        {
+          '@type': 'FAQPage',
+          mainEntity: installationFaqs.map((item) => ({
+            '@type': 'Question',
+            name: item.question,
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: item.answer
+            }
+          }))
+        }
+      ]
+    }
+  });
 
   if (!user) { onLogin(); return null; }
 
@@ -39,6 +96,11 @@ function InstallationPage({ user, onLogin }) {
 
   return (
     <div className="container" style={{ maxWidth: '800px', padding: '24px 16px 100px' }}>
+      <nav className="seo-breadcrumbs" aria-label="Breadcrumb">
+        <Link to="/">Home</Link>
+        <span>/</span>
+        <span>Installation</span>
+      </nav>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
         <Wrench size={28} color="#f6c400" />
         <h2 className="section-title" style={{ margin: 0 }}>Book CCTV Installation</h2>
@@ -119,6 +181,7 @@ function InstallationPage({ user, onLogin }) {
           </div>
         </div>
       </div>
+      <FaqSection title="Installation FAQs" eyebrow="Before you book" items={installationFaqs} />
     </div>
   );
 }

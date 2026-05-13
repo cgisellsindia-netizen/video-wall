@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Phone, MapPin, Send, CheckCircle } from 'lucide-react';
+import usePageSeo from '../usePageSeo';
+import FaqSection from './FaqSection';
 
 function ContactPage({ user }) {
   const [form, setForm] = useState({
@@ -12,6 +14,56 @@ function ContactPage({ user }) {
   });
   const [submitted, setSubmitted] = useState(false);
   const navigate = useNavigate();
+  const contactFaqs = useMemo(() => ([
+    {
+      question: 'How can I contact Camigo for CCTV support?',
+      answer: 'You can contact Camigo through the website contact form, call +91 9114 555 044, or email cgisellsindia@gmail.com for product, dealer, or support queries.'
+    },
+    {
+      question: 'Does Camigo handle bulk or project orders?',
+      answer: 'Yes. Camigo supports bulk-order and project enquiries for homes, shops, offices, and larger surveillance requirements.'
+    },
+    {
+      question: 'How fast does Camigo respond to enquiries?',
+      answer: 'Camigo aims to respond to contact requests within 24 hours, depending on the type of request and business hours.'
+    }
+  ]), []);
+
+  usePageSeo({
+    title: 'Contact Camigo | CCTV Sales and Support',
+    description: 'Contact Camigo for CCTV product support, installation enquiries, dealer questions, and project-based surveillance requirements.',
+    canonicalUrl: 'https://getcamigo.in/contact',
+    image: 'https://getcamigo.in/camigo-logo.svg',
+    schema: {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'ContactPage',
+          name: 'Contact Camigo',
+          url: 'https://getcamigo.in/contact',
+          description: 'Contact page for Camigo CCTV sales and support.'
+        },
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://getcamigo.in/' },
+            { '@type': 'ListItem', position: 2, name: 'Contact', item: 'https://getcamigo.in/contact' }
+          ]
+        },
+        {
+          '@type': 'FAQPage',
+          mainEntity: contactFaqs.map((item) => ({
+            '@type': 'Question',
+            name: item.question,
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: item.answer
+            }
+          }))
+        }
+      ]
+    }
+  });
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -33,6 +85,11 @@ function ContactPage({ user }) {
 
   return (
     <div className="container" style={{ maxWidth: '900px', padding: '24px 16px 100px' }}>
+      <nav className="seo-breadcrumbs" aria-label="Breadcrumb">
+        <Link to="/">Home</Link>
+        <span>/</span>
+        <span>Contact</span>
+      </nav>
       <h2 className="section-title" style={{ marginBottom: '24px' }}>Contact Camigo</h2>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '24px' }}>
@@ -88,6 +145,7 @@ function ContactPage({ user }) {
           </div>
         </div>
       </div>
+      <FaqSection title="Contact and Support FAQs" eyebrow="Need help?" items={contactFaqs} />
     </div>
   );
 }
