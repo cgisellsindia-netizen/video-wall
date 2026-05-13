@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Filter, Heart, Minus, Plus, Search, SlidersHorizontal, Star } from 'lucide-react';
 import ProductImage from './ProductImage';
 import { buildProductImageSources, getProductFallbackImage } from '../imageFallbacks';
+import usePageSeo from '../usePageSeo';
 
 function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null, deliveryEtaLabel = '16 mins' }) {
   const [selectedCat, setSelectedCat] = useState('all');
@@ -60,6 +61,43 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
     availability !== 'all',
     minRating !== 'all'
   ].filter(Boolean).length;
+  const activeCategory = selectedCat === 'all'
+    ? null
+    : categories.find((category) => String(category.id) === String(selectedCat));
+  const seoTitle = activeCategory
+    ? `${activeCategory.name} | Camigo Shop`
+    : 'Shop CCTV Cameras, DVRs, NVRs and Accessories | Camigo';
+  const seoDescription = activeCategory
+    ? `Explore ${filtered.length} products in ${activeCategory.name} on Camigo with CCTV dispatch, installation support, and local delivery from Bhubaneswar.`
+    : `Browse ${filtered.length} CCTV products, setup packages, recorders, switches, and accessories on Camigo with fast local dispatch and installation support.`;
+  const canonicalUrl = activeCategory
+    ? `https://getcamigo.in/shop?category=${activeCategory.id}`
+    : 'https://getcamigo.in/shop';
+  const seoProducts = filtered.slice(0, 10);
+  const seoImage = seoProducts[0]?.image || 'https://getcamigo.in/camigo-logo.svg';
+
+  usePageSeo({
+    title: seoTitle,
+    description: seoDescription,
+    canonicalUrl,
+    image: seoImage,
+    schema: {
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: seoTitle,
+      description: seoDescription,
+      url: canonicalUrl,
+      mainEntity: {
+        '@type': 'ItemList',
+        itemListElement: seoProducts.map((product, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          url: `https://getcamigo.in/product/${product.id}`,
+          name: product.name
+        }))
+      }
+    }
+  });
 
   const stopCardTap = (event) => {
     event.preventDefault();

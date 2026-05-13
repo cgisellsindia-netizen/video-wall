@@ -4,6 +4,7 @@ import { ArrowLeft, Heart, Minus, Plus, Search, SlidersHorizontal, Star } from '
 import CategoryBannerCarousel from './CategoryBannerCarousel';
 import ProductImage from './ProductImage';
 import { buildProductImageSources, getProductFallbackImage } from '../imageFallbacks';
+import usePageSeo from '../usePageSeo';
 
 function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null, deliveryEtaLabel = '16 mins' }) {
   const { id } = useParams();
@@ -104,6 +105,38 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
     priceBand !== 'all',
     availability !== 'all'
   ].filter(Boolean).length;
+  const seoProducts = categoryProducts.slice(0, 10);
+  const seoTitle = category?.name
+    ? `${category.name} | Camigo CCTV Category`
+    : 'Camigo CCTV Category';
+  const seoDescription = category?.name
+    ? `Browse ${categoryProducts.length} ${category.name} products on Camigo with fast CCTV dispatch, installation support, and local delivery options from Bhubaneswar.`
+    : 'Browse CCTV products on Camigo with fast dispatch and installation support.';
+  const canonicalUrl = `https://getcamigo.in/category/${categoryId}`;
+  const seoImage = seoProducts[0]?.image || 'https://getcamigo.in/camigo-logo.svg';
+
+  usePageSeo({
+    title: seoTitle,
+    description: seoDescription,
+    canonicalUrl,
+    image: seoImage,
+    schema: category ? {
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: seoTitle,
+      description: seoDescription,
+      url: canonicalUrl,
+      mainEntity: {
+        '@type': 'ItemList',
+        itemListElement: seoProducts.map((product, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          url: `https://getcamigo.in/product/${product.id}`,
+          name: product.name
+        }))
+      }
+    } : null
+  });
 
   const stopCardTap = (event) => {
     event.preventDefault();
