@@ -8,28 +8,26 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
   const navigate = useNavigate();
   const listProduct = products.find(p => p.id === parseInt(id, 10));
   const [remoteProduct, setRemoteProduct] = useState(null);
-  const [loading, setLoading] = useState(!listProduct);
+  const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState('');
 
   useEffect(() => {
-    if (listProduct) {
-      setRemoteProduct(null);
-      setLoading(false);
-      return;
-    }
-
     let active = true;
     setLoading(true);
     fetch(`${API_URL}/products/${id}`)
       .then(res => (res.ok ? res.json() : null))
-      .then(data => { if (active) setRemoteProduct(data); })
-      .catch(() => { if (active) setRemoteProduct(null); })
+      .then(data => {
+        if (active) setRemoteProduct(data);
+      })
+      .catch(() => {
+        if (active) setRemoteProduct(null);
+      })
       .finally(() => { if (active) setLoading(false); });
 
     return () => { active = false; };
-  }, [id, listProduct]);
+  }, [id]);
 
-  const product = listProduct || remoteProduct;
+  const product = remoteProduct || listProduct;
   const gallery = useMemo(() => {
     const merged = [
       ...(Array.isArray(product?.images) ? product.images : []),
