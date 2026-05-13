@@ -32,6 +32,7 @@ import Footer from './components/Footer';
 import BottomNav from './components/BottomNav';
 import FaqSection from './components/FaqSection';
 import LocalSeoLandingPage from './components/LocalSeoLandingPage';
+import SeoSignalBlock from './components/SeoSignalBlock';
 import { HomepageBlocks } from './components/PageBuilderRenderer';
 import { API_URL } from './api';
 import { localSeoPages } from './localSeoPages';
@@ -223,7 +224,8 @@ function MainPage({
   savedProductIds = [],
   onToggleSaved,
   deliveryEtaLabel = '16 mins',
-  pageContent = DEFAULT_PAGE_CONTENT
+  pageContent = DEFAULT_PAGE_CONTENT,
+  seoAutomationSnapshot = null
 }) {
   const setupProducts = useMemo(
     () => products.filter((product) => isSetupProduct(product)),
@@ -467,6 +469,7 @@ function MainPage({
             </div>
           </section>
         )}
+        {!searchQuery && <SeoSignalBlock snapshot={seoAutomationSnapshot} />}
         {!searchQuery && (
           <section className="category-section">
             <FaqSection
@@ -498,6 +501,7 @@ function AppContent() {
   const [customerOrders, setCustomerOrders] = useState([]);
   const [savedItems, setSavedItems] = useState([]);
   const [pageContent, setPageContent] = useState(DEFAULT_PAGE_CONTENT);
+  const [seoAutomationSnapshot, setSeoAutomationSnapshot] = useState(null);
   const [notificationPermission, setNotificationPermission] = useState(() => (
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
   ));
@@ -610,6 +614,14 @@ function AppContent() {
     } catch (e) {}
   };
 
+  const fetchSeoAutomationSnapshot = async () => {
+    try {
+      const res = await fetch(`${API_URL}/seo-automation`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setSeoAutomationSnapshot(data);
+    } catch (e) {}
+  };
+
   const setCartBusy = (productId, busy) => {
     const value = Number(productId);
     if (!Number.isFinite(value)) return;
@@ -657,6 +669,7 @@ function AppContent() {
       fetchCategories();
       fetchProducts();
       fetchPageContent();
+      fetchSeoAutomationSnapshot();
       if (!stopped) setAuthReady(true);
     };
 
@@ -664,6 +677,14 @@ function AppContent() {
     return () => {
       stopped = true;
     };
+  }, []);
+
+  useEffect(() => {
+    fetchSeoAutomationSnapshot();
+    const intervalId = window.setInterval(() => {
+      fetchSeoAutomationSnapshot();
+    }, 20 * 60 * 1000);
+    return () => window.clearInterval(intervalId);
   }, []);
 
   useEffect(() => {
@@ -1373,6 +1394,7 @@ function AppContent() {
               onToggleSaved={toggleSavedItem}
               deliveryEtaLabel={deliveryEtaLabel}
               pageContent={pageContent}
+              seoAutomationSnapshot={seoAutomationSnapshot}
             />
           </DeliveryOnlyRoute>
         } />

@@ -4,6 +4,7 @@ import { Bell, Shield, Users, ShoppingBag, Package, Plus, Trash2, Edit, MapPin, 
 import { API_URL } from '../api';
 import PageBuilderAdmin from './PageBuilderAdmin';
 import ProductImage from './ProductImage';
+import SeoAutomationAdmin from './SeoAutomationAdmin';
 
 function AdminPage({ user, pageContent, onPageContentSaved }) {
   const [users, setUsers] = useState([]);
@@ -1239,6 +1240,7 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
         <button className={`btn btn-sm ${activeTab === 'delivery' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('delivery')}><Truck size={16} /> Delivery Partners ({deliveryPartners.length})</button>
         <button className={`btn btn-sm ${activeTab === 'hubs' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('hubs')}><MapPin size={16} /> Hubs ({hubs.length})</button>
         <button className={`btn btn-sm ${activeTab === 'banners' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('banners')}><Package size={16} /> Category Banners ({categoryBanners.length})</button>
+        <button className={`btn btn-sm ${activeTab === 'seo-automation' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('seo-automation')}><Sparkles size={16} /> SEO Intelligence</button>
         <button className={`btn btn-sm ${activeTab === 'page-builder' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('page-builder')}><Sparkles size={16} /> Live Page Editor</button>
         <button className={`btn btn-sm ${activeTab === 'notifications' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('notifications')}><Bell size={16} /> Notifications</button>
       </div>
@@ -2591,6 +2593,10 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
           onPageContentSaved={onPageContentSaved}
           setMessage={setMessage}
         />
+      )}
+
+      {activeTab === 'seo-automation' && (
+        <SeoAutomationAdmin token={localStorage.getItem('token')} setMessage={setMessage} />
       )}
     </div>
   );

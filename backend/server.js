@@ -193,14 +193,44 @@ const APP_SETTING_KEYS = {
   homepageSetupPackages: 'homepage_setup_packages',
   codEnabled: 'cod_enabled',
   homepageLayout: 'homepage_layout',
-  productPageLayout: 'product_page_layout'
+  productPageLayout: 'product_page_layout',
+  seoAutomationSnapshot: 'seo_automation_snapshot'
 };
 
 const OPERATIONAL_APP_SETTING_KEYS = [
   APP_SETTING_KEYS.homepageSetupPackages,
   APP_SETTING_KEYS.codEnabled,
   APP_SETTING_KEYS.homepageLayout,
-  APP_SETTING_KEYS.productPageLayout
+  APP_SETTING_KEYS.productPageLayout,
+  APP_SETTING_KEYS.seoAutomationSnapshot
+];
+
+const SEO_AUTOMATION_REFRESH_MS = 20 * 60 * 1000;
+const SEO_AUTOMATION_MAX_KEYWORDS = 12;
+const SEO_AUTOMATION_MAX_OPPORTUNITIES = 16;
+const SEO_AUTOMATION_MAX_EMERGING = 10;
+const SEO_LOCAL_AREAS = [
+  'Bhubaneswar',
+  'Patia',
+  'Chandrasekharpur',
+  'Khandagiri',
+  'Saheed Nagar',
+  'Rasulgarh',
+  'Cuttack',
+  'Khordha',
+  'Puri',
+  'Odisha'
+];
+const SEO_KEYWORD_PATTERNS = [
+  'cctv camera {area}',
+  'cctv installation {area}',
+  'security camera {area}',
+  'cctv dealer {area}',
+  'ip camera {area}',
+  'ptz camera {area}',
+  'dvr nvr dealer {area}',
+  'home cctv installation {area}',
+  'office cctv installation {area}'
 ];
 
 const DEFAULT_SETUP_PACKAGES = [
@@ -959,6 +989,138 @@ const saveJsonAppSetting = async (settingKey, value) => {
      VALUES (?, ?, CURRENT_TIMESTAMP)`,
     [key, JSON.stringify(value)]
   );
+};
+
+const normalizeSeoKeyword = (value = '') => String(value || '')
+  .toLowerCase()
+  .replace(/[^a-z0-9\s/-]/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .slice(0, 120);
+
+const recordSeoKeywordSignal = async (keyword, source = 'site_search') => {
+  const normalizedKeyword = normalizeSeoKeyword(keyword);
+  const normalizedSource = normalizeSeoKeyword(source).replace(/\s+/g, '_') || 'site_search';
+  if (!normalizedKeyword || normalizedKeyword.length < 3) return;
+  await dbRunAsync(
+    `INSERT INTO seo_keyword_signals (keyword, hits, source, latest_at)
+     VALUES (?, 1, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(keyword) DO UPDATE SET
+       hits = seo_keyword_signals.hits + 1,
+       source = excluded.source,
+       latest_at = CURRENT_TIMESTAMP`,
+    [normalizedKeyword, normalizedSource]
+  );
+};
+
+const buildSeoKeywordScore = (keyword, signalsMap, categoryNames, productNames) => {
+  const signalHits = Number(signalsMap.get(keyword)?.hits || 0);
+  const categoryMatches = categoryNames.filter((name) => keyword.includes(name)).length;
+  const productMatches = productNames.filter((name) => keyword.includes(name)).length;
+  const localBoost = /bhubaneswar|odisha|patia|chandrasekharpur|khandagiri|saheed nagar|rasulgarh|cuttack|khordha|puri/.test(keyword) ? 14 : 0;
+  const intentBoost = /installation|dealer|camera|dvr|nvr|ptz|ip|security/.test(keyword) ? 10 : 0;
+  return signalHits * 5 + categoryMatches * 4 + productMatches * 2 + localBoost + intentBoost;
+};
+
+const buildSeoOpportunities = (keywords = [], strongestKeywords = []) => {
+  const existing = new Set(strongestKeywords.map((item) => item.keyword));
+  return keywords
+    .filter((keyword) => !existing.has(keyword))
+    .slice(0, SEO_AUTOMATION_MAX_OPPORTUNITIES)
+    .map((keyword, index) => ({
+      keyword,
+      action: index < 6 ? 'Strengthen existing pages' : 'Consider new local landing page',
+      page_hint: /installation/.test(keyword) ? '/install' : '/shop'
+    }));
+};
+
+let seoAutomationRefreshPromise = null;
+
+const buildSeoAutomationSnapshot = async () => {
+  const [products, categories, signalRows] = await Promise.all([
+    dbAllAsync('SELECT id, name, description, category_id FROM products ORDER BY id DESC'),
+    dbAllAsync('SELECT id, name FROM categories ORDER BY sort_order ASC, id ASC'),
+    dbAllAsync('SELECT keyword, hits, source, latest_at FROM seo_keyword_signals ORDER BY hits DESC, latest_at DESC LIMIT 80')
+  ]);
+
+  const signalsMap = new Map(signalRows.map((row) => [String(row.keyword), row]));
+  const categoryNames = categories.map((row) => normalizeSeoKeyword(row.name)).filter(Boolean);
+  const productNames = products.map((row) => normalizeSeoKeyword(row.name)).filter(Boolean);
+  const categoriesById = new Map(categories.map((row) => [Number(row.id), normalizeSeoKeyword(row.name)]));
+  const productTerms = products.flatMap((row) => [
+    normalizeSeoKeyword(row.name),
+    categoriesById.get(Number(row.category_id)) || ''
+  ].filter(Boolean));
+  const seededKeywords = SEO_LOCAL_AREAS.flatMap((area) => SEO_KEYWORD_PATTERNS.map((pattern) => normalizeSeoKeyword(pattern.replace('{area}', area))));
+  const candidateKeywords = Array.from(new Set([
+    ...signalRows.map((row) => normalizeSeoKeyword(row.keyword)),
+    ...seededKeywords,
+    ...categoryNames.map((name) => `${name} bhubaneswar`),
+    ...categoryNames.map((name) => `${name} odisha`),
+    ...productTerms.filter(Boolean)
+  ].filter(Boolean)));
+
+  const strongestKeywords = candidateKeywords
+    .map((keyword) => ({
+      keyword,
+      score: buildSeoKeywordScore(keyword, signalsMap, categoryNames, productNames),
+      hits: Number(signalsMap.get(keyword)?.hits || 0),
+      source: signalsMap.get(keyword)?.source || 'cluster'
+    }))
+    .sort((left, right) => {
+      if (right.score !== left.score) return right.score - left.score;
+      if (right.hits !== left.hits) return right.hits - left.hits;
+      return left.keyword.localeCompare(right.keyword);
+    })
+    .slice(0, SEO_AUTOMATION_MAX_KEYWORDS);
+
+  const emergingSearchTerms = signalRows
+    .filter((row) => Number(row.hits || 0) <= 5)
+    .slice(0, SEO_AUTOMATION_MAX_EMERGING)
+    .map((row) => ({
+      keyword: normalizeSeoKeyword(row.keyword),
+      hits: Number(row.hits || 0),
+      source: row.source || 'site_search',
+      latest_at: row.latest_at
+    }));
+
+  const homepageKeywords = strongestKeywords.slice(0, 8).map((item) => item.keyword);
+  const opportunities = buildSeoOpportunities(
+    candidateKeywords.filter((keyword) => !homepageKeywords.includes(keyword)),
+    strongestKeywords
+  );
+
+  return {
+    generated_at: new Date().toISOString(),
+    refresh_minutes: Math.round(SEO_AUTOMATION_REFRESH_MS / 60000),
+    homepage_keywords: homepageKeywords,
+    strongest_keywords: strongestKeywords,
+    emerging_search_terms: emergingSearchTerms,
+    opportunities,
+    tracked_signal_count: signalRows.length
+  };
+};
+
+const getSeoAutomationSnapshot = async ({ force = false } = {}) => {
+  if (!force) {
+    const stored = await getJsonAppSetting(APP_SETTING_KEYS.seoAutomationSnapshot, null);
+    const generatedAt = stored?.generated_at ? Date.parse(stored.generated_at) : NaN;
+    if (stored && Number.isFinite(generatedAt) && (Date.now() - generatedAt) < SEO_AUTOMATION_REFRESH_MS) {
+      return stored;
+    }
+  }
+
+  if (!seoAutomationRefreshPromise) {
+    seoAutomationRefreshPromise = (async () => {
+      const snapshot = await buildSeoAutomationSnapshot();
+      await saveJsonAppSetting(APP_SETTING_KEYS.seoAutomationSnapshot, snapshot);
+      return snapshot;
+    })().finally(() => {
+      seoAutomationRefreshPromise = null;
+    });
+  }
+
+  return seoAutomationRefreshPromise;
 };
 
 const isCodEnabled = async () => Boolean(await getJsonAppSetting(APP_SETTING_KEYS.codEnabled, false));
@@ -3267,6 +3429,21 @@ app.get('/api/page-content', async (req, res) => {
   }
 });
 
+app.get('/api/seo-automation', async (req, res) => {
+  try {
+    const snapshot = await getSeoAutomationSnapshot();
+    res.json({
+      generated_at: snapshot?.generated_at || null,
+      refresh_minutes: snapshot?.refresh_minutes || Math.round(SEO_AUTOMATION_REFRESH_MS / 60000),
+      homepage_keywords: Array.isArray(snapshot?.homepage_keywords) ? snapshot.homepage_keywords : [],
+      strongest_keywords: Array.isArray(snapshot?.strongest_keywords) ? snapshot.strongest_keywords : [],
+      emerging_search_terms: Array.isArray(snapshot?.emerging_search_terms) ? snapshot.emerging_search_terms : []
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/categories', (req, res) => {
   db.all('SELECT * FROM categories ORDER BY sort_order', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -3292,6 +3469,9 @@ app.get('/api/products', (req, res) => {
   const { category_id, search } = req.query;
   let query = 'SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id';
   let params = [];
+  if (search) {
+    recordSeoKeywordSignal(search, 'catalog_search').catch(() => {});
+  }
   
   if (category_id) {
     query += ' WHERE p.category_id = ?';
@@ -4941,6 +5121,27 @@ app.put('/api/admin/page-content', authenticateToken, requireAdmin, async (req, 
   }
 });
 
+app.get('/api/admin/seo-automation', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const snapshot = await getSeoAutomationSnapshot();
+    res.json(snapshot || {});
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/seo-automation/refresh', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const snapshot = await getSeoAutomationSnapshot({ force: true });
+    res.json({
+      message: 'SEO automation snapshot refreshed.',
+      snapshot
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/admin/category-banners', authenticateToken, requireAdmin, (req, res) => {
   db.all(
     `SELECT cb.*, COALESCE(c.name, 'Shop by Category') as category_name
@@ -5820,6 +6021,14 @@ const startServer = async () => {
   app.listen(PORT, () => {
     console.log(`Instamart Clone API running on http://localhost:${PORT}`);
     console.log('Security hardening enabled for auth, orders, admin routes, and product search.');
+    getSeoAutomationSnapshot({ force: true }).catch((error) => {
+      console.warn(`SEO automation warmup failed: ${error.message}`);
+    });
+    setInterval(() => {
+      getSeoAutomationSnapshot({ force: true }).catch((error) => {
+        console.warn(`SEO automation refresh failed: ${error.message}`);
+      });
+    }, SEO_AUTOMATION_REFRESH_MS);
   });
 };
 

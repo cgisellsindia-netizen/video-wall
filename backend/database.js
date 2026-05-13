@@ -299,6 +299,13 @@ db.serialize(async () => {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    db.run(`CREATE TABLE IF NOT EXISTS seo_keyword_signals (
+      keyword TEXT PRIMARY KEY,
+      hits INTEGER DEFAULT 0,
+      source TEXT DEFAULT 'site_search',
+      latest_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
     await ensureColumns('products', [
       'discount_percent REAL DEFAULT 0',
       'dealer_price REAL',
@@ -384,6 +391,11 @@ db.serialize(async () => {
       'lng REAL',
       'is_default INTEGER DEFAULT 0',
       'updated_at DATETIME DEFAULT CURRENT_TIMESTAMP'
+    ]);
+    await ensureColumns('seo_keyword_signals', [
+      'hits INTEGER DEFAULT 0',
+      'source TEXT DEFAULT "site_search"',
+      'latest_at DATETIME DEFAULT CURRENT_TIMESTAMP'
     ]);
   db.run(`UPDATE order_items
           SET warranty_years = COALESCE(warranty_years, 5),
