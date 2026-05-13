@@ -1,10 +1,15 @@
 services:
   - type: web
     name: camigo-store
-    env: node
-    buildCommand: npm install --prefix backend && npm install --prefix instamart-web && npm run build --prefix instamart-web
-    startCommand: npm start --prefix backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
     plan: free
+    buildFilter:
+      paths:
+        - backend/**
+        - render.yaml
     envVars:
       - key: NODE_ENV
         value: production
@@ -51,4 +56,22 @@ services:
       - key: DELHIVERY_HSN_CODE
         sync: false
       - key: CORS_ORIGINS
-        value: ""
+        value: https://camigo-web.onrender.com,https://getcamigo.com,https://www.getcamigo.com,https://getcamigo.in,https://www.getcamigo.in
+
+  - type: web
+    runtime: static
+    name: camigo-web
+    rootDir: instamart-web
+    buildCommand: npm install && npm run build
+    staticPublishPath: build
+    buildFilter:
+      paths:
+        - instamart-web/**
+        - render.yaml
+    envVars:
+      - key: REACT_APP_API_URL
+        value: https://camigo-store.onrender.com/api
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
