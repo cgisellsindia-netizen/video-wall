@@ -30,9 +30,15 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
   }, [id, listProduct]);
 
   const product = listProduct || remoteProduct;
-  const gallery = Array.isArray(product?.images) && product.images.length
-    ? product.images
-    : (product?.image ? [product.image] : []);
+  const gallery = useMemo(() => {
+    const merged = [
+      ...(Array.isArray(product?.images) ? product.images : []),
+      product?.image
+    ]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+    return merged.filter((value, index) => merged.indexOf(value) === index);
+  }, [product?.images, product?.image]);
 
   useEffect(() => {
     setActiveImage(gallery[0] || '');

@@ -2746,6 +2746,15 @@ const attachProductImages = (products, res, single = false) => {
   const list = Array.isArray(products) ? products : (products ? [products] : []);
   if (!list.length) return single ? res.json(null) : res.json([]);
   const placeholders = list.map(() => '?').join(',');
+  const normalizeGallery = (images = [], coverImage = '') => {
+    const merged = [
+      ...(Array.isArray(images) ? images : []),
+      coverImage
+    ]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+    return merged.filter((value, index) => merged.indexOf(value) === index);
+  };
   db.all(
     `SELECT product_id, image_url, sort_order
      FROM product_images
@@ -2760,9 +2769,7 @@ const attachProductImages = (products, res, single = false) => {
         return map;
       }, {});
       const enriched = list.map(product => {
-        const gallery = grouped[product.id] && grouped[product.id].length
-          ? grouped[product.id]
-          : (product.image ? [product.image] : []);
+        const gallery = normalizeGallery(grouped[product.id], product.image);
         return {
           ...product,
           image: gallery[0] || product.image,

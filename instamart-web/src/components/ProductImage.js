@@ -96,7 +96,7 @@ const buildFallbackSources = (src, extraSources = [], fallbackSrc = '') => {
 function ProductImage({
   src,
   sources = [],
-  fallbackSrc = '/images/cgi-hd3e.jpg',
+  fallbackSrc = '',
   alt = '',
   className = '',
   loading = 'lazy',

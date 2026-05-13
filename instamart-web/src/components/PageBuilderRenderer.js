@@ -238,8 +238,8 @@ function ProductHeroBlock({
             </div>
             {gallery.length > 1 && (
               <div className="product-gallery-thumbs product-gallery-thumbs-under">
-                {gallery.map((image) => (
-                  <button key={image} type="button" className={image === activeImage ? 'product-thumb active' : 'product-thumb'} onClick={() => setActiveImage(image)}>
+                {gallery.map((image, index) => (
+                  <button key={`${image}-${index}`} type="button" className={image === activeImage ? 'product-thumb active' : 'product-thumb'} onClick={() => setActiveImage(image)}>
                     <ProductImage src={image} alt="" />
                   </button>
                 ))}
