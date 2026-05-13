@@ -114,6 +114,10 @@ const mediaManifestPublicOrigin = (() => {
 })();
 const MEDIA_LIBRARY_FTP_DIR = process.env.MEDIA_LIBRARY_FTP_DIR || '/htdocs';
 const MEDIA_LIBRARY_PUBLIC_BASE = (process.env.MEDIA_LIBRARY_PUBLIC_BASE || mediaManifestPublicOrigin || '').replace(/\/+$/, '');
+const MEDIA_LIBRARY_LEGACY_PUBLIC_BASES = (process.env.MEDIA_LIBRARY_LEGACY_PUBLIC_BASES || 'https://camigo.ct.ws')
+  .split(',')
+  .map(value => value.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
 const mediaLibraryImageExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.svg']);
 const mediaManifestPublicPathFromFtp = () => {
   const baseDir = path.posix.normalize(`/${String(MEDIA_LIBRARY_FTP_DIR || '/htdocs').replaceAll('\\', '/').replace(/^\/+/, '')}`);
@@ -1503,17 +1507,27 @@ const mediaLibraryContentTypes = {
 };
 
 const mediaLibraryRemotePathFromPublicUrl = (value = '') => {
-  if (!MEDIA_LIBRARY_PUBLIC_BASE) throw new Error('Media library public base is not configured');
+  const allowedBases = [MEDIA_LIBRARY_PUBLIC_BASE, ...MEDIA_LIBRARY_LEGACY_PUBLIC_BASES].filter(Boolean);
+  if (!allowedBases.length) throw new Error('Media library public base is not configured');
   let parsedUrl;
-  let parsedBase;
+  let matchedBase;
   try {
     parsedUrl = new URL(String(value || '').trim());
-    parsedBase = new URL(MEDIA_LIBRARY_PUBLIC_BASE);
+    matchedBase = allowedBases
+      .map((base) => {
+        try {
+          return new URL(base);
+        } catch (error) {
+          return null;
+        }
+      })
+      .filter(Boolean)
+      .find((baseUrl) => parsedUrl.origin === baseUrl.origin);
   } catch (error) {
     throw new Error('Invalid media URL');
   }
 
-  if (parsedUrl.origin !== parsedBase.origin) {
+  if (!matchedBase) {
     throw new Error('Media URL is outside the configured Camigo media library');
   }
 
