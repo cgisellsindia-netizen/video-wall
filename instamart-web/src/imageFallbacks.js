@@ -108,7 +108,5 @@ export function buildProductImageSources(product = {}) {
     product.images.forEach((value) => push(value));
   }
 
-  push(getProductFallbackImage(product));
-
   return Array.from(sourceSet);
 }
