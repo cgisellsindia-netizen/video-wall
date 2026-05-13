@@ -12,11 +12,14 @@ import OrdersPage from './components/OrdersPage';
 import AdminPage from './components/AdminPage';
 import ContactPage from './components/ContactPage';
 import AboutPage from './components/AboutPage';
+import CctvCameraBhubaneswarPage from './components/CctvCameraBhubaneswarPage';
+import CctvInstallationBhubaneswarPage from './components/CctvInstallationBhubaneswarPage';
 import ShippingPolicyPage from './components/ShippingPolicyPage';
 import PrivacyPolicyPage from './components/PrivacyPolicyPage';
 import TermsOfServicePage from './components/TermsOfServicePage';
 import ReturnsPolicyPage from './components/ReturnsPolicyPage';
 import InstallationPolicyPage from './components/InstallationPolicyPage';
+import SecurityCameraOdishaPage from './components/SecurityCameraOdishaPage';
 import DealerDashboard from './components/DealerDashboard';
 import InstallationPage from './components/InstallationPage';
 import ShopPage from './components/ShopPage';
@@ -297,12 +300,12 @@ function MainPage({
     }
   ]), []);
   const localSeoTopics = useMemo(() => ([
-    'CCTV camera dealer in Bhubaneswar',
-    'CCTV installation in Bhubaneswar',
-    'Security camera installation in Odisha',
-    'IP camera, PTZ camera, dome camera, and bullet camera supply',
-    'DVR, NVR, PoE switch, SMPS, and CCTV accessories in Odisha',
-    'Home, office, shop, warehouse, and apartment CCTV setup support'
+    { label: 'CCTV camera dealer in Bhubaneswar', to: '/cctv-camera-bhubaneswar' },
+    { label: 'CCTV installation in Bhubaneswar', to: '/cctv-installation-bhubaneswar' },
+    { label: 'Security camera in Odisha', to: '/security-camera-odisha' },
+    { label: 'IP camera, PTZ camera, dome camera, and bullet camera supply', to: '/shop' },
+    { label: 'DVR, NVR, PoE switch, SMPS, and CCTV accessories in Odisha', to: '/shop' },
+    { label: 'Home, office, shop, warehouse, and apartment CCTV setup support', to: '/install' }
   ]), []);
 
   usePageSeo({
@@ -463,7 +466,7 @@ function MainPage({
               </p>
               <div className="local-seo-topic-list">
                 {localSeoTopics.map((topic) => (
-                  <span key={topic} className="seo-link-chip subtle">{topic}</span>
+                  <Link key={topic.label} to={topic.to} className="seo-link-chip subtle">{topic.label}</Link>
                 ))}
               </div>
             </div>
@@ -1387,6 +1390,9 @@ function AppContent() {
         <Route path="/distributor" element={<DealerDashboard user={user} />} />
         <Route path="/contact" element={<ContactPage user={user} />} />
         <Route path="/about-camigo" element={<AboutPage />} />
+        <Route path="/cctv-camera-bhubaneswar" element={<CctvCameraBhubaneswarPage />} />
+        <Route path="/cctv-installation-bhubaneswar" element={<CctvInstallationBhubaneswarPage />} />
+        <Route path="/security-camera-odisha" element={<SecurityCameraOdishaPage />} />
         <Route path="/shipping-policy" element={<ShippingPolicyPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
