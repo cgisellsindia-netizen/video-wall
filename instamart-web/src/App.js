@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
@@ -33,6 +33,7 @@ import { captureCustomerLocation, getSavedCustomerAreaName, getSavedCustomerLoca
 import { isTrackableOrder } from './orderTracking';
 import { getDeliveryEstimate } from './deliveryZone';
 import { DEFAULT_PAGE_CONTENT, normalizePageContent } from './pageBuilder';
+import usePageSeo from './usePageSeo';
 import './App.css';
 
 const getRuntimeAppMode = () => {
@@ -252,6 +253,66 @@ function MainPage({
   const homepageHasCategoryFeeds = Boolean(
     pageContent?.homepage?.blocks?.some((block) => block?.visible !== false && block?.type === 'category_feeds')
   );
+  const featuredHomepageProducts = useMemo(() => {
+    const ordered = [
+      ...recommendedProducts,
+      ...bestsellingProducts,
+      ...recentProducts,
+      ...regularProducts
+    ];
+    const seen = new Set();
+    return ordered.filter((product) => {
+      const id = Number(product?.id || 0);
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    }).slice(0, 10);
+  }, [recommendedProducts, bestsellingProducts, recentProducts, regularProducts]);
+  const featuredHomepageCategories = useMemo(
+    () => categories
+      .filter((category) => regularProducts.some((product) => Number(product.category_id) === Number(category.id)))
+      .slice(0, 8),
+    [categories, regularProducts]
+  );
+
+  usePageSeo({
+    title: 'Camigo | Fast CCTV Delivery and Installation',
+    description: 'Shop CCTV cameras, DVRs, NVRs, PoE switches, accessories, and setup packages on Camigo with fast dispatch and installation support from Bhubaneswar.',
+    canonicalUrl: 'https://getcamigo.in/',
+    image: 'https://getcamigo.in/camigo-logo.svg',
+    schema: {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'WebSite',
+          '@id': 'https://getcamigo.in/#website',
+          url: 'https://getcamigo.in/',
+          name: 'Camigo',
+          potentialAction: {
+            '@type': 'SearchAction',
+            target: 'https://getcamigo.in/shop?search={search_term_string}',
+            'query-input': 'required name=search_term_string'
+          }
+        },
+        {
+          '@type': 'CollectionPage',
+          '@id': 'https://getcamigo.in/#homepage',
+          url: 'https://getcamigo.in/',
+          name: 'Camigo Homepage',
+          description: 'Homepage for Camigo CCTV cameras, setup packages, recorders, switches, and accessories.',
+          mainEntity: {
+            '@type': 'ItemList',
+            itemListElement: featuredHomepageProducts.map((product, index) => ({
+              '@type': 'ListItem',
+              position: index + 1,
+              url: `https://getcamigo.in/product/${product.id}`,
+              name: product.name
+            }))
+          }
+        }
+      ]
+    }
+  });
 
   return (
     <>
@@ -297,6 +358,40 @@ function MainPage({
           homepageHasCategoryFeeds ? null : productsByCategory.map(cat => (
             <ProductSection key={cat.id} title={cat.name} categoryId={cat.id} products={cat.products} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={onToggleSaved} sectionTone="neutral" deliveryEtaLabel={deliveryEtaLabel} />
           ))
+        )}
+        {!searchQuery && (
+          <section className="category-section">
+            <div className="seo-link-hub">
+              <div className="section-header">
+                <h2 className="section-title">Explore Camigo Categories and Products</h2>
+              </div>
+              <p className="seo-link-hub-copy">
+                Browse priority CCTV categories and product pages directly from the homepage for faster discovery by customers and search engines.
+              </p>
+              <div className="seo-link-hub-grid">
+                <div className="seo-link-group">
+                  <h3>Popular Categories</h3>
+                  <div className="seo-link-list">
+                    {featuredHomepageCategories.map((category) => (
+                      <Link key={category.id} to={`/category/${category.id}`} className="seo-link-chip">
+                        {category.name}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+                <div className="seo-link-group">
+                  <h3>Featured Product Pages</h3>
+                  <div className="seo-link-list">
+                    {featuredHomepageProducts.map((product) => (
+                      <Link key={product.id} to={`/product/${product.id}`} className="seo-link-chip subtle">
+                        {product.name}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         )}
       </main>
       <Footer />

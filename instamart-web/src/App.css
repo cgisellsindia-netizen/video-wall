@@ -105,6 +105,62 @@
   background:
     linear-gradient(180deg, #f2f4f8, #e9edf5);
 }
+.seo-link-hub {
+  background: linear-gradient(180deg, #ffffff, #f7fbff);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 28px;
+  padding: 22px 18px 20px;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.05);
+}
+.seo-link-hub-copy {
+  margin: 0 0 16px;
+  color: #5f7189;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.seo-link-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.seo-link-group {
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(244, 248, 255, 0.9);
+  border: 1px solid rgba(191, 219, 254, 0.5);
+}
+.seo-link-group h3 {
+  margin: 0 0 12px;
+  color: #163a7a;
+  font-size: 17px;
+  font-weight: 800;
+}
+.seo-link-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.seo-link-chip {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: #163a7a;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+}
+.seo-link-chip.subtle {
+  background: #eaf2ff;
+  color: #14315d;
+}
+.seo-link-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(22, 58, 122, 0.14);
+}
 
 /* ===== HEADER ===== */
 .header {
@@ -4742,6 +4798,9 @@
   .category-section { margin: 18px auto; padding: 0 12px; }
   .home-band { border-radius: 24px; padding: 16px 12px 18px; }
   .section-header { margin-bottom: 10px; }
+  .seo-link-hub { border-radius: 22px; padding: 18px 14px 16px; }
+  .seo-link-hub-grid { grid-template-columns: 1fr; gap: 12px; }
+  .seo-link-group { padding: 14px; border-radius: 18px; }
   .section-title { font-size: 20px; }
   .category-grid { grid-template-columns: repeat(4, 1fr); gap: 8px; }
   .setup-package-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -4931,6 +4990,7 @@ body.bottom-nav-hidden .floating-tracker {
   .hero-delivery-card small { font-size: 10px; }
   .category-section { padding: 0 10px; }
   .home-band { border-radius: 20px; padding: 14px 10px 16px; }
+  .seo-link-chip { width: 100%; justify-content: center; padding: 10px 12px; }
   .category-grid { grid-template-columns: repeat(4, 1fr); gap: 7px; }
   .setup-package-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .setup-package-visual { aspect-ratio: 1 / 1; }
