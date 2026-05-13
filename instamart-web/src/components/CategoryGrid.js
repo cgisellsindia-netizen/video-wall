@@ -32,8 +32,7 @@ function CategoryGrid({ categories, title = 'Shop by Category' }) {
                 src={cat.image || categoryImages[cat.name]}
                 fallbackSrc={cat.image ? '' : '/category-real/accessories.jpg'}
                 alt={cat.name}
-                loading="eager"
-                fetchPriority="high"
+                loading="lazy"
               />
             </div>
           </div>
