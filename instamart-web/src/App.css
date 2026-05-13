@@ -808,6 +808,19 @@
   opacity: 1;
   transform: translateY(0);
 }
+.deferred-home-block {
+  width: min(1200px, calc(100% - 32px));
+  margin: 28px auto;
+  border-radius: 28px;
+  background:
+    linear-gradient(90deg, rgba(228, 236, 247, 0.9) 20%, rgba(244, 248, 253, 0.96) 40%, rgba(228, 236, 247, 0.9) 60%);
+  background-size: 220% 100%;
+  animation: deferredShelfPulse 1.35s linear infinite;
+}
+@keyframes deferredShelfPulse {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
 .product-scroll {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, BadgeCheck, Clock3, Heart, Minus, Package2, Plus, ShoppingCart, ShieldCheck, Sparkles, Star, Truck, Zap } from 'lucide-react';
 import HeroBanner from './HeroBanner';
@@ -6,6 +6,33 @@ import CategoryGrid from './CategoryGrid';
 import SetupPackagesSection from './SetupPackagesSection';
 import ProductSection from './ProductSection';
 import ProductImage from './ProductImage';
+
+function DeferredBlock({ children, minHeight = 320, rootMargin = '320px 0px' }) {
+  const [isVisible, setIsVisible] = useState(false);
+  const anchorRef = useRef(null);
+
+  useEffect(() => {
+    const node = anchorRef.current;
+    if (!node) return undefined;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin, threshold: 0.01 }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [rootMargin]);
+
+  if (isVisible) {
+    return <>{children}</>;
+  }
+
+  return <div ref={anchorRef} className="deferred-home-block" style={{ minHeight }} aria-hidden="true" />;
+}
 
 function CustomBannerBlock({ block }) {
   if (!block?.image_url) return null;
@@ -63,6 +90,8 @@ export function HomepageBlocks({
     bestselling: bestsellingProducts.filter((product) => !String(product.unit || '').toLowerCase().includes('setup'))
   };
 
+  let feedRenderIndex = 0;
+
   return (pageContent?.homepage?.blocks || []).map((block) => {
     if (block.visible === false) return null;
     if (block.type === 'hero') return <HeroBanner key={block.id} config={block} />;
@@ -87,11 +116,13 @@ export function HomepageBlocks({
       );
     }
     if (block.type === 'product_feed') {
+      feedRenderIndex += 1;
+      const prioritizeImages = feedRenderIndex === 1;
       const products = block.source === 'category'
         ? regularProducts.filter((product) => Number(product.category_id) === Number(block.category_id))
         : (feedMap[block.source] || []);
       if (!products.length) return null;
-      return (
+      const section = (
         <ProductSection
           key={block.id}
           title={block.title || 'Products'}
@@ -105,26 +136,43 @@ export function HomepageBlocks({
           sectionTone={block.tone || 'neutral'}
           categoryId={block.source === 'category' ? Number(block.category_id) : null}
           deliveryEtaLabel={deliveryEtaLabel}
+          prioritizeImages={prioritizeImages}
         />
+      );
+      if (prioritizeImages) return section;
+      return (
+        <DeferredBlock key={block.id} minHeight={360}>
+          {section}
+        </DeferredBlock>
       );
     }
     if (block.type === 'category_feeds') {
-      return productsByCategory.map((cat) => (
-        <ProductSection
-          key={`${block.id}-${cat.id}`}
-          title={cat.name}
-          categoryId={cat.id}
-          products={cat.products}
-          onAdd={addToCart}
-          onRemove={removeFromCart}
-          user={user}
-          cartItems={cartItems}
-          savedProductIds={savedProductIds}
-          onToggleSaved={onToggleSaved}
-          sectionTone="neutral"
-          deliveryEtaLabel={deliveryEtaLabel}
-        />
-      ));
+      const sections = productsByCategory.map((cat, categoryIndex) => {
+        feedRenderIndex += 1;
+        const prioritizeImages = feedRenderIndex === 1 && categoryIndex === 0;
+        return (
+          <ProductSection
+            key={`${block.id}-${cat.id}`}
+            title={cat.name}
+            categoryId={cat.id}
+            products={cat.products}
+            onAdd={addToCart}
+            onRemove={removeFromCart}
+            user={user}
+            cartItems={cartItems}
+            savedProductIds={savedProductIds}
+            onToggleSaved={onToggleSaved}
+            sectionTone="neutral"
+            deliveryEtaLabel={deliveryEtaLabel}
+            prioritizeImages={prioritizeImages}
+          />
+        );
+      });
+      return (
+        <DeferredBlock key={block.id} minHeight={520}>
+          {sections}
+        </DeferredBlock>
+      );
     }
     return null;
   });

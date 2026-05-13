@@ -5,7 +5,7 @@ import CategoryBannerCarousel from './CategoryBannerCarousel';
 import ProductImage from './ProductImage';
 import { buildProductImageSources, getProductFallbackImage } from '../imageFallbacks';
 
-function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [], categoryId = null, savedProductIds = [], onToggleSaved = null, sectionTone = 'neutral', deliveryEtaLabel = '16 mins' }) {
+function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [], categoryId = null, savedProductIds = [], onToggleSaved = null, sectionTone = 'neutral', deliveryEtaLabel = '16 mins', prioritizeImages = false }) {
   const navigate = useNavigate();
   const sectionRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -85,8 +85,8 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
                   sources={buildProductImageSources(product)}
                   fallbackSrc={getProductFallbackImage(product)}
                   alt={product.name}
-                  loading={index < 4 ? 'eager' : 'lazy'}
-                  fetchPriority={index < 2 ? 'high' : 'auto'}
+                  loading={prioritizeImages && index < 2 ? 'eager' : 'lazy'}
+                  fetchPriority={prioritizeImages && index < 1 ? 'high' : 'auto'}
                   fallbackContent="CCTV"
                 />
                 {discount > 0 && (
