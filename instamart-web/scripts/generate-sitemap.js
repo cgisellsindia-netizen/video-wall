@@ -13,6 +13,9 @@ const staticRoutes = [
   { path: '/saved', changefreq: 'weekly', priority: '0.6' },
   { path: '/orders', changefreq: 'weekly', priority: '0.5' },
   { path: '/contact', changefreq: 'monthly', priority: '0.5' },
+  { path: '/about-camigo', changefreq: 'monthly', priority: '0.6' },
+  { path: '/shipping-policy', changefreq: 'monthly', priority: '0.5' },
+  { path: '/installation-policy', changefreq: 'monthly', priority: '0.5' },
   { path: '/privacy-policy', changefreq: 'monthly', priority: '0.4' },
   { path: '/returns-policy', changefreq: 'monthly', priority: '0.4' },
   { path: '/terms-of-service', changefreq: 'monthly', priority: '0.4' }
