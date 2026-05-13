@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://camigo-store.onrender.com/sitemap.xml
+Sitemap: https://getcamigo.in/sitemap.xml
