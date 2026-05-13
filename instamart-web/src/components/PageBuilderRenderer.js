@@ -7,7 +7,7 @@ import SetupPackagesSection from './SetupPackagesSection';
 import ProductSection from './ProductSection';
 import ProductImage from './ProductImage';
 
-function DeferredBlock({ children, minHeight = 320, rootMargin = '320px 0px' }) {
+function DeferredBlock({ children, minHeight = 320, rootMargin = '120px 0px' }) {
   const [isVisible, setIsVisible] = useState(false);
   const anchorRef = useRef(null);
 

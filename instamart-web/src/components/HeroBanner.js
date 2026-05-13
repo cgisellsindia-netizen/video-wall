@@ -58,18 +58,15 @@ function HeroBanner({ config = null }) {
                 <strong>{config?.deliveryTitle || 'Quick dispatch from Bhubaneswar'}</strong>
                 <small>{config?.deliveryDescription || 'Product, installation, and support in one streamlined flow.'}</small>
               </div>
-              <picture>
-                <source srcSet="/images/camigo-delivery-hero.webp" type="image/webp" />
-                <img
-                  src="/images/camigo-delivery-hero.png"
-                  alt="Camigo delivery partner with CCTV order"
-                  loading="eager"
-                  fetchPriority="high"
-                  decoding="async"
-                  width="447"
-                  height="558"
-                />
-              </picture>
+              <img
+                src="/images/camigo-delivery-hero.webp"
+                alt="Camigo delivery partner with CCTV order"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                width="447"
+                height="558"
+              />
             </div>
           </div>
         </div>
