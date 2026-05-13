@@ -12,14 +12,11 @@ import OrdersPage from './components/OrdersPage';
 import AdminPage from './components/AdminPage';
 import ContactPage from './components/ContactPage';
 import AboutPage from './components/AboutPage';
-import CctvCameraBhubaneswarPage from './components/CctvCameraBhubaneswarPage';
-import CctvInstallationBhubaneswarPage from './components/CctvInstallationBhubaneswarPage';
 import ShippingPolicyPage from './components/ShippingPolicyPage';
 import PrivacyPolicyPage from './components/PrivacyPolicyPage';
 import TermsOfServicePage from './components/TermsOfServicePage';
 import ReturnsPolicyPage from './components/ReturnsPolicyPage';
 import InstallationPolicyPage from './components/InstallationPolicyPage';
-import SecurityCameraOdishaPage from './components/SecurityCameraOdishaPage';
 import DealerDashboard from './components/DealerDashboard';
 import InstallationPage from './components/InstallationPage';
 import ShopPage from './components/ShopPage';
@@ -34,8 +31,10 @@ import FloatingCheckoutBar from './components/FloatingCheckoutBar';
 import Footer from './components/Footer';
 import BottomNav from './components/BottomNav';
 import FaqSection from './components/FaqSection';
+import LocalSeoLandingPage from './components/LocalSeoLandingPage';
 import { HomepageBlocks } from './components/PageBuilderRenderer';
 import { API_URL } from './api';
+import { localSeoPages } from './localSeoPages';
 import { captureCustomerLocation, getSavedCustomerAreaName, getSavedCustomerLocation, resolveCustomerAreaName, saveCustomerAreaName, saveCustomerLocation } from './locationLock';
 import { isTrackableOrder } from './orderTracking';
 import { getDeliveryEstimate } from './deliveryZone';
@@ -299,14 +298,10 @@ function MainPage({
       answer: 'Yes. Camigo supports dealer and distributor-style buying flows with trade-friendly product sourcing and support.'
     }
   ]), []);
-  const localSeoTopics = useMemo(() => ([
-    { label: 'CCTV camera dealer in Bhubaneswar', to: '/cctv-camera-bhubaneswar' },
-    { label: 'CCTV installation in Bhubaneswar', to: '/cctv-installation-bhubaneswar' },
-    { label: 'Security camera in Odisha', to: '/security-camera-odisha' },
-    { label: 'IP camera, PTZ camera, dome camera, and bullet camera supply', to: '/shop' },
-    { label: 'DVR, NVR, PoE switch, SMPS, and CCTV accessories in Odisha', to: '/shop' },
-    { label: 'Home, office, shop, warehouse, and apartment CCTV setup support', to: '/install' }
-  ]), []);
+  const localSeoTopics = useMemo(() => localSeoPages.map((page) => ({
+    label: page.label,
+    to: `/${page.slug}`
+  })), []);
 
   usePageSeo({
     title: 'CCTV Camera in Bhubaneswar | CCTV Installation in Odisha | Camigo',
@@ -1390,9 +1385,9 @@ function AppContent() {
         <Route path="/distributor" element={<DealerDashboard user={user} />} />
         <Route path="/contact" element={<ContactPage user={user} />} />
         <Route path="/about-camigo" element={<AboutPage />} />
-        <Route path="/cctv-camera-bhubaneswar" element={<CctvCameraBhubaneswarPage />} />
-        <Route path="/cctv-installation-bhubaneswar" element={<CctvInstallationBhubaneswarPage />} />
-        <Route path="/security-camera-odisha" element={<SecurityCameraOdishaPage />} />
+        {localSeoPages.map((page) => (
+          <Route key={page.slug} path={`/${page.slug}`} element={<LocalSeoLandingPage page={page} />} />
+        ))}
         <Route path="/shipping-policy" element={<ShippingPolicyPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
