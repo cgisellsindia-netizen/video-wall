@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Filter, Heart, Minus, Plus, Search, SlidersHorizontal, Star } from 'lucide-react';
 import ProductImage from './ProductImage';
 import { buildProductImageSources, getProductFallbackImage } from '../imageFallbacks';
@@ -83,19 +83,46 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
     image: seoImage,
     schema: {
       '@context': 'https://schema.org',
-      '@type': 'CollectionPage',
-      name: seoTitle,
-      description: seoDescription,
-      url: canonicalUrl,
-      mainEntity: {
-        '@type': 'ItemList',
-        itemListElement: seoProducts.map((product, index) => ({
-          '@type': 'ListItem',
-          position: index + 1,
-          url: `https://getcamigo.in/product/${product.id}`,
-          name: product.name
-        }))
-      }
+      '@graph': [
+        {
+          '@type': 'CollectionPage',
+          name: seoTitle,
+          description: seoDescription,
+          url: canonicalUrl,
+          mainEntity: {
+            '@type': 'ItemList',
+            itemListElement: seoProducts.map((product, index) => ({
+              '@type': 'ListItem',
+              position: index + 1,
+              url: `https://getcamigo.in/product/${product.id}`,
+              name: product.name
+            }))
+          }
+        },
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            {
+              '@type': 'ListItem',
+              position: 1,
+              name: 'Home',
+              item: 'https://getcamigo.in/'
+            },
+            {
+              '@type': 'ListItem',
+              position: 2,
+              name: 'Shop',
+              item: 'https://getcamigo.in/shop'
+            },
+            ...(activeCategory ? [{
+              '@type': 'ListItem',
+              position: 3,
+              name: activeCategory.name,
+              item: canonicalUrl
+            }] : [])
+          ]
+        }
+      ]
     }
   });
 
@@ -111,6 +138,17 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
 
   return (
     <div className="container shop-page-shell">
+      <nav className="seo-breadcrumbs" aria-label="Breadcrumb">
+        <Link to="/">Home</Link>
+        <span>/</span>
+        <Link to="/shop">Shop</Link>
+        {activeCategory && (
+          <>
+            <span>/</span>
+            <span>{activeCategory.name}</span>
+          </>
+        )}
+      </nav>
       <div className="category-page-hero shop-hero-compact">
         <div>
           <span className="eyebrow">Fast category browsing</span>

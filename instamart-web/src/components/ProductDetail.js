@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { API_URL } from '../api';
 import { ProductPageBlocks } from './PageBuilderRenderer';
 
@@ -54,6 +54,8 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
       .filter(Boolean)
       .slice(0, 6)
   ), [product?.description]);
+  const categoryName = product?.category_name || listProduct?.category_name || 'Category';
+  const categoryId = Number(product?.category_id || listProduct?.category_id || 0);
 
   useEffect(() => {
     if (!product) return undefined;
@@ -95,29 +97,62 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
     schemaNode.dataset.camigoSchema = 'product';
     schemaNode.textContent = JSON.stringify({
       '@context': 'https://schema.org',
-      '@type': 'Product',
-      name: product.name,
-      description,
-      image: gallery,
-      sku: String(product.id),
-      brand: {
-        '@type': 'Brand',
-        name: 'Camigo'
-      },
-      mpn: String(product.id),
-      offers: {
-        '@type': 'Offer',
-        url: currentUrl,
-        priceCurrency: 'INR',
-        price: Number(product.price || 0).toFixed(2),
-        availability: Number(product.stock || 0) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-        itemCondition: 'https://schema.org/NewCondition'
-      },
-      aggregateRating: {
-        '@type': 'AggregateRating',
-        ratingValue: Number(product.rating_average || 4.6).toFixed(1),
-        reviewCount: Number(product.rating_count || 1)
-      }
+      '@graph': [
+        {
+          '@type': 'Product',
+          name: product.name,
+          description,
+          image: gallery,
+          sku: String(product.id),
+          brand: {
+            '@type': 'Brand',
+            name: 'Camigo'
+          },
+          mpn: String(product.id),
+          offers: {
+            '@type': 'Offer',
+            url: currentUrl,
+            priceCurrency: 'INR',
+            price: Number(product.price || 0).toFixed(2),
+            availability: Number(product.stock || 0) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+            itemCondition: 'https://schema.org/NewCondition'
+          },
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: Number(product.rating_average || 4.6).toFixed(1),
+            reviewCount: Number(product.rating_count || 1)
+          }
+        },
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            {
+              '@type': 'ListItem',
+              position: 1,
+              name: 'Home',
+              item: `${siteUrl}/`
+            },
+            {
+              '@type': 'ListItem',
+              position: 2,
+              name: 'Shop',
+              item: `${siteUrl}/shop`
+            },
+            ...(categoryId ? [{
+              '@type': 'ListItem',
+              position: 3,
+              name: categoryName,
+              item: `${siteUrl}/category/${categoryId}`
+            }] : []),
+            {
+              '@type': 'ListItem',
+              position: categoryId ? 4 : 3,
+              name: product.name,
+              item: currentUrl
+            }
+          ]
+        }
+      ]
     });
     document.head.appendChild(schemaNode);
 
@@ -149,22 +184,37 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
   }
 
   return (
-    <ProductPageBlocks
-      pageContent={pageContent}
-      product={product}
-      products={products}
-      gallery={gallery}
-      activeImage={activeImage}
-      setActiveImage={setActiveImage}
-      user={user}
-      onLogin={onLogin}
-      onAdd={onAdd}
-      onRemove={onRemove}
-      cartItems={cartItems}
-      priceForRole={priceForRole}
-      savedProductIds={savedProductIds}
-      onToggleSaved={onToggleSaved}
-    />
+    <div className="container product-detail-shell">
+      <nav className="seo-breadcrumbs" aria-label="Breadcrumb">
+        <Link to="/">Home</Link>
+        <span>/</span>
+        <Link to="/shop">Shop</Link>
+        {categoryId ? (
+          <>
+            <span>/</span>
+            <Link to={`/category/${categoryId}`}>{categoryName}</Link>
+          </>
+        ) : null}
+        <span>/</span>
+        <span>{product.name}</span>
+      </nav>
+      <ProductPageBlocks
+        pageContent={pageContent}
+        product={product}
+        products={products}
+        gallery={gallery}
+        activeImage={activeImage}
+        setActiveImage={setActiveImage}
+        user={user}
+        onLogin={onLogin}
+        onAdd={onAdd}
+        onRemove={onRemove}
+        cartItems={cartItems}
+        priceForRole={priceForRole}
+        savedProductIds={savedProductIds}
+        onToggleSaved={onToggleSaved}
+      />
+    </div>
   );
 }
 

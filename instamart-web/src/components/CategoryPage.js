@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Heart, Minus, Plus, Search, SlidersHorizontal, Star } from 'lucide-react';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
 import ProductImage from './ProductImage';
@@ -122,19 +122,46 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
     image: seoImage,
     schema: category ? {
       '@context': 'https://schema.org',
-      '@type': 'CollectionPage',
-      name: seoTitle,
-      description: seoDescription,
-      url: canonicalUrl,
-      mainEntity: {
-        '@type': 'ItemList',
-        itemListElement: seoProducts.map((product, index) => ({
-          '@type': 'ListItem',
-          position: index + 1,
-          url: `https://getcamigo.in/product/${product.id}`,
-          name: product.name
-        }))
-      }
+      '@graph': [
+        {
+          '@type': 'CollectionPage',
+          name: seoTitle,
+          description: seoDescription,
+          url: canonicalUrl,
+          mainEntity: {
+            '@type': 'ItemList',
+            itemListElement: seoProducts.map((product, index) => ({
+              '@type': 'ListItem',
+              position: index + 1,
+              url: `https://getcamigo.in/product/${product.id}`,
+              name: product.name
+            }))
+          }
+        },
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            {
+              '@type': 'ListItem',
+              position: 1,
+              name: 'Home',
+              item: 'https://getcamigo.in/'
+            },
+            {
+              '@type': 'ListItem',
+              position: 2,
+              name: 'Shop',
+              item: 'https://getcamigo.in/shop'
+            },
+            {
+              '@type': 'ListItem',
+              position: 3,
+              name: category.name,
+              item: canonicalUrl
+            }
+          ]
+        }
+      ]
     } : null
   });
 
@@ -161,6 +188,13 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
 
   return (
     <main className="container category-page">
+      <nav className="seo-breadcrumbs" aria-label="Breadcrumb">
+        <Link to="/">Home</Link>
+        <span>/</span>
+        <Link to="/shop">Shop</Link>
+        <span>/</span>
+        <span>{category?.name || 'Category'}</span>
+      </nav>
       <button className="back-btn" onClick={() => navigate('/')}>
         <ArrowLeft size={20} /> Back
       </button>
