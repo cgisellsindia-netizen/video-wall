@@ -86,7 +86,9 @@ const buildFallbackSources = (src, extraSources = [], fallbackSrc = '') => {
     }
   });
 
-  addSource(cleanFallbackSrc);
+  if (!candidateKeys.length) {
+    addSource(cleanFallbackSrc);
+  }
 
   return { sources, candidateKeys };
 };
@@ -117,7 +119,12 @@ function ProductImage({
   const currentSrc = sourceList[sourceIndex];
 
   if (!currentSrc) {
-    return <div className={className ? `${className} emoji` : 'emoji'}>{fallbackContent}</div>;
+    return (
+      <div
+        className={className ? `${className} product-image-placeholder` : 'product-image-placeholder'}
+        aria-label={alt || fallbackContent}
+      />
+    );
   }
 
   return (

@@ -1221,12 +1221,30 @@
   display: flex; align-items: center; justify-content: center;
   margin-bottom: 9px; position: relative; overflow: visible;
 }
-.product-img-wrap img, .product-img-wrap .emoji {
+.product-img-wrap img, .product-img-wrap .emoji, .product-img-wrap .product-image-placeholder {
   width: 124%; height: 124%; object-fit: contain;
   object-position: center;
   padding: 0;
   border-radius: inherit;
   font-size: 60px; display: flex; align-items: center; justify-content: center;
+}
+.product-image-placeholder {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f4f7fb 0%, #edf2f8 100%);
+}
+.product-image-placeholder::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.78) 50%, rgba(255,255,255,0) 100%);
+  animation: productImageShimmer 1.25s ease-in-out infinite;
+}
+@keyframes productImageShimmer {
+  100% {
+    transform: translateX(100%);
+  }
 }
 .discount-badge {
   display: none;
