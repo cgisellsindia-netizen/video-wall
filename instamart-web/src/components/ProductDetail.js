@@ -6,13 +6,15 @@ import { ProductPageBlocks } from './PageBuilderRenderer';
 function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogin, priceForRole, savedProductIds = [], onToggleSaved = null, pageContent = null }) {
   const { id } = useParams();
   const navigate = useNavigate();
-  const listProduct = products.find(p => p.id === parseInt(id, 10));
+  const productId = parseInt(id, 10);
+  const listProduct = products.find(p => p.id === productId);
   const [remoteProduct, setRemoteProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState('');
 
   useEffect(() => {
     let active = true;
+    setRemoteProduct(null);
     setLoading(true);
     fetch(`${API_URL}/products/${id}`)
       .then(res => (res.ok ? res.json() : null))
@@ -27,7 +29,10 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
     return () => { active = false; };
   }, [id]);
 
-  const product = remoteProduct || listProduct;
+  const matchedRemoteProduct = remoteProduct && Number(remoteProduct.id) === productId
+    ? remoteProduct
+    : null;
+  const product = matchedRemoteProduct || listProduct;
   const gallery = useMemo(() => {
     const merged = [
       ...(Array.isArray(product?.images) ? product.images : []),
