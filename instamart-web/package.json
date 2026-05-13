@@ -19,6 +19,7 @@
     "react-scripts": "5.0.1"
   },
   "scripts": {
+    "prebuild": "node scripts/generate-sitemap.js",
     "start": "set PORT=3002 && react-scripts start",
     "build": "react-scripts build",
     "build:customer": "set REACT_APP_APP_MODE=customer&& react-scripts build",
