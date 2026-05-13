@@ -538,6 +538,18 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
       unit: p.unit
     });
     setShowForm(true);
+    setTimeout(() => {
+      document.getElementById('product-form-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  };
+
+  const openProductForm = () => {
+    setShowForm(true);
+    setEditProduct(null);
+    setForm(emptyProduct);
+    setTimeout(() => {
+      document.getElementById('product-form-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
   };
 
   const handleImageFile = (file) => {
@@ -2291,11 +2303,11 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h3 style={{ margin: 0 }}>Product Management</h3>
-            <button className="btn btn-primary btn-sm" onClick={() => { setShowForm(true); setEditProduct(null); setForm(emptyProduct); }}><Plus size={16} /> Add Product</button>
+            <button className="btn btn-primary btn-sm" onClick={openProductForm}><Plus size={16} /> Add Product</button>
           </div>
 
           {showForm && (
-            <div className="card" style={{ marginBottom: '20px' }}>
+            <div className="card" id="product-form-card" style={{ marginBottom: '20px' }}>
               <h4 style={{ margin: '0 0 16px' }}>{editProduct ? 'Edit Product' : 'Add New Product'}</h4>
               <form onSubmit={handleSaveProduct} className="admin-product-form">
                 <div className="form-group"><label>Name</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} required /></div>
