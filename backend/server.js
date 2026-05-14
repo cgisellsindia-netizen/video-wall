@@ -3782,6 +3782,53 @@ const merchantCategoryForProduct = (product = {}) => {
   return 'Electronics > Video > Surveillance Cameras';
 };
 
+const MERCHANT_BRAND_PATTERNS = [
+  { pattern: /\bcgi\b/i, brand: 'CGI' },
+  { pattern: /\bcp\s*plus\b/i, brand: 'CP Plus' },
+  { pattern: /\bhik\s*vision\b|\bhikvision\b/i, brand: 'Hikvision' },
+  { pattern: /\bdahua\b/i, brand: 'Dahua' },
+  { pattern: /\bimou\b/i, brand: 'Imou' },
+  { pattern: /\bezviz\b/i, brand: 'EZVIZ' },
+  { pattern: /\bunv\b/i, brand: 'UNV' },
+  { pattern: /\btiandy\b/i, brand: 'Tiandy' },
+  { pattern: /\btrueview\b/i, brand: 'Trueview' },
+  { pattern: /\bgodrej\b/i, brand: 'Godrej' }
+];
+
+const inferMerchantBrand = (product = {}) => {
+  const haystack = `${product.name || ''} ${product.description || ''} ${product.category_name || ''}`;
+  const matched = MERCHANT_BRAND_PATTERNS.find(({ pattern }) => pattern.test(haystack));
+  return matched?.brand || 'Camigo';
+};
+
+const inferMerchantMpn = (product = {}) => {
+  const text = String(product.name || '').trim();
+  const matched = text.match(/\b([A-Z]{2,}[A-Z0-9-]{2,})\b/);
+  if (matched?.[1]) return matched[1];
+  return `CAMIGO-${product.id}`;
+};
+
+const buildMerchantDescription = (product = {}) => {
+  const base = String(product.description || '').replace(/\s+/g, ' ').trim();
+  const category = String(product.category_name || '').trim();
+  const unit = String(product.unit || '').trim();
+  const warrantyYears = Number(product.warranty_years || 0);
+  const segments = [];
+
+  if (base) segments.push(base);
+  if (!base && product.name) segments.push(`${normalizeMerchantTitle(product.name)} available online from Camigo.`);
+  if (category) segments.push(`Category: ${category}.`);
+  if (unit) segments.push(`Pack size: ${unit}.`);
+  if (warrantyYears > 0) segments.push(`${warrantyYears}-year warranty support.`);
+  segments.push('Fast CCTV delivery and installation support in Bhubaneswar and Odisha.');
+
+  return segments
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 490);
+};
+
 const saveProductImages = (productId, image, images, callback) => {
   const gallery = (Array.isArray(images) ? images : [])
     .map(item => String(item || '').trim())
@@ -4464,14 +4511,20 @@ app.get(['/merchant-feed.xml', '/api/merchant-feed.xml'], async (req, res) => {
     const enrichedProducts = await buildEnrichedProductsWithImages(products);
     const itemsXml = enrichedProducts.map((product) => {
       const availability = Number(product.stock || 0) > 0 ? 'in stock' : 'out of stock';
-      const cleanDescription = String(product.description || product.name || '').replace(/\s+/g, ' ').trim();
+      const cleanDescription = buildMerchantDescription(product);
       const merchantTitle = normalizeMerchantTitle(product.name || '');
+      const merchantBrand = inferMerchantBrand(product);
+      const merchantMpn = inferMerchantMpn(product);
       const productUrl = `${publicStorefrontUrl}/product/${product.id}`;
       const primaryImage = buildMerchantFeedImageUrl(product.id, 0);
-      const additionalImages = product.images
+      const productImages = Array.isArray(product.images) ? product.images : [];
+      const additionalImages = productImages
         .slice(1, 10)
         .map((_, index) => `\n      <g:additional_image_link>${xmlEscape(buildMerchantFeedImageUrl(product.id, index + 1))}</g:additional_image_link>`)
         .join('');
+      const salePriceXml = Number(product.mrp || 0) > Number(product.price || 0)
+        ? `\n      <g:sale_price>${Number(product.price || 0).toFixed(2)} INR</g:sale_price>\n      <g:price>${Number(product.mrp || 0).toFixed(2)} INR</g:price>`
+        : `\n      <g:price>${Number(product.price || 0).toFixed(2)} INR</g:price>`;
       return `  <item>
       <g:id>${xmlEscape(String(product.id))}</g:id>
       <title>${xmlEscape(merchantTitle || product.name)}</title>
@@ -4479,13 +4532,14 @@ app.get(['/merchant-feed.xml', '/api/merchant-feed.xml'], async (req, res) => {
       <link>${xmlEscape(productUrl)}</link>
       <g:image_link>${xmlEscape(primaryImage)}</g:image_link>${additionalImages}
       <g:availability>${availability}</g:availability>
-      <g:price>${Number(product.price || 0).toFixed(2)} INR</g:price>
+      ${salePriceXml}
       <g:condition>new</g:condition>
-      <g:brand>Camigo</g:brand>
+      <g:brand>${xmlEscape(merchantBrand)}</g:brand>
       <g:google_product_category>${xmlEscape(merchantCategoryForProduct(product))}</g:google_product_category>
       <g:product_type>${xmlEscape(product.category_name || 'CCTV & Security')}</g:product_type>
+      <g:adult>no</g:adult>
       <g:identifier_exists>no</g:identifier_exists>
-      <g:mpn>${xmlEscape(String(product.id))}</g:mpn>
+      <g:mpn>${xmlEscape(merchantMpn)}</g:mpn>
     </item>`;
     }).join('\n');
 
