@@ -68,7 +68,13 @@ function CategoryBannerCarousel({ placementId, showEmptySlot = false }) {
             className="category-banner-slide"
             style={{ aspectRatio: `${banner.width || 1200} / ${banner.height || 320}` }}
           >
-            <ProductImage src={banner.image_url} alt="Category banner" />
+            <ProductImage
+              src={banner.image_url}
+              alt="Category banner"
+              proxyWidth={960}
+              proxyQuality={72}
+              proxyFormat="webp"
+            />
           </div>
         ))}
       </div>

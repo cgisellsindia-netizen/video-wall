@@ -6451,6 +6451,9 @@ app.get('/api/media/proxy', async (req, res) => {
 
   let client;
   try {
+    const requestedWidth = Math.max(0, Math.min(2400, Number(req.query.w || req.query.width || 0) || 0));
+    const requestedQuality = Math.max(30, Math.min(92, Number(req.query.q || req.query.quality || 82) || 82));
+    const requestedFormat = String(req.query.format || req.query.f || '').trim().toLowerCase();
     const mediaFile = mediaLibraryRemotePathFromPublicUrl(req.query.url || '');
     client = await createCatalogFtpClient();
     const chunks = [];
@@ -6461,8 +6464,32 @@ app.get('/api/media/proxy', async (req, res) => {
       }
     });
     await client.downloadTo(collector, mediaFile.remotePath);
-    const body = Buffer.concat(chunks);
-    res.setHeader('Content-Type', mediaLibraryContentTypes[mediaFile.extension] || 'application/octet-stream');
+    let body = Buffer.concat(chunks);
+    let contentType = mediaLibraryContentTypes[mediaFile.extension] || 'application/octet-stream';
+    const shouldTransform = requestedWidth > 0 || requestedFormat === 'webp' || requestedFormat === 'jpg' || requestedFormat === 'jpeg' || requestedFormat === 'png';
+
+    if (shouldTransform && mediaFile.extension !== '.svg') {
+      try {
+        let transformer = sharp(body, { failOn: 'none' });
+        if (requestedWidth > 0) {
+          transformer = transformer.resize({ width: requestedWidth, withoutEnlargement: true });
+        }
+        if (requestedFormat === 'png') {
+          body = await transformer.png({ quality: requestedQuality }).toBuffer();
+          contentType = 'image/png';
+        } else if (requestedFormat === 'jpg' || requestedFormat === 'jpeg') {
+          body = await transformer.flatten({ background: '#ffffff' }).jpeg({ quality: requestedQuality, mozjpeg: true }).toBuffer();
+          contentType = 'image/jpeg';
+        } else {
+          body = await transformer.webp({ quality: requestedQuality }).toBuffer();
+          contentType = 'image/webp';
+        }
+      } catch (transformError) {
+        console.warn('Media proxy transform skipped:', transformError.message);
+      }
+    }
+
+    res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.setHeader('Content-Length', body.length);
     res.send(body);

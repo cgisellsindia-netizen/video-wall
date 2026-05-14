@@ -53,13 +53,17 @@ const buildWebpVariant = (value = '') => {
   return `${path.replace(/\.png$/i, '.webp')}${suffix}`;
 };
 
-const proxiedMediaSource = (value = '') => {
+const proxiedMediaSource = (value = '', options = {}) => {
   const cleanValue = normalizeImageSource(value);
   if (!cleanValue || isEmbeddedImage(cleanValue) || !/^https?:\/\//i.test(cleanValue)) return '';
-  return `${API_URL}/media/proxy?url=${encodeURIComponent(cleanValue)}`;
+  const params = new URLSearchParams({ url: cleanValue });
+  if (Number(options.width || 0) > 0) params.set('w', String(Number(options.width)));
+  if (Number(options.quality || 0) > 0) params.set('q', String(Number(options.quality)));
+  if (options.format) params.set('format', String(options.format));
+  return `${API_URL}/media/proxy?${params.toString()}`;
 };
 
-const buildFallbackSources = (src, extraSources = [], fallbackSrc = '') => {
+const buildFallbackSources = (src, extraSources = [], fallbackSrc = '', options = {}) => {
   const cleanExtraSources = Array.isArray(extraSources) ? extraSources : [extraSources];
   const cleanFallbackSrc = normalizeImageSource(fallbackSrc);
   const sources = [];
@@ -77,12 +81,12 @@ const buildFallbackSources = (src, extraSources = [], fallbackSrc = '') => {
     const webpVariant = buildWebpVariant(cleanCandidate);
     const prefersProxy = isRemoteSource(cleanCandidate);
     if (prefersProxy) {
-      addSource(proxiedMediaSource(cleanCandidate));
+      addSource(proxiedMediaSource(cleanCandidate, options));
       addSource(cleanCandidate);
     } else {
       addSource(webpVariant);
       addSource(cleanCandidate);
-      addSource(proxiedMediaSource(cleanCandidate));
+      addSource(proxiedMediaSource(cleanCandidate, options));
     }
   });
 
@@ -102,13 +106,23 @@ function ProductImage({
   loading = 'lazy',
   decoding = 'async',
   fallbackContent = 'CCTV',
+  proxyWidth = 0,
+  proxyQuality = 80,
+  proxyFormat = 'webp',
   onLoad,
   onError,
   ...imgProps
 }) {
   const sourceKey = normalizeImageSource(src);
   const fallbackKey = normalizeImageSource(fallbackSrc);
-  const sourcePlan = useMemo(() => buildFallbackSources(src, sources, fallbackSrc), [src, sources, fallbackSrc]);
+  const sourcePlan = useMemo(
+    () => buildFallbackSources(src, sources, fallbackSrc, {
+      width: proxyWidth,
+      quality: proxyQuality,
+      format: proxyFormat
+    }),
+    [src, sources, fallbackSrc, proxyWidth, proxyQuality, proxyFormat]
+  );
   const sourceList = sourcePlan.sources;
   const [sourceIndex, setSourceIndex] = useState(0);
 
@@ -139,7 +153,11 @@ function ProductImage({
         const canCacheResolvedSource = sourceKey
           && currentSrc
           && currentSrc !== fallbackKey
-          && currentSrc !== proxiedMediaSource(fallbackKey);
+          && currentSrc !== proxiedMediaSource(fallbackKey, {
+            width: proxyWidth,
+            quality: proxyQuality,
+            format: proxyFormat
+          });
         if (canCacheResolvedSource) {
           resolvedSourceCache.set(sourceKey, currentSrc);
         }

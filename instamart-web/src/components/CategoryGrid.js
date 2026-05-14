@@ -33,6 +33,9 @@ function CategoryGrid({ categories, title = 'Shop by Category' }) {
                 fallbackSrc={cat.image ? '' : '/category-real/accessories.jpg'}
                 alt={cat.name}
                 loading="lazy"
+                proxyWidth={320}
+                proxyQuality={74}
+                proxyFormat="webp"
               />
             </div>
           </div>
