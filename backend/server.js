@@ -3930,6 +3930,87 @@ const buildProductGallery = (product = {}, groupedImages = {}) => {
 const merchantFeedImageUrl = (productId, imageIndex = 0) =>
   `${publicServerBaseUrl}/merchant-feed/images/${encodeURIComponent(String(productId))}/${encodeURIComponent(String(imageIndex))}.jpg`;
 
+const MERCHANT_TITLE_KEEP_UPPER = new Set([
+  'AHD',
+  'AI',
+  'CAT5',
+  'CAT5E',
+  'CAT6',
+  'CCTV',
+  'CH',
+  'CVBS',
+  'CVI',
+  'DC',
+  'DVR',
+  'ECO',
+  'FHD',
+  'FULL',
+  'HD',
+  'HDD',
+  'HDDs',
+  'HIKVISION',
+  'IP',
+  'IR',
+  'LED',
+  'MP',
+  'NVR',
+  'ONVIF',
+  'POE',
+  'PTZ',
+  'RJ45',
+  'SATA',
+  'SD',
+  'SIM',
+  'SMPS',
+  'TVI',
+  'UHD',
+  'USB',
+  'VGA',
+  'WIFI'
+]);
+
+const isMerchantModelToken = (token = '') => /^[A-Z]{2,}(?:-[A-Z0-9]+)+$/.test(token);
+const isMerchantTechToken = (token = '') => /^\d+(?:MP|CH|X|G|TB|MM|M|V)$/i.test(token) || /^\d+K$/i.test(token);
+const toTitleCaseWord = (value = '') => value ? `${value.charAt(0).toUpperCase()}${value.slice(1).toLowerCase()}` : '';
+
+const normalizeMerchantTitle = (value = '') => {
+  const raw = String(value || '')
+    .replace(/[\[\]{}()]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!raw) return '';
+
+  return raw
+    .split(' ')
+    .map((token) => {
+      const clean = token.trim();
+      if (!clean) return clean;
+      const upper = clean.toUpperCase();
+
+      if (MERCHANT_TITLE_KEEP_UPPER.has(upper) || isMerchantModelToken(clean) || isMerchantTechToken(clean)) {
+        return upper;
+      }
+
+      if (clean.includes('-')) {
+        return clean
+          .split('-')
+          .map((part) => {
+            const partUpper = part.toUpperCase();
+            if (MERCHANT_TITLE_KEEP_UPPER.has(partUpper) || isMerchantTechToken(part) || isMerchantModelToken(part)) {
+              return partUpper;
+            }
+            return toTitleCaseWord(part);
+          })
+          .join('-');
+      }
+
+      return toTitleCaseWord(clean);
+    })
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
 const merchantImageAllowedHosts = new Set([
   'camigo.ct.ws',
   'getcamigo.in',
@@ -4384,6 +4465,7 @@ app.get(['/merchant-feed.xml', '/api/merchant-feed.xml'], async (req, res) => {
     const itemsXml = enrichedProducts.map((product) => {
       const availability = Number(product.stock || 0) > 0 ? 'in stock' : 'out of stock';
       const cleanDescription = String(product.description || product.name || '').replace(/\s+/g, ' ').trim();
+      const merchantTitle = normalizeMerchantTitle(product.name || '');
       const productUrl = `${publicStorefrontUrl}/product/${product.id}`;
       const primaryImage = buildMerchantFeedImageUrl(product.id, 0);
       const additionalImages = product.images
@@ -4392,7 +4474,7 @@ app.get(['/merchant-feed.xml', '/api/merchant-feed.xml'], async (req, res) => {
         .join('');
       return `  <item>
       <g:id>${xmlEscape(String(product.id))}</g:id>
-      <title>${xmlEscape(product.name)}</title>
+      <title>${xmlEscape(merchantTitle || product.name)}</title>
       <description>${xmlEscape(cleanDescription)}</description>
       <link>${xmlEscape(productUrl)}</link>
       <g:image_link>${xmlEscape(primaryImage)}</g:image_link>${additionalImages}
