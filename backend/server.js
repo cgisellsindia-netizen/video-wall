@@ -276,6 +276,22 @@ const SEO_KEYWORD_PATTERNS = [
   'home cctv installation {area}',
   'office cctv installation {area}'
 ];
+const SEO_PRIMARY_TARGET_KEYWORDS = [
+  'cctv camera bhubaneswar',
+  'cctv installation bhubaneswar',
+  'security camera bhubaneswar',
+  'cctv dealer bhubaneswar',
+  'ip camera bhubaneswar',
+  'ptz camera bhubaneswar',
+  'dvr nvr dealer bhubaneswar',
+  'home cctv installation bhubaneswar',
+  'office cctv installation bhubaneswar',
+  'cctv camera patia bhubaneswar',
+  'ip camera patia bhubaneswar',
+  'cctv dealer patia bhubaneswar',
+  'security camera odisha',
+  'cctv camera odisha'
+];
 const SEO_AUTOMATION_PLACEMENTS = {
   homepage: 'homepage',
   shop: 'shop',
@@ -1055,23 +1071,15 @@ const hasLocalAreaHint = (keyword = '') => SEO_LOCAL_AREA_HINTS.some((term) => k
 
 const hasCommercialIntent = (keyword = '') => SEO_COMMERCIAL_INTENT_TERMS.some((term) => keyword.includes(term));
 
+const hasBhubaneswarLocality = (keyword = '') => (
+  ['patia', 'chandrasekharpur', 'khandagiri', 'saheed nagar', 'rasulgarh'].some((term) => keyword.includes(term))
+);
+
 const localizeKeywordForCamigo = (keyword = '') => {
   let localized = normalizeSeoKeyword(keyword);
   if (!localized) return '';
-  if (localized.includes('patia') && !localized.includes('bhubaneswar')) {
+  if (hasBhubaneswarLocality(localized) && !localized.includes('bhubaneswar')) {
     localized = `${localized} bhubaneswar`;
-  }
-  if (
-    ['chandrasekharpur', 'khandagiri', 'saheed nagar', 'rasulgarh'].some((term) => localized.includes(term))
-    && !localized.includes('bhubaneswar')
-  ) {
-    localized = `${localized} bhubaneswar`;
-  }
-  if (
-    ['bhubaneswar', 'patia', 'chandrasekharpur', 'khandagiri', 'saheed nagar', 'rasulgarh'].some((term) => localized.includes(term))
-    && !localized.includes('odisha')
-  ) {
-    localized = `${localized} odisha`;
   }
   return normalizeSeoKeyword(localized);
 };
@@ -1115,19 +1123,54 @@ const buildSeoRotationHash = (values = []) => {
   return Number.parseInt(hash.slice(0, 8), 16) || 0;
 };
 
+const buildNaturalSeoKeywordVariants = (keyword = '') => {
+  const normalized = normalizeSeoKeyword(keyword);
+  if (!normalized) return [];
+
+  const variants = [normalized];
+  if (normalized.includes('bhubaneswar odisha')) {
+    variants.push(normalized.replace(/\s+odisha\b/g, '').trim());
+  }
+  if (normalized.includes('patia odisha') && !normalized.includes('bhubaneswar')) {
+    variants.push(normalized.replace(/\spatia odisha\b/g, ' patia bhubaneswar').trim());
+  }
+  if (hasBhubaneswarLocality(normalized) && !normalized.includes('bhubaneswar')) {
+    variants.push(`${normalized} bhubaneswar`);
+  }
+  if (
+    normalized.includes('camera')
+    && !normalized.includes('cctv')
+    && !normalized.includes('ip camera')
+    && !normalized.includes('ptz camera')
+  ) {
+    variants.push(normalized.replace(/\bcamera\b/, 'cctv camera'));
+  }
+  return Array.from(new Set(
+    variants
+      .map((value) => prepareSeoKeywordCandidate(value))
+      .filter(Boolean)
+  ));
+};
+
 const buildSeoSuggestSeedQueries = ({ categories = [], products = [], signalRows = [] }) => {
   const categoryNames = uniqueSeoKeywords(categories.flatMap((row) => [
     `${row.name} bhubaneswar`,
     `${row.name} patia`,
+    `best ${row.name} bhubaneswar`,
     `${row.name} odisha`
-  ])).slice(0, 8);
+  ])).slice(0, 12);
   const productNames = uniqueSeoKeywords(products.flatMap((row) => [
     `${row.name} bhubaneswar`,
-    `${row.name} odisha`
-  ])).slice(0, 8);
-  const signalKeywords = uniqueSeoKeywords(signalRows.map((row) => row.keyword)).slice(0, 10);
-  const localKeywordSeeds = uniqueSeoKeywords(SEO_LOCAL_AREAS.flatMap((area) => SEO_KEYWORD_PATTERNS.map((pattern) => pattern.replace('{area}', area)))).slice(0, 20);
+    `${row.name} patia`,
+    `${row.name} price bhubaneswar`
+  ])).slice(0, 12);
+  const signalKeywords = uniqueSeoKeywords(signalRows.flatMap((row) => buildNaturalSeoKeywordVariants(row.keyword))).slice(0, 14);
+  const localKeywordSeeds = uniqueSeoKeywords([
+    ...SEO_PRIMARY_TARGET_KEYWORDS,
+    ...SEO_LOCAL_AREAS.flatMap((area) => SEO_KEYWORD_PATTERNS.map((pattern) => pattern.replace('{area}', area)))
+  ]).slice(0, 28);
   return uniqueSeoKeywords([
+    ...SEO_PRIMARY_TARGET_KEYWORDS,
     ...signalKeywords,
     ...localKeywordSeeds,
     ...categoryNames,
@@ -1250,12 +1293,16 @@ const harvestExternalSeoKeywords = async (seedQueries = []) => {
     ]);
     if (googleResult.status === 'fulfilled') {
       googleResult.value.forEach((keyword, index) => {
-        harvested.push({ keyword: prepareSeoKeywordCandidate(keyword, { requireLocal: true }), source: 'google_suggest', weight: Math.max(1, 6 - index) });
+        buildNaturalSeoKeywordVariants(keyword).forEach((variant) => {
+          harvested.push({ keyword: prepareSeoKeywordCandidate(variant, { requireLocal: true }), source: 'google_suggest', weight: Math.max(1, 6 - index) });
+        });
       });
     }
     if (duckDuckGoResult.status === 'fulfilled') {
       duckDuckGoResult.value.forEach((keyword, index) => {
-        harvested.push({ keyword: prepareSeoKeywordCandidate(keyword, { requireLocal: true }), source: 'duckduckgo_suggest', weight: Math.max(1, 4 - index) });
+        buildNaturalSeoKeywordVariants(keyword).forEach((variant) => {
+          harvested.push({ keyword: prepareSeoKeywordCandidate(variant, { requireLocal: true }), source: 'duckduckgo_suggest', weight: Math.max(1, 4 - index) });
+        });
       });
     }
   }
@@ -1505,6 +1552,14 @@ const buildSeoAutonomousCopy = ({
     });
   });
 
+  const fallbackHomepageKeywords = uniqueSeoKeywords([
+    ...homepageCandidates.map((item) => item.keyword),
+    ...SEO_PRIMARY_TARGET_KEYWORDS
+  ])
+    .filter((keyword) => /bhubaneswar|patia|odisha/.test(keyword))
+    .filter((keyword) => /cctv|camera|installation|dealer|security|ip|ptz|dvr|nvr/.test(keyword))
+    .slice(0, 8);
+
   const rotationBucket = Math.floor(Date.now() / Math.max(1, refreshMinutes) / 60000);
   const fixedHomepageKeywords = homepageCandidates.slice(0, 3).map((item) => item.keyword);
   const rotatingHomepagePool = homepageCandidates.slice(3, 14).map((item) => item.keyword);
@@ -1515,7 +1570,11 @@ const buildSeoAutonomousCopy = ({
       rotatingHomepageKeywords.push(rotatingHomepagePool[(offset + index) % rotatingHomepagePool.length]);
     }
   }
-  const homepageKeywords = uniqueSeoKeywords([...fixedHomepageKeywords, ...rotatingHomepageKeywords]).slice(0, 8);
+  const homepageKeywords = uniqueSeoKeywords([
+    ...fixedHomepageKeywords,
+    ...rotatingHomepageKeywords,
+    ...fallbackHomepageKeywords
+  ]).slice(0, 8);
   const homepageLeadKeywords = homepageKeywords.slice(0, 4);
   const homepageTemplates = [
     (keywords) => `Camigo is currently pushing around live demand for ${keywords.join(', ')} across Bhubaneswar and Odisha, so shoppers reach the CCTV cameras, installation services, and security hardware people are actively searching for right now.`,
@@ -1600,7 +1659,19 @@ const buildSeoKeywordScore = (keyword, signalsMap, categoryNames, productNames) 
   const priorityBoost = /patia|bhubaneswar|odisha/.test(keyword) ? 22 : 0;
   const intentBoost = /installation|dealer|camera|dvr|nvr|ptz|ip|security/.test(keyword) ? 10 : 0;
   const clickBoost = Number(signalsMap.get(keyword)?.clicks || 0) * 8;
-  return signalHits * 5 + categoryMatches * 4 + productMatches * 2 + localBoost + priorityBoost + intentBoost + clickBoost;
+  const primaryPhraseBoost = SEO_PRIMARY_TARGET_KEYWORDS.includes(keyword) ? 35 : 0;
+  const readabilityBoost = keyword.split(/\s+/).length <= 4 ? 10 : 0;
+  const overlocalizedPenalty = /bhubaneswar odisha/.test(keyword) ? 12 : 0;
+  return signalHits * 5
+    + categoryMatches * 4
+    + productMatches * 2
+    + localBoost
+    + priorityBoost
+    + intentBoost
+    + clickBoost
+    + primaryPhraseBoost
+    + readabilityBoost
+    - overlocalizedPenalty;
 };
 
 const buildSeoOpportunities = (keywords = [], strongestKeywords = []) => {
@@ -1709,12 +1780,14 @@ const buildSeoAutomationSnapshot = async () => {
   const seededKeywords = SEO_LOCAL_AREAS.flatMap((area) => SEO_KEYWORD_PATTERNS.map((pattern) => normalizeSeoKeyword(pattern.replace('{area}', area))));
   const candidateKeywords = Array.from(new Set([
     ...signalRows.map((row) => normalizeSeoKeyword(row.keyword)),
+    ...SEO_PRIMARY_TARGET_KEYWORDS,
     ...seededKeywords,
     ...categoryNames.map((name) => `${name} bhubaneswar`),
     ...categoryNames.map((name) => `${name} odisha`),
     ...productTerms.filter(Boolean),
     ...previousKeywordBank.map((entry) => entry?.keyword)
   ]
+    .flatMap((keyword) => buildNaturalSeoKeywordVariants(keyword))
     .map((keyword) => prepareSeoKeywordCandidate(keyword, { requireLocal: true }) || prepareSeoKeywordCandidate(keyword))
     .filter(Boolean)));
 
