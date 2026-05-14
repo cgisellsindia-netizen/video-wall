@@ -187,6 +187,7 @@
 .seo-automation-panel {
   border-radius: 28px;
   padding: 22px 20px;
+  color: #17315f;
 }
 .seo-automation-header {
   display: flex;
@@ -194,6 +195,15 @@
   gap: 16px;
   align-items: flex-start;
   margin-bottom: 16px;
+}
+.seo-automation-header h3,
+.seo-automation-header p,
+.seo-automation-panel p,
+.seo-automation-panel label,
+.seo-automation-panel h4,
+.seo-automation-panel strong,
+.seo-automation-panel code {
+  color: inherit;
 }
 .seo-automation-actions {
   display: flex;

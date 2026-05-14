@@ -34,7 +34,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
 
   useEffect(() => {
     loadSnapshot();
-  }, [token]);
+  }, [loadSnapshot]);
 
   useEffect(() => {
     if (!snapshot?.next_refresh_at) {
@@ -215,7 +215,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
             {(snapshot?.strongest_keywords || []).map((item) => (
               <div key={item.keyword} className="seo-automation-chip">
                 <strong>{item.keyword}</strong>
-                <span>Score {item.score || 0} · Hits {item.hits || 0}</span>
+                <span>{`Score ${item.score || 0} - Hits ${item.hits || 0}`}</span>
               </div>
             ))}
           </div>
@@ -227,7 +227,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
             {(snapshot?.keyword_bank || []).slice(0, 12).map((item) => (
               <div key={item.keyword} className="seo-automation-chip">
                 <strong>{item.keyword}</strong>
-                <span>Clicks {item.clicks || 0} · Score {item.score || 0}</span>
+                <span>{`Clicks ${item.clicks || 0} - Score ${item.score || 0}`}</span>
               </div>
             ))}
           </div>
@@ -239,7 +239,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
             {(snapshot?.emerging_search_terms || []).map((item) => (
               <div key={`${item.keyword}-${item.source}`} className="seo-automation-chip">
                 <strong>{item.keyword}</strong>
-                <span>{item.hits || 0} searches · {String(item.source || 'signal').replaceAll('_', ' ')}</span>
+                <span>{`${item.hits || 0} searches - ${String(item.source || 'signal').replaceAll('_', ' ')}`}</span>
               </div>
             ))}
           </div>
@@ -251,7 +251,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
             {(snapshot?.harvested_keywords || []).map((item) => (
               <div key={`${item.keyword}-${item.source}`} className="seo-automation-chip">
                 <strong>{item.keyword}</strong>
-                <span>{String(item.source || 'harvest').replaceAll('_', ' ')} · Weight {item.weight || 1}</span>
+                <span>{`${String(item.source || 'harvest').replaceAll('_', ' ')} - Weight ${item.weight || 1}`}</span>
               </div>
             ))}
           </div>
@@ -299,7 +299,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
                 {snapshot.generated_copy.dropped_keywords.map((item) => (
                   <div key={item.keyword} className="seo-automation-chip">
                     <strong>{item.keyword}</strong>
-                    <span>{item.impressions} impressions · {item.clicks} clicks</span>
+                    <span>{`${item.impressions} impressions - ${item.clicks} clicks`}</span>
                   </div>
                 ))}
               </div>
