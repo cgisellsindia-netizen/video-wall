@@ -4371,6 +4371,9 @@ app.get('/merchant-feed/images/:productId/:imageIndex.jpg', async (req, res) => 
 
 app.get(['/merchant-feed.xml', '/api/merchant-feed.xml'], async (req, res) => {
   try {
+    const buildMerchantFeedImageUrl = (productId, imageIndex = 0) => (
+      `${publicServerBaseUrl}/merchant-feed/images/${encodeURIComponent(String(productId))}/${encodeURIComponent(String(imageIndex))}.jpg`
+    );
     const products = await dbAllAsync(
       `SELECT p.*, c.name as category_name
        FROM products p
@@ -4382,10 +4385,10 @@ app.get(['/merchant-feed.xml', '/api/merchant-feed.xml'], async (req, res) => {
       const availability = Number(product.stock || 0) > 0 ? 'in stock' : 'out of stock';
       const cleanDescription = String(product.description || product.name || '').replace(/\s+/g, ' ').trim();
       const productUrl = `${publicStorefrontUrl}/product/${product.id}`;
-      const primaryImage = merchantFeedImageUrl(product.id, 0);
+      const primaryImage = buildMerchantFeedImageUrl(product.id, 0);
       const additionalImages = product.images
         .slice(1, 10)
-        .map((_, index) => `\n      <g:additional_image_link>${xmlEscape(merchantFeedImageUrl(product.id, index + 1))}</g:additional_image_link>`)
+        .map((_, index) => `\n      <g:additional_image_link>${xmlEscape(buildMerchantFeedImageUrl(product.id, index + 1))}</g:additional_image_link>`)
         .join('');
       return `  <item>
       <g:id>${xmlEscape(String(product.id))}</g:id>
