@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { MapPin, ChevronDown, Search, User, LogOut, Shield, X, LocateFixed } from 'lucide-react';
 import { captureCustomerLocation, resolveCustomerAreaName, searchCustomerLocations } from '../locationLock';
 
@@ -120,7 +121,12 @@ function Header({
             <div className="header-actions">
               {user ? (
                 <>
-                  {user.role === 'admin' && <a className="header-btn admin-shortcut" href="/admin"><Shield size={18} /><span>Admin</span></a>}
+                  {user.role === 'admin' && (
+                    <Link className="header-btn admin-shortcut" to="/admin">
+                      <Shield size={18} />
+                      <span>Admin</span>
+                    </Link>
+                  )}
                   <div className={`profile-menu ${profileOpen ? 'open' : ''}`} ref={profileMenuRef}>
                     <button
                       className="header-btn profile-icon-btn"
@@ -132,8 +138,8 @@ function Header({
                     </button>
                     <div className="profile-dropdown">
                       <span className="profile-dropdown-name">{displayName}</span>
-                      <a href="/orders" onClick={() => setProfileOpen(false)}>Orders</a>
-                      <a href="/saved" onClick={() => setProfileOpen(false)}>Saved</a>
+                      <Link to="/orders" onClick={() => setProfileOpen(false)}>Orders</Link>
+                      <Link to="/saved" onClick={() => setProfileOpen(false)}>Saved</Link>
                       <button type="button" onClick={onLogout}><LogOut size={16} /><span>Logout</span></button>
                     </div>
                   </div>
@@ -144,13 +150,13 @@ function Header({
             </div>
           </div>
           <nav className="desktop-nav">
-            {!isOpsMode && <a href="/shop">Shop</a>}
-            {!isOpsMode && <a href="/orders">Orders</a>}
-            {!isOpsMode && <a href="/saved">Saved</a>}
-            {(user?.role === 'dealer' || user?.role === 'distributor') && <a href="/dealer">Trade Panel</a>}
-            {isDeliveryPartner && <a href="/delivery-partner">Delivery Panel</a>}
-            {isInstaller && <a href="/installer">Installer Panel</a>}
-            {user?.role === 'admin' && <a href="/admin">Admin</a>}
+            {!isOpsMode && <Link to="/shop">Shop</Link>}
+            {!isOpsMode && <Link to="/orders">Orders</Link>}
+            {!isOpsMode && <Link to="/saved">Saved</Link>}
+            {(user?.role === 'dealer' || user?.role === 'distributor') && <Link to="/dealer">Trade Panel</Link>}
+            {isDeliveryPartner && <Link to="/delivery-partner">Delivery Panel</Link>}
+            {isInstaller && <Link to="/installer">Installer Panel</Link>}
+            {user?.role === 'admin' && <Link to="/admin">Admin</Link>}
           </nav>
           {!isOpsMode && <div className="search-bar">
             <Search size={18} className="search-icon" />

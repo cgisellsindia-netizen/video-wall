@@ -6,7 +6,7 @@ import PageBuilderAdmin from './PageBuilderAdmin';
 import ProductImage from './ProductImage';
 import SeoAutomationAdmin from './SeoAutomationAdmin';
 
-function AdminPage({ user, pageContent, onPageContentSaved }) {
+function AdminPage({ user, authReady, pageContent, onPageContentSaved }) {
   const [users, setUsers] = useState([]);
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
@@ -61,7 +61,14 @@ function AdminPage({ user, pageContent, onPageContentSaved }) {
   const [mediaBrowser, setMediaBrowser] = useState({ open: false, mode: 'cover', dir: '/', busy: false, data: null });
   const [codSettingBusy, setCodSettingBusy] = useState(false);
 
-  useEffect(() => { if (!user) { navigate('/'); return; } fetchData(); }, [user]);
+  useEffect(() => {
+    if (!authReady) return;
+    if (!user) {
+      navigate('/', { replace: true });
+      return;
+    }
+    fetchData();
+  }, [authReady, user, navigate]);
 
   const handleToggleCod = async (enabled) => {
     const token = localStorage.getItem('token');

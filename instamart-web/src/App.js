@@ -55,6 +55,18 @@ const getRuntimeAppMode = () => {
 
 const APP_MODE = getRuntimeAppMode();
 
+const getStoredUser = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const rawUser = localStorage.getItem('user');
+    if (!rawUser) return null;
+    const parsedUser = JSON.parse(rawUser);
+    return parsedUser && typeof parsedUser === 'object' ? parsedUser : null;
+  } catch (error) {
+    return null;
+  }
+};
+
 function DeliveryOnlyRoute({ user, children }) {
   if (user?.role === 'delivery_partner') {
     return <Navigate to="/delivery-partner" replace />;
@@ -489,7 +501,7 @@ function AppContent() {
   const [cartOpen, setCartOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [cartItems, setCartItems] = useState([]);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => getStoredUser());
   const [locationLabel, setLocationLabel] = useState(() => getSavedCustomerAreaName() || 'Bhubaneswar, Odisha');
   const [deliveryEtaLabel, setDeliveryEtaLabel] = useState('16 mins');
   const [products, setProducts] = useState([]);
@@ -647,9 +659,9 @@ function AppContent() {
         }
       }
 
-      if (parsedUser && !stopped) {
-        setUser(parsedUser);
-      }
+        if (parsedUser && !stopped) {
+          setUser(parsedUser);
+        }
 
       if (token) {
         const restoredUser = await refreshCurrentUser(parsedUser);
@@ -1433,7 +1445,7 @@ function AppContent() {
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
         <Route path="/returns-policy" element={<ReturnsPolicyPage />} />
         <Route path="/installation-policy" element={<InstallationPolicyPage />} />
-        <Route path="/admin" element={<AdminPage user={user} pageContent={pageContent} onPageContentSaved={setPageContent} />} />
+        <Route path="/admin" element={<AdminPage user={user} authReady={authReady} pageContent={pageContent} onPageContentSaved={setPageContent} />} />
         <Route path="/shop" element={<DeliveryOnlyRoute user={user}><ShopPage products={products} categories={categories} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} deliveryEtaLabel={deliveryEtaLabel} seoAutomationSnapshot={seoAutomationSnapshot} /></DeliveryOnlyRoute>} />
         <Route path="/checkout" element={<DeliveryOnlyRoute user={user}><CheckoutPage user={user} liveCartItems={cartItems} onLogin={() => setLoginOpen(true)} onOrderPlaced={handleOrderPlaced} onUserUpdate={updateUserState} /></DeliveryOnlyRoute>} />
         <Route path="/tracking/:id" element={<TrackingPage />} />
