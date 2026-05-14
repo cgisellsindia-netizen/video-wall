@@ -239,7 +239,6 @@ const SEO_BLOCKED_GEO_TERMS = [
   'patiala',
   'punjab'
 ];
-const SEO_LOCAL_AREA_HINTS = SEO_LOCAL_AREAS.map((value) => normalizeSeoKeyword(value)).filter(Boolean);
 const SEO_COMMERCIAL_INTENT_TERMS = [
   'cctv',
   'camera',
@@ -1044,6 +1043,8 @@ const normalizeSeoKeyword = (value = '') => String(value || '')
   .replace(/\s+/g, ' ')
   .trim()
   .slice(0, 120);
+
+const SEO_LOCAL_AREA_HINTS = SEO_LOCAL_AREAS.map((value) => normalizeSeoKeyword(value)).filter(Boolean);
 
 const hasBlockedGeoTerm = (keyword = '') => SEO_BLOCKED_GEO_TERMS.some((term) => keyword.includes(term));
 
