@@ -249,13 +249,29 @@ function ProductHeroBlock({
           </div>
           <div className={gallery.length > 1 ? 'product-stage-visuals has-gallery' : 'product-stage-visuals single-image'}>
             <div className="product-stage-main-shot marketplace-main-shot">
-              <ProductImage src={activeImage} alt={product.name} loading="eager" fallbackContent="CCTV" />
+              <ProductImage
+                src={activeImage}
+                alt={product.name}
+                loading="eager"
+                fetchPriority="high"
+                decoding="sync"
+                fallbackContent="CCTV"
+                proxyWidth={960}
+                proxyQuality={82}
+                proxyFormat="webp"
+              />
             </div>
             {gallery.length > 1 && (
               <div className="product-gallery-thumbs product-gallery-thumbs-under">
                 {gallery.map((image, index) => (
                   <button key={`${image}-${index}`} type="button" className={image === activeImage ? 'product-thumb active' : 'product-thumb'} onClick={() => setActiveImage(image)}>
-                    <ProductImage src={image} alt="" />
+                    <ProductImage
+                      src={image}
+                      alt=""
+                      proxyWidth={140}
+                      proxyQuality={58}
+                      proxyFormat="webp"
+                    />
                   </button>
                 ))}
               </div>
@@ -474,7 +490,13 @@ export function ProductPageBlocks({
               <div className="related-product-grid">
                 {relatedProducts.map((item) => (
                   <button key={item.id} className="related-product-card" onClick={() => navigate(`/product/${item.id}`)}>
-                <ProductImage src={item.image} alt={item.name} />
+                    <ProductImage
+                      src={item.image}
+                      alt={item.name}
+                      proxyWidth={260}
+                      proxyQuality={68}
+                      proxyFormat="webp"
+                    />
                     <div className="related-product-body">
                       <small>{item.unit}</small>
                       <strong>{item.name}</strong>
