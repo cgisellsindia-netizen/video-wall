@@ -195,7 +195,8 @@ const APP_SETTING_KEYS = {
   homepageLayout: 'homepage_layout',
   productPageLayout: 'product_page_layout',
   seoAutomationSnapshot: 'seo_automation_snapshot',
-  seoAutomationRefreshMinutes: 'seo_automation_refresh_minutes'
+  seoAutomationRefreshMinutes: 'seo_automation_refresh_minutes',
+  seoAutomationKeywordBank: 'seo_automation_keyword_bank'
 };
 
 const OPERATIONAL_APP_SETTING_KEYS = [
@@ -204,7 +205,8 @@ const OPERATIONAL_APP_SETTING_KEYS = [
   APP_SETTING_KEYS.homepageLayout,
   APP_SETTING_KEYS.productPageLayout,
   APP_SETTING_KEYS.seoAutomationSnapshot,
-  APP_SETTING_KEYS.seoAutomationRefreshMinutes
+  APP_SETTING_KEYS.seoAutomationRefreshMinutes,
+  APP_SETTING_KEYS.seoAutomationKeywordBank
 ];
 
 const DEFAULT_SEO_AUTOMATION_REFRESH_MINUTES = 20;
@@ -218,17 +220,48 @@ const SEO_AUTOMATION_LOW_SIGNAL_IMPRESSIONS = 3;
 const SEO_AUTOMATION_MAX_SEED_QUERIES = 10;
 const SEO_AUTOMATION_MAX_EXTERNAL_SUGGESTIONS = 40;
 const SEO_AUTOMATION_SUGGEST_TIMEOUT_MS = 5000;
-const SEO_LOCAL_AREAS = [
-  'Bhubaneswar',
+const SEO_PRIORITY_LOCAL_AREAS = [
   'Patia',
+  'Bhubaneswar',
+  'Odisha'
+];
+const SEO_LOCAL_AREAS = [
+  ...SEO_PRIORITY_LOCAL_AREAS,
   'Chandrasekharpur',
   'Khandagiri',
   'Saheed Nagar',
   'Rasulgarh',
   'Cuttack',
   'Khordha',
-  'Puri',
-  'Odisha'
+  'Puri'
+];
+const SEO_BLOCKED_GEO_TERMS = [
+  'patiala',
+  'punjab'
+];
+const SEO_LOCAL_AREA_HINTS = SEO_LOCAL_AREAS.map((value) => normalizeSeoKeyword(value)).filter(Boolean);
+const SEO_COMMERCIAL_INTENT_TERMS = [
+  'cctv',
+  'camera',
+  'security',
+  'installation',
+  'dealer',
+  'service',
+  'repair',
+  'maintenance',
+  'amc',
+  'ip',
+  'ptz',
+  'dvr',
+  'nvr',
+  'poe',
+  'bullet',
+  'dome',
+  'colorvu',
+  'wireless',
+  'outdoor',
+  'indoor',
+  'night vision'
 ];
 const SEO_KEYWORD_PATTERNS = [
   'cctv camera {area}',
@@ -1012,8 +1045,46 @@ const normalizeSeoKeyword = (value = '') => String(value || '')
   .trim()
   .slice(0, 120);
 
+const hasBlockedGeoTerm = (keyword = '') => SEO_BLOCKED_GEO_TERMS.some((term) => keyword.includes(term));
+
+const hasLocalAreaHint = (keyword = '') => SEO_LOCAL_AREA_HINTS.some((term) => keyword.includes(term));
+
+const hasCommercialIntent = (keyword = '') => SEO_COMMERCIAL_INTENT_TERMS.some((term) => keyword.includes(term));
+
+const localizeKeywordForCamigo = (keyword = '') => {
+  let localized = normalizeSeoKeyword(keyword);
+  if (!localized) return '';
+  if (localized.includes('patia') && !localized.includes('bhubaneswar')) {
+    localized = `${localized} bhubaneswar`;
+  }
+  if (
+    ['chandrasekharpur', 'khandagiri', 'saheed nagar', 'rasulgarh'].some((term) => localized.includes(term))
+    && !localized.includes('bhubaneswar')
+  ) {
+    localized = `${localized} bhubaneswar`;
+  }
+  if (
+    ['bhubaneswar', 'patia', 'chandrasekharpur', 'khandagiri', 'saheed nagar', 'rasulgarh'].some((term) => localized.includes(term))
+    && !localized.includes('odisha')
+  ) {
+    localized = `${localized} odisha`;
+  }
+  return normalizeSeoKeyword(localized);
+};
+
+const prepareSeoKeywordCandidate = (keyword = '', { requireLocal = false } = {}) => {
+  const normalizedKeyword = localizeKeywordForCamigo(keyword);
+  if (!normalizedKeyword || normalizedKeyword.length < 3) return '';
+  if (hasBlockedGeoTerm(normalizedKeyword)) return '';
+  if (!hasCommercialIntent(normalizedKeyword)) return '';
+  if (requireLocal && !hasLocalAreaHint(normalizedKeyword)) return '';
+  return normalizedKeyword;
+};
+
 const recordSeoKeywordSignal = async (keyword, source = 'site_search', weight = 1) => {
-  const normalizedKeyword = normalizeSeoKeyword(keyword);
+  const normalizedKeyword = prepareSeoKeywordCandidate(keyword, {
+    requireLocal: String(source || '').includes('suggest') || String(source || '').includes('trend')
+  });
   const normalizedSource = normalizeSeoKeyword(source).replace(/\s+/g, '_') || 'site_search';
   const hitWeight = Math.max(1, Math.round(Number(weight || 1)));
   if (!normalizedKeyword || normalizedKeyword.length < 3) return;
@@ -1030,7 +1101,7 @@ const recordSeoKeywordSignal = async (keyword, source = 'site_search', weight = 
 
 const uniqueSeoKeywords = (values = []) => Array.from(new Set(
   values
-    .map((value) => normalizeSeoKeyword(value))
+    .map((value) => prepareSeoKeywordCandidate(value))
     .filter(Boolean)
 ));
 
@@ -1041,22 +1112,22 @@ const buildSeoRotationHash = (values = []) => {
 };
 
 const buildSeoSuggestSeedQueries = ({ categories = [], products = [], signalRows = [] }) => {
-  const categoryNames = uniqueSeoKeywords(categories.map((row) => row.name)).slice(0, 6);
-  const productNames = uniqueSeoKeywords(products.map((row) => row.name)).slice(0, 6);
-  const signalKeywords = uniqueSeoKeywords(signalRows.map((row) => row.keyword)).slice(0, 6);
-  const localKeywordSeeds = uniqueSeoKeywords(SEO_LOCAL_AREAS.flatMap((area) => SEO_KEYWORD_PATTERNS.map((pattern) => pattern.replace('{area}', area)))).slice(0, 16);
+  const categoryNames = uniqueSeoKeywords(categories.flatMap((row) => [
+    `${row.name} bhubaneswar`,
+    `${row.name} patia`,
+    `${row.name} odisha`
+  ])).slice(0, 8);
+  const productNames = uniqueSeoKeywords(products.flatMap((row) => [
+    `${row.name} bhubaneswar`,
+    `${row.name} odisha`
+  ])).slice(0, 8);
+  const signalKeywords = uniqueSeoKeywords(signalRows.map((row) => row.keyword)).slice(0, 10);
+  const localKeywordSeeds = uniqueSeoKeywords(SEO_LOCAL_AREAS.flatMap((area) => SEO_KEYWORD_PATTERNS.map((pattern) => pattern.replace('{area}', area)))).slice(0, 20);
   return uniqueSeoKeywords([
     ...signalKeywords,
     ...localKeywordSeeds,
-    ...categoryNames.flatMap((name) => [
-      `${name} bhubaneswar`,
-      `${name} odisha`,
-      `best ${name} bhubaneswar`
-    ]),
-    ...productNames.flatMap((name) => [
-      name,
-      `${name} bhubaneswar`
-    ])
+    ...categoryNames,
+    ...productNames
   ]).slice(0, SEO_AUTOMATION_MAX_SEED_QUERIES);
 };
 
@@ -1104,12 +1175,12 @@ const harvestExternalSeoKeywords = async (seedQueries = []) => {
     ]);
     if (googleResult.status === 'fulfilled') {
       googleResult.value.forEach((keyword, index) => {
-        harvested.push({ keyword, source: 'google_suggest', weight: Math.max(1, 6 - index) });
+        harvested.push({ keyword: prepareSeoKeywordCandidate(keyword, { requireLocal: true }), source: 'google_suggest', weight: Math.max(1, 6 - index) });
       });
     }
     if (duckDuckGoResult.status === 'fulfilled') {
       duckDuckGoResult.value.forEach((keyword, index) => {
-        harvested.push({ keyword, source: 'duckduckgo_suggest', weight: Math.max(1, 4 - index) });
+        harvested.push({ keyword: prepareSeoKeywordCandidate(keyword, { requireLocal: true }), source: 'duckduckgo_suggest', weight: Math.max(1, 4 - index) });
       });
     }
   }
@@ -1117,7 +1188,7 @@ const harvestExternalSeoKeywords = async (seedQueries = []) => {
   const deduped = [];
   const seen = new Set();
   harvested.forEach((entry) => {
-    const keyword = normalizeSeoKeyword(entry.keyword);
+    const keyword = prepareSeoKeywordCandidate(entry.keyword, { requireLocal: true });
     if (!keyword || seen.has(keyword)) return;
     seen.add(keyword);
     deduped.push({
@@ -1310,9 +1381,11 @@ const buildSeoKeywordScore = (keyword, signalsMap, categoryNames, productNames) 
   const signalHits = Number(signalsMap.get(keyword)?.hits || 0);
   const categoryMatches = categoryNames.filter((name) => keyword.includes(name)).length;
   const productMatches = productNames.filter((name) => keyword.includes(name)).length;
-  const localBoost = /bhubaneswar|odisha|patia|chandrasekharpur|khandagiri|saheed nagar|rasulgarh|cuttack|khordha|puri/.test(keyword) ? 14 : 0;
+  const localBoost = /bhubaneswar|odisha|patia|chandrasekharpur|khandagiri|saheed nagar|rasulgarh|cuttack|khordha|puri/.test(keyword) ? 18 : 0;
+  const priorityBoost = /patia|bhubaneswar|odisha/.test(keyword) ? 22 : 0;
   const intentBoost = /installation|dealer|camera|dvr|nvr|ptz|ip|security/.test(keyword) ? 10 : 0;
-  return signalHits * 5 + categoryMatches * 4 + productMatches * 2 + localBoost + intentBoost;
+  const clickBoost = Number(signalsMap.get(keyword)?.clicks || 0) * 8;
+  return signalHits * 5 + categoryMatches * 4 + productMatches * 2 + localBoost + priorityBoost + intentBoost + clickBoost;
 };
 
 const buildSeoOpportunities = (keywords = [], strongestKeywords = []) => {
@@ -1325,6 +1398,52 @@ const buildSeoOpportunities = (keywords = [], strongestKeywords = []) => {
       action: index < 6 ? 'Strengthen existing pages' : 'Consider new local landing page',
       page_hint: /installation/.test(keyword) ? '/install' : '/shop'
     }));
+};
+
+const buildSeoKeywordBank = ({ strongestKeywords = [], performanceRows = [], previousBank = [] }) => {
+  const bankScores = new Map();
+  previousBank.forEach((entry, index) => {
+    const keyword = prepareSeoKeywordCandidate(entry?.keyword, { requireLocal: true }) || prepareSeoKeywordCandidate(entry?.keyword);
+    if (!keyword) return;
+    bankScores.set(keyword, {
+      keyword,
+      score: Math.max(1, 40 - index),
+      source: entry?.source || 'historical_bank',
+      clicks: Number(entry?.clicks || 0),
+      impressions: Number(entry?.impressions || 0)
+    });
+  });
+  strongestKeywords.forEach((entry) => {
+    const keyword = prepareSeoKeywordCandidate(entry?.keyword, { requireLocal: true }) || prepareSeoKeywordCandidate(entry?.keyword);
+    if (!keyword) return;
+    const current = bankScores.get(keyword) || { keyword, score: 0, source: entry?.source || 'strongest_keywords', clicks: 0, impressions: 0 };
+    bankScores.set(keyword, {
+      keyword,
+      score: current.score + Number(entry?.score || 0),
+      source: current.source,
+      clicks: current.clicks + Number(entry?.performance?.clicks || 0),
+      impressions: current.impressions + Number(entry?.performance?.impressions || 0)
+    });
+  });
+  performanceRows.forEach((entry) => {
+    const keyword = prepareSeoKeywordCandidate(entry?.keyword, { requireLocal: true }) || prepareSeoKeywordCandidate(entry?.keyword);
+    if (!keyword || Number(entry?.clicks || 0) <= 0) return;
+    const current = bankScores.get(keyword) || { keyword, score: 0, source: 'performance', clicks: 0, impressions: 0 };
+    bankScores.set(keyword, {
+      keyword,
+      score: current.score + Number(entry.clicks || 0) * 25 + Math.min(10, Number(entry.impressions || 0)),
+      source: current.source,
+      clicks: current.clicks + Number(entry.clicks || 0),
+      impressions: current.impressions + Number(entry.impressions || 0)
+    });
+  });
+  return Array.from(bankScores.values())
+    .sort((left, right) => {
+      if (right.score !== left.score) return right.score - left.score;
+      if (right.clicks !== left.clicks) return right.clicks - left.clicks;
+      return left.keyword.localeCompare(right.keyword);
+    })
+    .slice(0, 24);
 };
 
 let seoAutomationRefreshPromise = null;
@@ -1344,6 +1463,7 @@ const getSeoAutomationRefreshMinutes = async () => {
 
 const buildSeoAutomationSnapshot = async () => {
   const refreshMinutes = await getSeoAutomationRefreshMinutes();
+  const previousKeywordBank = await getJsonAppSetting(APP_SETTING_KEYS.seoAutomationKeywordBank, []);
   const [products, categories, existingSignalRows, performanceRows] = await Promise.all([
     dbAllAsync('SELECT id, name, description, category_id FROM products ORDER BY id DESC'),
     dbAllAsync('SELECT id, name FROM categories ORDER BY sort_order ASC, id ASC'),
@@ -1377,8 +1497,11 @@ const buildSeoAutomationSnapshot = async () => {
     ...seededKeywords,
     ...categoryNames.map((name) => `${name} bhubaneswar`),
     ...categoryNames.map((name) => `${name} odisha`),
-    ...productTerms.filter(Boolean)
-  ].filter(Boolean)));
+    ...productTerms.filter(Boolean),
+    ...previousKeywordBank.map((entry) => entry?.keyword)
+  ]
+    .map((keyword) => prepareSeoKeywordCandidate(keyword, { requireLocal: true }) || prepareSeoKeywordCandidate(keyword))
+    .filter(Boolean)));
 
   const strongestKeywords = candidateKeywords
     .map((keyword) => ({
@@ -1395,11 +1518,22 @@ const buildSeoAutomationSnapshot = async () => {
     })
     .slice(0, SEO_AUTOMATION_MAX_KEYWORDS);
 
+  const keywordBank = buildSeoKeywordBank({
+    strongestKeywords,
+    performanceRows,
+    previousBank: previousKeywordBank
+  });
+
   const emergingSearchTerms = signalRows
     .filter((row) => Number(row.hits || 0) <= 5)
+    .map((row) => ({
+      ...row,
+      keyword: prepareSeoKeywordCandidate(row.keyword, { requireLocal: true }) || prepareSeoKeywordCandidate(row.keyword)
+    }))
+    .filter((row) => row.keyword)
     .slice(0, SEO_AUTOMATION_MAX_EMERGING)
     .map((row) => ({
-      keyword: normalizeSeoKeyword(row.keyword),
+      keyword: row.keyword,
       hits: Number(row.hits || 0),
       source: row.source || 'site_search',
       latest_at: row.latest_at
@@ -1416,13 +1550,16 @@ const buildSeoAutomationSnapshot = async () => {
     candidateKeywords.filter((keyword) => !homepageKeywords.includes(keyword)),
     strongestKeywords
   );
+  await saveJsonAppSetting(APP_SETTING_KEYS.seoAutomationKeywordBank, keywordBank);
 
   return {
     generated_at: new Date().toISOString(),
     refresh_minutes: refreshMinutes,
     next_refresh_at: seoAutomationNextRunAt ? new Date(seoAutomationNextRunAt).toISOString() : null,
+    local_focus: SEO_PRIORITY_LOCAL_AREAS,
     homepage_keywords: homepageKeywords,
     strongest_keywords: strongestKeywords,
+    keyword_bank: keywordBank,
     emerging_search_terms: emergingSearchTerms,
     opportunities,
     tracked_signal_count: signalRows.length,
@@ -3790,9 +3927,13 @@ app.get('/api/seo-automation', async (req, res) => {
       generated_at: snapshot?.generated_at || null,
       refresh_minutes: snapshot?.refresh_minutes || refreshMinutes,
       next_refresh_at: snapshot?.next_refresh_at || null,
+      local_focus: Array.isArray(snapshot?.local_focus) ? snapshot.local_focus : SEO_PRIORITY_LOCAL_AREAS,
       homepage_keywords: Array.isArray(snapshot?.homepage_keywords) ? snapshot.homepage_keywords : [],
       strongest_keywords: Array.isArray(snapshot?.strongest_keywords) ? snapshot.strongest_keywords : [],
+      keyword_bank: Array.isArray(snapshot?.keyword_bank) ? snapshot.keyword_bank : [],
       emerging_search_terms: Array.isArray(snapshot?.emerging_search_terms) ? snapshot.emerging_search_terms : [],
+      harvested_keyword_count: Number(snapshot?.harvested_keyword_count || 0),
+      harvested_keywords: Array.isArray(snapshot?.harvested_keywords) ? snapshot.harvested_keywords : [],
       opportunities: Array.isArray(snapshot?.opportunities) ? snapshot.opportunities : [],
       generated_copy: snapshot?.generated_copy || {}
     });

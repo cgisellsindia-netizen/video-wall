@@ -135,7 +135,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
           <span className="phone-verify-eyebrow">SEO intelligence</span>
           <h3 style={{ margin: '6px 0 8px' }}>Autonomous keyword automation</h3>
           <p className="checkout-note" style={{ margin: 0 }}>
-            Camigo now tracks real on-site search terms, local CCTV intent phrases, and priority keyword opportunities for Bhubaneswar and Odisha.
+            Camigo now tracks real on-site search terms, local CCTV intent phrases, and priority keyword opportunities for Patia, Bhubaneswar, and Odisha.
           </p>
         </div>
         <div className="seo-automation-actions">
@@ -150,6 +150,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
       <div className="seo-automation-meta">
         <span className="tag tag-info">Auto refresh: every {snapshot?.refresh_minutes || 20} minutes</span>
         <span className="tag tag-success">Last generated: {snapshot?.generated_at ? new Date(snapshot.generated_at).toLocaleString() : 'Pending'}</span>
+        <span className="tag">Local focus: {(snapshot?.local_focus || []).join(', ') || 'Patia, Bhubaneswar, Odisha'}</span>
         <span className="tag">Tracked signals: {snapshot?.tracked_signal_count || 0}</span>
         <span className="tag">Tracked performance rows: {snapshot?.tracked_performance_count || 0}</span>
         <span className="tag">Harvested suggestions: {snapshot?.harvested_keyword_count || 0}</span>
@@ -181,6 +182,18 @@ function SeoAutomationAdmin({ token, setMessage }) {
               <div key={item.keyword} className="seo-automation-chip">
                 <strong>{item.keyword}</strong>
                 <span>Score {item.score || 0} · Hits {item.hits || 0}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="seo-automation-card">
+          <h4>Stored best keyword bank</h4>
+          <div className="seo-automation-chip-list">
+            {(snapshot?.keyword_bank || []).slice(0, 12).map((item) => (
+              <div key={item.keyword} className="seo-automation-chip">
+                <strong>{item.keyword}</strong>
+                <span>Clicks {item.clicks || 0} · Score {item.score || 0}</span>
               </div>
             ))}
           </div>
