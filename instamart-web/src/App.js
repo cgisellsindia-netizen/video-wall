@@ -681,10 +681,28 @@ function AppContent() {
 
   useEffect(() => {
     fetchSeoAutomationSnapshot();
+  }, []);
+
+  useEffect(() => {
+    const pollMs = 60 * 1000;
     const intervalId = window.setInterval(() => {
       fetchSeoAutomationSnapshot();
-    }, 20 * 60 * 1000);
-    return () => window.clearInterval(intervalId);
+    }, pollMs);
+
+    const handleVisibilityRefresh = () => {
+      if (document.visibilityState === 'visible') {
+        fetchSeoAutomationSnapshot();
+      }
+    };
+
+    window.addEventListener('focus', fetchSeoAutomationSnapshot);
+    document.addEventListener('visibilitychange', handleVisibilityRefresh);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', fetchSeoAutomationSnapshot);
+      document.removeEventListener('visibilitychange', handleVisibilityRefresh);
+    };
   }, []);
 
   useEffect(() => {

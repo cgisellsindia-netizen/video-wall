@@ -3626,12 +3626,16 @@ app.get('/api/page-content', async (req, res) => {
 app.get('/api/seo-automation', async (req, res) => {
   try {
     const snapshot = await getSeoAutomationSnapshot();
+    const refreshMinutes = await getSeoAutomationRefreshMinutes();
     res.json({
       generated_at: snapshot?.generated_at || null,
-      refresh_minutes: snapshot?.refresh_minutes || Math.round(SEO_AUTOMATION_REFRESH_MS / 60000),
+      refresh_minutes: snapshot?.refresh_minutes || refreshMinutes,
+      next_refresh_at: snapshot?.next_refresh_at || null,
       homepage_keywords: Array.isArray(snapshot?.homepage_keywords) ? snapshot.homepage_keywords : [],
       strongest_keywords: Array.isArray(snapshot?.strongest_keywords) ? snapshot.strongest_keywords : [],
-      emerging_search_terms: Array.isArray(snapshot?.emerging_search_terms) ? snapshot.emerging_search_terms : []
+      emerging_search_terms: Array.isArray(snapshot?.emerging_search_terms) ? snapshot.emerging_search_terms : [],
+      opportunities: Array.isArray(snapshot?.opportunities) ? snapshot.opportunities : [],
+      generated_copy: snapshot?.generated_copy || {}
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
