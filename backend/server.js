@@ -144,11 +144,58 @@ const publicStorefrontUrl = (
   process.env.PUBLIC_STOREFRONT_URL ||
   'https://getcamigo.in'
 ).replace(/\/+$/, '');
+const MEDIA_PROXY_CACHE_DIR = path.join(__dirname, '.cache', 'media-proxy');
+const MEDIA_PROXY_CACHE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 const normalizePublicUrl = (value = '') => String(value || '').trim().replace(/\/+$/, '');
 const catalogRestoreUrlWarning = () => {
   if (!MEDIA_MANIFEST_URL || !MEDIA_MANIFEST_EXPECTED_URL) return '';
   if (normalizePublicUrl(MEDIA_MANIFEST_URL) === normalizePublicUrl(MEDIA_MANIFEST_EXPECTED_URL)) return '';
   return `MEDIA_MANIFEST_URL points to a different JSON file than the FTP backup. Set MEDIA_MANIFEST_URL to ${MEDIA_MANIFEST_EXPECTED_URL}.`;
+};
+const ensureMediaProxyCacheDir = () => {
+  if (!fs.existsSync(MEDIA_PROXY_CACHE_DIR)) {
+    fs.mkdirSync(MEDIA_PROXY_CACHE_DIR, { recursive: true });
+  }
+};
+const mediaProxyCachePaths = (cacheKey = '') => ({
+  meta: path.join(MEDIA_PROXY_CACHE_DIR, `${cacheKey}.json`),
+  body: path.join(MEDIA_PROXY_CACHE_DIR, `${cacheKey}.bin`)
+});
+const buildMediaProxyCacheKey = (parts = {}) => crypto
+  .createHash('sha1')
+  .update(JSON.stringify(parts))
+  .digest('hex');
+const readMediaProxyCache = (cacheKey = '') => {
+  try {
+    ensureMediaProxyCacheDir();
+    const paths = mediaProxyCachePaths(cacheKey);
+    if (!fs.existsSync(paths.meta) || !fs.existsSync(paths.body)) return null;
+    const meta = JSON.parse(fs.readFileSync(paths.meta, 'utf8'));
+    const body = fs.readFileSync(paths.body);
+    if (!meta?.contentType || !Buffer.isBuffer(body) || !body.length) return null;
+    return { meta, body };
+  } catch (error) {
+    return null;
+  }
+};
+const writeMediaProxyCache = (cacheKey = '', payload = {}) => {
+  try {
+    ensureMediaProxyCacheDir();
+    const paths = mediaProxyCachePaths(cacheKey);
+    fs.writeFileSync(paths.body, payload.body);
+    fs.writeFileSync(paths.meta, JSON.stringify({
+      contentType: payload.contentType || 'application/octet-stream',
+      savedAt: new Date().toISOString()
+    }));
+  } catch (error) {
+    console.warn('Media proxy cache write skipped:', error.message);
+  }
+};
+const sendCachedMediaResponse = (res, cached) => {
+  res.setHeader('Content-Type', cached.meta.contentType);
+  res.setHeader('Cache-Control', `public, max-age=${MEDIA_PROXY_CACHE_MAX_AGE_SECONDS}, stale-while-revalidate=86400`);
+  res.setHeader('Content-Length', cached.body.length);
+  res.send(cached.body);
 };
 const firebaseServiceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 const firebaseServiceAccountCandidates = [
@@ -4023,15 +4070,18 @@ const toTitleCaseWord = (value = '') => value ? `${value.charAt(0).toUpperCase()
 const normalizeMerchantTitle = (value = '') => {
   const raw = String(value || '')
     .replace(/[\[\]{}()]+/g, ' ')
+    .replace(/[_|]+/g, ' ')
+    .replace(/\s*\/\s*/g, ' / ')
+    .replace(/\s*-\s*/g, '-')
     .replace(/\s+/g, ' ')
     .trim();
   if (!raw) return '';
 
-  return raw
+  const normalizedTokens = raw
     .split(' ')
     .map((token) => {
-      const clean = token.trim();
-      if (!clean) return clean;
+      const clean = token.trim().replace(/^[^\w]+|[^\w/%.+-]+$/g, '');
+      if (!clean) return '';
       const upper = clean.toUpperCase();
 
       if (MERCHANT_TITLE_KEEP_UPPER.has(upper) || isMerchantModelToken(clean) || isMerchantTechToken(clean)) {
@@ -4042,20 +4092,40 @@ const normalizeMerchantTitle = (value = '') => {
         return clean
           .split('-')
           .map((part) => {
-            const partUpper = part.toUpperCase();
-            if (MERCHANT_TITLE_KEEP_UPPER.has(partUpper) || isMerchantTechToken(part) || isMerchantModelToken(part)) {
+            const piece = String(part || '').trim();
+            if (!piece) return '';
+            const partUpper = piece.toUpperCase();
+            if (MERCHANT_TITLE_KEEP_UPPER.has(partUpper) || isMerchantTechToken(piece) || isMerchantModelToken(piece)) {
               return partUpper;
             }
-            return toTitleCaseWord(part);
+            return toTitleCaseWord(piece);
           })
+          .filter(Boolean)
           .join('-');
       }
 
       return toTitleCaseWord(clean);
     })
+    .filter(Boolean);
+
+  const dedupedTokens = [];
+  const seenTokens = new Set();
+  normalizedTokens.forEach((token) => {
+    const dedupeKey = String(token || '').toLowerCase();
+    if (!dedupeKey || seenTokens.has(dedupeKey)) return;
+    seenTokens.add(dedupeKey);
+    dedupedTokens.push(token);
+  });
+
+  const title = dedupedTokens
     .join(' ')
     .replace(/\s+/g, ' ')
+    .replace(/\s+\/\s+/g, ' / ')
     .trim();
+
+  return title.length > 140
+    ? title.slice(0, 137).trim().replace(/[^\w)\]]+$/g, '').trim() + '...'
+    : title;
 };
 
 const merchantImageAllowedHosts = new Set([
@@ -4350,7 +4420,7 @@ app.get('/api/seo-automation', async (req, res) => {
     res.set('Cache-Control', 'no-store, max-age=0');
     res.json({
       generated_at: snapshot?.generated_at || null,
-      refresh_minutes: snapshot?.refresh_minutes || refreshMinutes,
+      refresh_minutes: refreshMinutes,
       next_refresh_at: snapshot?.next_refresh_at || null,
       local_focus: Array.isArray(snapshot?.local_focus) ? snapshot.local_focus : SEO_PRIORITY_LOCAL_AREAS,
       homepage_keywords: Array.isArray(snapshot?.homepage_keywords) ? snapshot.homepage_keywords : [],
@@ -4453,6 +4523,17 @@ app.get('/merchant-feed/images/:productId/:imageIndex.jpg', async (req, res) => 
       return res.status(400).json({ error: 'Invalid image index' });
     }
 
+    const cacheKey = buildMediaProxyCacheKey({
+      type: 'merchant-feed-image',
+      productId,
+      imageIndex,
+      format: 'jpg-v1'
+    });
+    const cached = readMediaProxyCache(cacheKey);
+    if (cached) {
+      return sendCachedMediaResponse(res, cached);
+    }
+
     const product = await dbGetAsync('SELECT id, image FROM products WHERE id = ?', [productId]);
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
@@ -4488,10 +4569,14 @@ app.get('/merchant-feed/images/:productId/:imageIndex.jpg', async (req, res) => 
       .jpeg({ quality: 90, mozjpeg: true })
       .toBuffer();
 
-    res.setHeader('Content-Type', 'image/jpeg');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.setHeader('Content-Length', jpegBuffer.length);
-    res.send(jpegBuffer);
+    writeMediaProxyCache(cacheKey, {
+      contentType: 'image/jpeg',
+      body: jpegBuffer
+    });
+    sendCachedMediaResponse(res, {
+      meta: { contentType: 'image/jpeg' },
+      body: jpegBuffer
+    });
   } catch (error) {
     res.status(404).json({ error: error.message || 'Merchant image not available' });
   }
@@ -6078,8 +6163,13 @@ app.put('/api/admin/page-content', authenticateToken, requireAdmin, async (req, 
 app.get('/api/admin/seo-automation', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const snapshot = await getSeoAutomationSnapshot();
+    const refreshMinutes = await getSeoAutomationRefreshMinutes();
     res.set('Cache-Control', 'no-store, max-age=0');
-    res.json(snapshot || {});
+    res.json({
+      ...(snapshot || {}),
+      refresh_minutes: refreshMinutes,
+      next_refresh_at: snapshot?.next_refresh_at || null
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -6088,10 +6178,15 @@ app.get('/api/admin/seo-automation', authenticateToken, requireAdmin, async (req
 app.post('/api/admin/seo-automation/refresh', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const snapshot = await getSeoAutomationSnapshot({ force: true });
+    const refreshMinutes = await getSeoAutomationRefreshMinutes();
     res.set('Cache-Control', 'no-store, max-age=0');
     res.json({
       message: 'SEO automation snapshot refreshed.',
-      snapshot
+      snapshot: {
+        ...(snapshot || {}),
+        refresh_minutes: refreshMinutes,
+        next_refresh_at: snapshot?.next_refresh_at || null
+      }
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -6107,7 +6202,11 @@ app.post('/api/admin/seo-automation/settings', authenticateToken, requireAdmin, 
     res.set('Cache-Control', 'no-store, max-age=0');
     res.json({
       message: `SEO automation interval updated to every ${refreshMinutes} minutes.`,
-      snapshot
+      snapshot: {
+        ...(snapshot || {}),
+        refresh_minutes: refreshMinutes,
+        next_refresh_at: snapshot?.next_refresh_at || null
+      }
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -6454,7 +6553,19 @@ app.get('/api/media/proxy', async (req, res) => {
     const requestedWidth = Math.max(0, Math.min(2400, Number(req.query.w || req.query.width || 0) || 0));
     const requestedQuality = Math.max(30, Math.min(92, Number(req.query.q || req.query.quality || 82) || 82));
     const requestedFormat = String(req.query.format || req.query.f || '').trim().toLowerCase();
-    const mediaFile = mediaLibraryRemotePathFromPublicUrl(req.query.url || '');
+    const requestedUrl = String(req.query.url || '').trim();
+    const mediaFile = mediaLibraryRemotePathFromPublicUrl(requestedUrl);
+    const cacheKey = buildMediaProxyCacheKey({
+      type: 'media-proxy',
+      url: requestedUrl,
+      width: requestedWidth,
+      quality: requestedQuality,
+      format: requestedFormat || 'auto'
+    });
+    const cached = readMediaProxyCache(cacheKey);
+    if (cached) {
+      return sendCachedMediaResponse(res, cached);
+    }
     client = await createCatalogFtpClient();
     const chunks = [];
     const collector = new Writable({
@@ -6489,10 +6600,11 @@ app.get('/api/media/proxy', async (req, res) => {
       }
     }
 
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.setHeader('Content-Length', body.length);
-    res.send(body);
+    writeMediaProxyCache(cacheKey, { contentType, body });
+    sendCachedMediaResponse(res, {
+      meta: { contentType },
+      body
+    });
   } catch (error) {
     res.status(404).json({ error: error.message || 'Media file not found' });
   } finally {
