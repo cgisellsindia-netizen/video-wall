@@ -6624,3 +6624,41 @@ body.bottom-nav-hidden .floating-tracker {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.route-loading-shell {
+  padding: 24px 16px 120px;
+}
+
+.route-loading-card {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 22px 24px;
+  border: 1px solid rgba(20, 62, 138, 0.1);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 249, 255, 0.98));
+  box-shadow: 0 18px 42px rgba(15, 45, 93, 0.08);
+}
+
+.route-loading-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(31, 91, 199, 0.1);
+  color: #184ba6;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+  .route-loading-shell {
+    padding: 16px 12px 104px;
+  }
+
+  .route-loading-card {
+    padding: 18px;
+    border-radius: 20px;
+  }
+}

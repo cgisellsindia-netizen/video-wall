@@ -1,37 +1,16 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { Suspense, lazy, useMemo, useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
 import Header from './components/Header';
 import ProductSection from './components/ProductSection';
-import ProductDetail from './components/ProductDetail';
 import CartDrawer from './components/CartDrawer';
 import LoginModal from './components/LoginModal';
-import OrdersPage from './components/OrdersPage';
-import AdminPage from './components/AdminPage';
-import ContactPage from './components/ContactPage';
-import AboutPage from './components/AboutPage';
-import ShippingPolicyPage from './components/ShippingPolicyPage';
-import PrivacyPolicyPage from './components/PrivacyPolicyPage';
-import TermsOfServicePage from './components/TermsOfServicePage';
-import ReturnsPolicyPage from './components/ReturnsPolicyPage';
-import InstallationPolicyPage from './components/InstallationPolicyPage';
-import DealerDashboard from './components/DealerDashboard';
-import InstallationPage from './components/InstallationPage';
-import ShopPage from './components/ShopPage';
-import CheckoutPage from './components/CheckoutPage';
-import CategoryPage from './components/CategoryPage';
-import TrackingPage from './components/TrackingPage';
-import DeliveryPartnerPage from './components/DeliveryPartnerPage';
-import InstallerPage from './components/InstallerPage';
-import SavedItemsPage from './components/SavedItemsPage';
 import FloatingTracker from './components/FloatingTracker';
 import FloatingCheckoutBar from './components/FloatingCheckoutBar';
-import Footer from './components/Footer';
 import BottomNav from './components/BottomNav';
 import FaqSection from './components/FaqSection';
-import LocalSeoLandingPage from './components/LocalSeoLandingPage';
 import SeoSignalBlock from './components/SeoSignalBlock';
 import { HomepageBlocks } from './components/PageBuilderRenderer';
 import { API_URL } from './api';
@@ -42,6 +21,27 @@ import { getDeliveryEstimate } from './deliveryZone';
 import { DEFAULT_PAGE_CONTENT, normalizePageContent } from './pageBuilder';
 import usePageSeo from './usePageSeo';
 import './App.css';
+
+const ProductDetail = lazy(() => import('./components/ProductDetail'));
+const OrdersPage = lazy(() => import('./components/OrdersPage'));
+const AdminPage = lazy(() => import('./components/AdminPage'));
+const ContactPage = lazy(() => import('./components/ContactPage'));
+const AboutPage = lazy(() => import('./components/AboutPage'));
+const ShippingPolicyPage = lazy(() => import('./components/ShippingPolicyPage'));
+const PrivacyPolicyPage = lazy(() => import('./components/PrivacyPolicyPage'));
+const TermsOfServicePage = lazy(() => import('./components/TermsOfServicePage'));
+const ReturnsPolicyPage = lazy(() => import('./components/ReturnsPolicyPage'));
+const InstallationPolicyPage = lazy(() => import('./components/InstallationPolicyPage'));
+const DealerDashboard = lazy(() => import('./components/DealerDashboard'));
+const InstallationPage = lazy(() => import('./components/InstallationPage'));
+const ShopPage = lazy(() => import('./components/ShopPage'));
+const CheckoutPage = lazy(() => import('./components/CheckoutPage'));
+const CategoryPage = lazy(() => import('./components/CategoryPage'));
+const TrackingPage = lazy(() => import('./components/TrackingPage'));
+const DeliveryPartnerPage = lazy(() => import('./components/DeliveryPartnerPage'));
+const InstallerPage = lazy(() => import('./components/InstallerPage'));
+const SavedItemsPage = lazy(() => import('./components/SavedItemsPage'));
+const LocalSeoLandingPage = lazy(() => import('./components/LocalSeoLandingPage'));
 
 const getRuntimeAppMode = () => {
   const buildMode = process.env.REACT_APP_APP_MODE;
@@ -494,6 +494,17 @@ function MainPage({
       </main>
       <Footer />
     </>
+  );
+}
+
+function RouteLoadingFallback() {
+  return (
+    <div className="route-loading-shell" aria-live="polite">
+      <div className="route-loading-card">
+        <span className="route-loading-eyebrow">Camigo</span>
+        <strong>Loading page...</strong>
+      </div>
+    </div>
   );
 }
 
@@ -1406,52 +1417,54 @@ function AppContent() {
         trendingSearches={trendingSearches}
       />
 
-      <Routes>
-        <Route path="/" element={
-          <DeliveryOnlyRoute user={user}>
-            <MainPage
-              user={user} cartCount={cartCount} onCartClick={() => setCartOpen(true)}
-              onLoginClick={() => setLoginOpen(true)} onLogout={handleLogout}
-              cartItems={cartItems} addToCart={addToCart}
-              removeFromCart={removeFromCart}
-              products={products} categories={categories}
-              searchQuery={searchQuery} setSearchQuery={setSearchQuery}
-              recentProducts={recentProducts}
-              recommendedProducts={recommendedProducts}
-              bestsellingProducts={bestsellingProducts}
-              savedProducts={savedProducts}
-              savedProductIds={savedProductIds}
-              onToggleSaved={toggleSavedItem}
-              deliveryEtaLabel={deliveryEtaLabel}
-              pageContent={pageContent}
-              seoAutomationSnapshot={seoAutomationSnapshot}
-            />
-          </DeliveryOnlyRoute>
-        } />
-        <Route path="/product/:id" element={<DeliveryOnlyRoute user={user}><ProductDetail products={products} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} user={user} onLogin={() => setLoginOpen(true)} priceForRole={priceForRole} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} pageContent={pageContent} /></DeliveryOnlyRoute>} />
-        <Route path="/category/:id" element={<DeliveryOnlyRoute user={user}><CategoryPage categories={categories} products={products} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} deliveryEtaLabel={deliveryEtaLabel} seoAutomationSnapshot={seoAutomationSnapshot} /></DeliveryOnlyRoute>} />
-        <Route path="/orders" element={<DeliveryOnlyRoute user={user}><OrdersPage user={user} onLogin={() => setLoginOpen(true)} onUserUpdate={updateUserState} /></DeliveryOnlyRoute>} />
-        <Route path="/saved" element={<DeliveryOnlyRoute user={user}><SavedItemsPage user={user} onLogin={() => setLoginOpen(true)} products={products} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} priceForRole={priceForRole} deliveryEtaLabel={deliveryEtaLabel} /></DeliveryOnlyRoute>} />
-        <Route path="/install" element={<DeliveryOnlyRoute user={user}><InstallationPage user={user} onLogin={() => setLoginOpen(true)} /></DeliveryOnlyRoute>} />
-        <Route path="/dealer" element={<DealerDashboard user={user} />} />
-        <Route path="/distributor" element={<DealerDashboard user={user} />} />
-        <Route path="/contact" element={<ContactPage user={user} />} />
-        <Route path="/about-camigo" element={<AboutPage />} />
-        {localSeoPages.map((page) => (
-          <Route key={page.slug} path={`/${page.slug}`} element={<LocalSeoLandingPage page={page} />} />
-        ))}
-        <Route path="/shipping-policy" element={<ShippingPolicyPage />} />
-        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-        <Route path="/terms-of-service" element={<TermsOfServicePage />} />
-        <Route path="/returns-policy" element={<ReturnsPolicyPage />} />
-        <Route path="/installation-policy" element={<InstallationPolicyPage />} />
-        <Route path="/admin" element={<AdminPage user={user} authReady={authReady} pageContent={pageContent} onPageContentSaved={setPageContent} />} />
-        <Route path="/shop" element={<DeliveryOnlyRoute user={user}><ShopPage products={products} categories={categories} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} deliveryEtaLabel={deliveryEtaLabel} seoAutomationSnapshot={seoAutomationSnapshot} /></DeliveryOnlyRoute>} />
-        <Route path="/checkout" element={<DeliveryOnlyRoute user={user}><CheckoutPage user={user} liveCartItems={cartItems} onLogin={() => setLoginOpen(true)} onOrderPlaced={handleOrderPlaced} onUserUpdate={updateUserState} /></DeliveryOnlyRoute>} />
-        <Route path="/tracking/:id" element={<TrackingPage />} />
-        <Route path="/delivery-partner" element={<DeliveryPartnerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
-        <Route path="/installer" element={<InstallerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
-      </Routes>
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <Routes>
+          <Route path="/" element={
+            <DeliveryOnlyRoute user={user}>
+              <MainPage
+                user={user} cartCount={cartCount} onCartClick={() => setCartOpen(true)}
+                onLoginClick={() => setLoginOpen(true)} onLogout={handleLogout}
+                cartItems={cartItems} addToCart={addToCart}
+                removeFromCart={removeFromCart}
+                products={products} categories={categories}
+                searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+                recentProducts={recentProducts}
+                recommendedProducts={recommendedProducts}
+                bestsellingProducts={bestsellingProducts}
+                savedProducts={savedProducts}
+                savedProductIds={savedProductIds}
+                onToggleSaved={toggleSavedItem}
+                deliveryEtaLabel={deliveryEtaLabel}
+                pageContent={pageContent}
+                seoAutomationSnapshot={seoAutomationSnapshot}
+              />
+            </DeliveryOnlyRoute>
+          } />
+          <Route path="/product/:id" element={<DeliveryOnlyRoute user={user}><ProductDetail products={products} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} user={user} onLogin={() => setLoginOpen(true)} priceForRole={priceForRole} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} pageContent={pageContent} /></DeliveryOnlyRoute>} />
+          <Route path="/category/:id" element={<DeliveryOnlyRoute user={user}><CategoryPage categories={categories} products={products} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} deliveryEtaLabel={deliveryEtaLabel} seoAutomationSnapshot={seoAutomationSnapshot} /></DeliveryOnlyRoute>} />
+          <Route path="/orders" element={<DeliveryOnlyRoute user={user}><OrdersPage user={user} onLogin={() => setLoginOpen(true)} onUserUpdate={updateUserState} /></DeliveryOnlyRoute>} />
+          <Route path="/saved" element={<DeliveryOnlyRoute user={user}><SavedItemsPage user={user} onLogin={() => setLoginOpen(true)} products={products} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} priceForRole={priceForRole} deliveryEtaLabel={deliveryEtaLabel} /></DeliveryOnlyRoute>} />
+          <Route path="/install" element={<DeliveryOnlyRoute user={user}><InstallationPage user={user} onLogin={() => setLoginOpen(true)} /></DeliveryOnlyRoute>} />
+          <Route path="/dealer" element={<DealerDashboard user={user} />} />
+          <Route path="/distributor" element={<DealerDashboard user={user} />} />
+          <Route path="/contact" element={<ContactPage user={user} />} />
+          <Route path="/about-camigo" element={<AboutPage />} />
+          {localSeoPages.map((page) => (
+            <Route key={page.slug} path={`/${page.slug}`} element={<LocalSeoLandingPage page={page} />} />
+          ))}
+          <Route path="/shipping-policy" element={<ShippingPolicyPage />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+          <Route path="/returns-policy" element={<ReturnsPolicyPage />} />
+          <Route path="/installation-policy" element={<InstallationPolicyPage />} />
+          <Route path="/admin" element={<AdminPage user={user} authReady={authReady} pageContent={pageContent} onPageContentSaved={setPageContent} />} />
+          <Route path="/shop" element={<DeliveryOnlyRoute user={user}><ShopPage products={products} categories={categories} onAdd={addToCart} onRemove={removeFromCart} user={user} priceForRole={priceForRole} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} deliveryEtaLabel={deliveryEtaLabel} seoAutomationSnapshot={seoAutomationSnapshot} /></DeliveryOnlyRoute>} />
+          <Route path="/checkout" element={<DeliveryOnlyRoute user={user}><CheckoutPage user={user} liveCartItems={cartItems} onLogin={() => setLoginOpen(true)} onOrderPlaced={handleOrderPlaced} onUserUpdate={updateUserState} /></DeliveryOnlyRoute>} />
+          <Route path="/tracking/:id" element={<TrackingPage />} />
+          <Route path="/delivery-partner" element={<DeliveryPartnerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
+          <Route path="/installer" element={<InstallerPage user={user} authReady={authReady} onLogin={() => setLoginOpen(true)} />} />
+        </Routes>
+      </Suspense>
 
       <CartDrawer
         open={APP_MODE !== 'delivery' && APP_MODE !== 'installer' && user?.role !== 'delivery_partner' && user?.role !== 'installer' && cartOpen}

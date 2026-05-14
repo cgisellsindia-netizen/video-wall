@@ -1,0 +1,23 @@
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/images/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/category-images/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/category-real/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/camigo-logo.svg
+  Cache-Control: public, max-age=31536000, immutable
+
+/robots.txt
+  Cache-Control: public, max-age=3600
+
+/sitemap.xml
+  Cache-Control: public, max-age=3600
