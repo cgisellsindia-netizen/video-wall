@@ -616,7 +616,7 @@ function AppContent() {
 
   const fetchSeoAutomationSnapshot = async () => {
     try {
-      const res = await fetch(`${API_URL}/seo-automation`);
+      const res = await fetch(`${API_URL}/seo-automation`, { cache: 'no-store' });
       const data = await res.json().catch(() => ({}));
       if (res.ok) setSeoAutomationSnapshot(data);
     } catch (e) {}

@@ -8,6 +8,8 @@ function SeoSignalBlock({ snapshot }) {
   const homepageKeywords = Array.isArray(snapshot.homepage_keywords) ? snapshot.homepage_keywords : [];
   const strongestKeywords = Array.isArray(snapshot.strongest_keywords) ? snapshot.strongest_keywords.slice(0, 6) : [];
   const emerging = Array.isArray(snapshot.emerging_search_terms) ? snapshot.emerging_search_terms.slice(0, 6) : [];
+  const harvested = Array.isArray(snapshot.harvested_keywords) ? snapshot.harvested_keywords.slice(0, 6) : [];
+  const generatedHeading = snapshot?.generated_copy?.homepage_heading || 'Trending CCTV Searches Around Bhubaneswar';
   const generatedParagraph = snapshot?.generated_copy?.homepage_paragraph || '';
   const trackedKeywords = useMemo(
     () => Array.from(new Set([...homepageKeywords, ...strongestKeywords.map((item) => item.keyword)])),
@@ -55,10 +57,13 @@ function SeoSignalBlock({ snapshot }) {
         <p className="seo-link-hub-copy">
           {generatedParagraph || 'This live keyword block refreshes from Camigo search demand and local CCTV buying intent to keep the homepage aligned with what customers are actively searching for.'}
         </p>
+        <p className="checkout-note" style={{ marginTop: 8 }}>
+          Last keyword refresh: {snapshot?.generated_at ? new Date(snapshot.generated_at).toLocaleString() : 'Pending'} · Fresh suggestions pulled: {snapshot?.harvested_keyword_count || 0}
+        </p>
 
         {homepageKeywords.length ? (
           <>
-            <h3 className="seo-automation-public-heading">Priority homepage keywords</h3>
+            <h3 className="seo-automation-public-heading">{generatedHeading}</h3>
             <div className="local-seo-topic-list">
               {homepageKeywords.map((keyword) => (
                 <Link
@@ -94,6 +99,21 @@ function SeoSignalBlock({ snapshot }) {
             <h3>Emerging customer queries</h3>
             <div className="seo-link-list">
               {emerging.map((item) => (
+                <Link
+                  key={`${item.keyword}-${item.source}`}
+                  to={`/shop?search=${encodeURIComponent(item.keyword)}`}
+                  className="seo-link-chip subtle"
+                  onClick={() => handleKeywordClick(item.keyword)}
+                >
+                  {item.keyword}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div className="seo-link-group">
+            <h3>Freshly harvested keyword ideas</h3>
+            <div className="seo-link-list">
+              {harvested.map((item) => (
                 <Link
                   key={`${item.keyword}-${item.source}`}
                   to={`/shop?search=${encodeURIComponent(item.keyword)}`}

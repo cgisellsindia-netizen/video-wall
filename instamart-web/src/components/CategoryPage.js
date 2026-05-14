@@ -213,6 +213,7 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
 
       {categorySeoBlock?.paragraph ? (
         <section className="seo-auto-copy-block">
+          <strong>{categorySeoBlock.heading || `${category?.name || 'Category'} trend`}</strong>
           <p>{categorySeoBlock.paragraph}</p>
           {Array.isArray(categorySeoBlock.supporting_terms) && categorySeoBlock.supporting_terms.length ? (
             <div className="seo-auto-copy-links">

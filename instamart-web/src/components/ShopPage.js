@@ -76,6 +76,7 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
   const seoProducts = filtered.slice(0, 10);
   const seoImage = seoProducts[0]?.image || 'https://getcamigo.in/camigo-logo.svg';
   const automationShopCopy = seoAutomationSnapshot?.generated_copy?.shop_paragraph || '';
+  const automationShopHeading = seoAutomationSnapshot?.generated_copy?.shop_heading || 'Live shopping keyword focus';
   const shopKeywordLinks = Array.isArray(seoAutomationSnapshot?.generated_copy?.promoted_links)
     ? seoAutomationSnapshot.generated_copy.promoted_links.slice(0, 6)
     : [];
@@ -163,6 +164,7 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
 
       {automationShopCopy ? (
         <section className="seo-auto-copy-block">
+          <strong>{automationShopHeading}</strong>
           <p>{automationShopCopy}</p>
           {shopKeywordLinks.length ? (
             <div className="seo-auto-copy-links">

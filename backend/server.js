@@ -215,6 +215,9 @@ const SEO_AUTOMATION_MAX_OPPORTUNITIES = 16;
 const SEO_AUTOMATION_MAX_EMERGING = 10;
 const SEO_AUTOMATION_MAX_CATEGORY_BLOCKS = 8;
 const SEO_AUTOMATION_LOW_SIGNAL_IMPRESSIONS = 3;
+const SEO_AUTOMATION_MAX_SEED_QUERIES = 10;
+const SEO_AUTOMATION_MAX_EXTERNAL_SUGGESTIONS = 40;
+const SEO_AUTOMATION_SUGGEST_TIMEOUT_MS = 5000;
 const SEO_LOCAL_AREAS = [
   'Bhubaneswar',
   'Patia',
@@ -1009,19 +1012,121 @@ const normalizeSeoKeyword = (value = '') => String(value || '')
   .trim()
   .slice(0, 120);
 
-const recordSeoKeywordSignal = async (keyword, source = 'site_search') => {
+const recordSeoKeywordSignal = async (keyword, source = 'site_search', weight = 1) => {
   const normalizedKeyword = normalizeSeoKeyword(keyword);
   const normalizedSource = normalizeSeoKeyword(source).replace(/\s+/g, '_') || 'site_search';
+  const hitWeight = Math.max(1, Math.round(Number(weight || 1)));
   if (!normalizedKeyword || normalizedKeyword.length < 3) return;
   await dbRunAsync(
     `INSERT INTO seo_keyword_signals (keyword, hits, source, latest_at)
-     VALUES (?, 1, ?, CURRENT_TIMESTAMP)
+     VALUES (?, ?, ?, CURRENT_TIMESTAMP)
      ON CONFLICT(keyword) DO UPDATE SET
-       hits = seo_keyword_signals.hits + 1,
+       hits = seo_keyword_signals.hits + excluded.hits,
        source = excluded.source,
        latest_at = CURRENT_TIMESTAMP`,
-      [normalizedKeyword, normalizedSource]
+      [normalizedKeyword, hitWeight, normalizedSource]
     );
+};
+
+const uniqueSeoKeywords = (values = []) => Array.from(new Set(
+  values
+    .map((value) => normalizeSeoKeyword(value))
+    .filter(Boolean)
+));
+
+const buildSeoRotationHash = (values = []) => {
+  const fingerprint = values.join('|') || 'camigo-seo';
+  const hash = crypto.createHash('md5').update(fingerprint).digest('hex');
+  return Number.parseInt(hash.slice(0, 8), 16) || 0;
+};
+
+const buildSeoSuggestSeedQueries = ({ categories = [], products = [], signalRows = [] }) => {
+  const categoryNames = uniqueSeoKeywords(categories.map((row) => row.name)).slice(0, 6);
+  const productNames = uniqueSeoKeywords(products.map((row) => row.name)).slice(0, 6);
+  const signalKeywords = uniqueSeoKeywords(signalRows.map((row) => row.keyword)).slice(0, 6);
+  const localKeywordSeeds = uniqueSeoKeywords(SEO_LOCAL_AREAS.flatMap((area) => SEO_KEYWORD_PATTERNS.map((pattern) => pattern.replace('{area}', area)))).slice(0, 16);
+  return uniqueSeoKeywords([
+    ...signalKeywords,
+    ...localKeywordSeeds,
+    ...categoryNames.flatMap((name) => [
+      `${name} bhubaneswar`,
+      `${name} odisha`,
+      `best ${name} bhubaneswar`
+    ]),
+    ...productNames.flatMap((name) => [
+      name,
+      `${name} bhubaneswar`
+    ])
+  ]).slice(0, SEO_AUTOMATION_MAX_SEED_QUERIES);
+};
+
+const fetchJsonWithTimeout = async (url, options = {}, timeoutMs = SEO_AUTOMATION_SUGGEST_TIMEOUT_MS) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'User-Agent': 'CamigoSeoAutomation/1.0',
+        ...(options.headers || {})
+      },
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      throw new Error(`Request failed with ${response.status}`);
+    }
+    return response.json();
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const fetchGoogleSuggestKeywords = async (query) => {
+  const url = `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(query)}`;
+  const data = await fetchJsonWithTimeout(url);
+  return Array.isArray(data?.[1]) ? uniqueSeoKeywords(data[1]) : [];
+};
+
+const fetchDuckDuckGoSuggestKeywords = async (query) => {
+  const url = `https://duckduckgo.com/ac/?q=${encodeURIComponent(query)}&type=list`;
+  const data = await fetchJsonWithTimeout(url);
+  return Array.isArray(data)
+    ? uniqueSeoKeywords(data.map((entry) => entry?.phrase))
+    : [];
+};
+
+const harvestExternalSeoKeywords = async (seedQueries = []) => {
+  const harvested = [];
+  for (const query of seedQueries.slice(0, SEO_AUTOMATION_MAX_SEED_QUERIES)) {
+    const [googleResult, duckDuckGoResult] = await Promise.allSettled([
+      fetchGoogleSuggestKeywords(query),
+      fetchDuckDuckGoSuggestKeywords(query)
+    ]);
+    if (googleResult.status === 'fulfilled') {
+      googleResult.value.forEach((keyword, index) => {
+        harvested.push({ keyword, source: 'google_suggest', weight: Math.max(1, 6 - index) });
+      });
+    }
+    if (duckDuckGoResult.status === 'fulfilled') {
+      duckDuckGoResult.value.forEach((keyword, index) => {
+        harvested.push({ keyword, source: 'duckduckgo_suggest', weight: Math.max(1, 4 - index) });
+      });
+    }
+  }
+
+  const deduped = [];
+  const seen = new Set();
+  harvested.forEach((entry) => {
+    const keyword = normalizeSeoKeyword(entry.keyword);
+    if (!keyword || seen.has(keyword)) return;
+    seen.add(keyword);
+    deduped.push({
+      keyword,
+      source: entry.source,
+      weight: entry.weight
+    });
+  });
+  return deduped.slice(0, SEO_AUTOMATION_MAX_EXTERNAL_SUGGESTIONS);
 };
 
 const recordSeoKeywordPerformance = async (keyword, placement, action = 'impression') => {
@@ -1091,7 +1196,8 @@ const isLowSignalKeyword = (performance = {}) => {
 const buildSeoAutonomousCopy = ({
   strongestKeywords = [],
   categories = [],
-  performanceMap
+  performanceMap,
+  refreshMinutes = DEFAULT_SEO_AUTOMATION_REFRESH_MINUTES
 }) => {
   const homepageCandidates = [];
   const homepageDropped = [];
@@ -1113,16 +1219,45 @@ const buildSeoAutonomousCopy = ({
     });
   });
 
-  const homepageKeywords = homepageCandidates.slice(0, 8).map((item) => item.keyword);
+  const rotationBucket = Math.floor(Date.now() / Math.max(1, refreshMinutes) / 60000);
+  const fixedHomepageKeywords = homepageCandidates.slice(0, 3).map((item) => item.keyword);
+  const rotatingHomepagePool = homepageCandidates.slice(3, 14).map((item) => item.keyword);
+  const rotatingHomepageKeywords = [];
+  if (rotatingHomepagePool.length) {
+    const offset = rotationBucket % rotatingHomepagePool.length;
+    for (let index = 0; index < Math.min(5, rotatingHomepagePool.length); index += 1) {
+      rotatingHomepageKeywords.push(rotatingHomepagePool[(offset + index) % rotatingHomepagePool.length]);
+    }
+  }
+  const homepageKeywords = uniqueSeoKeywords([...fixedHomepageKeywords, ...rotatingHomepageKeywords]).slice(0, 8);
   const homepageLeadKeywords = homepageKeywords.slice(0, 4);
+  const homepageTemplates = [
+    (keywords) => `Camigo is currently pushing around live demand for ${keywords.join(', ')} across Bhubaneswar and Odisha, so shoppers reach the CCTV cameras, installation services, and security hardware people are actively searching for right now.`,
+    (keywords) => `Live customer demand is steering Camigo toward ${keywords.join(', ')} in Bhubaneswar and Odisha, keeping the homepage aligned with the strongest CCTV buying and installation intent.`,
+    (keywords) => `This homepage automatically re-focuses around ${keywords.join(', ')} so Camigo can match fast-moving CCTV searches, local installation needs, and stronger purchase intent in Bhubaneswar and Odisha.`
+  ];
+  const homepageHeading = homepageLeadKeywords.length
+    ? `Live focus: ${homepageLeadKeywords.slice(0, 2).join(' + ')}`
+    : 'Live CCTV search focus';
   const homepageParagraph = homepageLeadKeywords.length
-    ? `Camigo automatically refreshes its homepage around live demand for ${homepageLeadKeywords.join(', ')} across Bhubaneswar and Odisha, helping buyers land on the CCTV cameras, installation services, and security hardware they are actively searching for.`
+    ? homepageTemplates[buildSeoRotationHash(homepageLeadKeywords) % homepageTemplates.length](homepageLeadKeywords)
     : 'Camigo automatically refreshes its homepage around live CCTV demand across Bhubaneswar and Odisha, keeping the site aligned with the strongest customer search intent.';
 
-  const shopKeywords = homepageCandidates.slice(0, 6).map((item) => item.keyword);
+  const shopKeywords = uniqueSeoKeywords([
+    ...homepageCandidates.slice(0, 4).map((item) => item.keyword),
+    ...homepageCandidates.slice(4, 10).map((item) => item.keyword).reverse()
+  ]).slice(0, 6);
+  const shopTemplates = [
+    (keywords) => `This shop page is automatically strengthened around live commercial searches such as ${keywords.join(', ')}, so category browsing and product discovery stay aligned with the strongest CCTV buying intent in Bhubaneswar and Odisha.`,
+    (keywords) => `Camigo keeps this shop page tuned to keywords like ${keywords.join(', ')}, helping Google and local buyers connect product discovery with the highest CCTV demand in Bhubaneswar and Odisha.`,
+    (keywords) => `The live shop copy rotates around ${keywords.join(', ')} so Camigo can keep surfacing the CCTV, recorder, and installation queries that matter most across Bhubaneswar and Odisha.`
+  ];
   const shopParagraph = shopKeywords.length
-    ? `This shop page is automatically strengthened around live commercial searches such as ${shopKeywords.join(', ')}, so category browsing and product discovery stay aligned with the strongest CCTV buying intent in Bhubaneswar and Odisha.`
+    ? shopTemplates[buildSeoRotationHash(shopKeywords) % shopTemplates.length](shopKeywords)
     : 'This shop page is automatically updated around live CCTV buying intent so product discovery stays aligned with what customers search most.';
+  const shopHeading = shopKeywords.length
+    ? `Live shopping trend: ${shopKeywords[0]}`
+    : 'Live shopping trend';
 
   const categoryBlocks = categories
     .slice(0, SEO_AUTOMATION_MAX_CATEGORY_BLOCKS)
@@ -1139,17 +1274,25 @@ const buildSeoAutonomousCopy = ({
             `${categoryName} odisha`,
             `best ${categoryName} bhubaneswar`
           ].map(normalizeSeoKeyword);
+      const categoryTemplates = [
+        (terms) => `${category.name} pages are auto-optimized around ${terms.join(', ')} so Google and buyers can understand the strongest local purchase intent for this category.`,
+        (terms) => `Camigo keeps this ${category.name} section aligned with searches like ${terms.join(', ')}, helping local buyers and crawlers read the strongest Bhubaneswar and Odisha intent around the category.`,
+        (terms) => `The ${category.name} category is automatically refreshed around ${terms.join(', ')} so the page keeps matching the live CCTV search demand coming from Bhubaneswar and Odisha.`
+      ];
       return {
         category_id: Number(category.id),
         category_name: category.name,
         supporting_terms: supportingTerms,
-        paragraph: `${category.name} pages are auto-optimized around ${supportingTerms.join(', ')} so Google and buyers can understand the strongest local purchase intent for this category.`
+        heading: supportingTerms[0] ? `${category.name} trend: ${supportingTerms[0]}` : `${category.name} trend`,
+        paragraph: categoryTemplates[buildSeoRotationHash([category.name, ...supportingTerms]) % categoryTemplates.length](supportingTerms)
       };
     });
 
   return {
+    homepage_heading: homepageHeading,
     homepage_keywords: homepageKeywords,
     homepage_paragraph: homepageParagraph,
+    shop_heading: shopHeading,
     shop_paragraph: shopParagraph,
     category_blocks: categoryBlocks,
     promoted_links: homepageCandidates.slice(0, 6).map((item) => ({
@@ -1201,12 +1344,23 @@ const getSeoAutomationRefreshMinutes = async () => {
 
 const buildSeoAutomationSnapshot = async () => {
   const refreshMinutes = await getSeoAutomationRefreshMinutes();
-  const [products, categories, signalRows, performanceRows] = await Promise.all([
+  const [products, categories, existingSignalRows, performanceRows] = await Promise.all([
     dbAllAsync('SELECT id, name, description, category_id FROM products ORDER BY id DESC'),
     dbAllAsync('SELECT id, name FROM categories ORDER BY sort_order ASC, id ASC'),
-    dbAllAsync('SELECT keyword, hits, source, latest_at FROM seo_keyword_signals ORDER BY hits DESC, latest_at DESC LIMIT 80'),
+    dbAllAsync('SELECT keyword, hits, source, latest_at FROM seo_keyword_signals ORDER BY hits DESC, latest_at DESC LIMIT 120'),
     dbAllAsync('SELECT keyword, placement, impressions, clicks, last_impression_at, last_click_at FROM seo_keyword_performance ORDER BY updated_at DESC LIMIT 240')
   ]);
+
+  const seedQueries = buildSeoSuggestSeedQueries({
+    categories,
+    products,
+    signalRows: existingSignalRows
+  });
+  const harvestedKeywords = await harvestExternalSeoKeywords(seedQueries);
+  await Promise.all(
+    harvestedKeywords.map((entry) => recordSeoKeywordSignal(entry.keyword, entry.source, entry.weight))
+  );
+  const signalRows = await dbAllAsync('SELECT keyword, hits, source, latest_at FROM seo_keyword_signals ORDER BY hits DESC, latest_at DESC LIMIT 120');
 
   const signalsMap = new Map(signalRows.map((row) => [String(row.keyword), row]));
   const performanceMap = buildPerformanceMap(performanceRows);
@@ -1254,7 +1408,8 @@ const buildSeoAutomationSnapshot = async () => {
   const generatedCopy = buildSeoAutonomousCopy({
     strongestKeywords,
     categories,
-    performanceMap
+    performanceMap,
+    refreshMinutes
   });
   const homepageKeywords = generatedCopy.homepage_keywords;
   const opportunities = buildSeoOpportunities(
@@ -1272,6 +1427,9 @@ const buildSeoAutomationSnapshot = async () => {
     opportunities,
     tracked_signal_count: signalRows.length,
     tracked_performance_count: performanceRows.length,
+    external_seed_queries: seedQueries,
+    harvested_keyword_count: harvestedKeywords.length,
+    harvested_keywords: harvestedKeywords.slice(0, 16),
     generated_copy: generatedCopy
   };
 };
@@ -3627,6 +3785,7 @@ app.get('/api/seo-automation', async (req, res) => {
   try {
     const snapshot = await getSeoAutomationSnapshot();
     const refreshMinutes = await getSeoAutomationRefreshMinutes();
+    res.set('Cache-Control', 'no-store, max-age=0');
     res.json({
       generated_at: snapshot?.generated_at || null,
       refresh_minutes: snapshot?.refresh_minutes || refreshMinutes,
@@ -5340,6 +5499,7 @@ app.put('/api/admin/page-content', authenticateToken, requireAdmin, async (req, 
 app.get('/api/admin/seo-automation', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const snapshot = await getSeoAutomationSnapshot();
+    res.set('Cache-Control', 'no-store, max-age=0');
     res.json(snapshot || {});
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -5349,6 +5509,7 @@ app.get('/api/admin/seo-automation', authenticateToken, requireAdmin, async (req
 app.post('/api/admin/seo-automation/refresh', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const snapshot = await getSeoAutomationSnapshot({ force: true });
+    res.set('Cache-Control', 'no-store, max-age=0');
     res.json({
       message: 'SEO automation snapshot refreshed.',
       snapshot
@@ -5362,8 +5523,9 @@ app.post('/api/admin/seo-automation/settings', authenticateToken, requireAdmin, 
   try {
     const refreshMinutes = clampSeoAutomationRefreshMinutes(req.body?.refresh_minutes);
     await saveJsonAppSetting(APP_SETTING_KEYS.seoAutomationRefreshMinutes, refreshMinutes);
-    scheduleSeoAutomationRefresh();
+    await scheduleSeoAutomationRefresh();
     const snapshot = await getSeoAutomationSnapshot({ force: true });
+    res.set('Cache-Control', 'no-store, max-age=0');
     res.json({
       message: `SEO automation interval updated to every ${refreshMinutes} minutes.`,
       snapshot

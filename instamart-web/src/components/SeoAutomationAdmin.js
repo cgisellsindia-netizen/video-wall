@@ -16,6 +16,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
     setError('');
     try {
       const res = await fetch(`${API_URL}/admin/seo-automation`, {
+        cache: 'no-store',
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json().catch(() => ({}));
@@ -70,6 +71,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
     try {
       const res = await fetch(`${API_URL}/admin/seo-automation/refresh`, {
         method: 'POST',
+        cache: 'no-store',
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json().catch(() => ({}));
@@ -95,6 +97,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
     try {
       const res = await fetch(`${API_URL}/admin/seo-automation/settings`, {
         method: 'POST',
+        cache: 'no-store',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -149,6 +152,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
         <span className="tag tag-success">Last generated: {snapshot?.generated_at ? new Date(snapshot.generated_at).toLocaleString() : 'Pending'}</span>
         <span className="tag">Tracked signals: {snapshot?.tracked_signal_count || 0}</span>
         <span className="tag">Tracked performance rows: {snapshot?.tracked_performance_count || 0}</span>
+        <span className="tag">Harvested suggestions: {snapshot?.harvested_keyword_count || 0}</span>
         <span className="tag tag-warning">{countdownLabel || 'Next auto update pending'}</span>
       </div>
 
@@ -194,6 +198,18 @@ function SeoAutomationAdmin({ token, setMessage }) {
           </div>
         </article>
 
+        <article className="seo-automation-card">
+          <h4>Fresh external keyword harvest</h4>
+          <div className="seo-automation-chip-list">
+            {(snapshot?.harvested_keywords || []).map((item) => (
+              <div key={`${item.keyword}-${item.source}`} className="seo-automation-chip">
+                <strong>{item.keyword}</strong>
+                <span>{String(item.source || 'harvest').replaceAll('_', ' ')} · Weight {item.weight || 1}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+
         <article className="seo-automation-card seo-automation-card-wide">
           <h4>Recommended next updates</h4>
           <div className="seo-automation-opportunities">
@@ -213,8 +229,16 @@ function SeoAutomationAdmin({ token, setMessage }) {
           <h4>Live autonomous copy</h4>
           <div className="seo-automation-copy-preview">
             <div className="seo-automation-copy-box">
+              <strong>Homepage heading</strong>
+              <p>{snapshot?.generated_copy?.homepage_heading || 'Not generated yet.'}</p>
+            </div>
+            <div className="seo-automation-copy-box">
               <strong>Homepage paragraph</strong>
               <p>{snapshot?.generated_copy?.homepage_paragraph || 'Not generated yet.'}</p>
+            </div>
+            <div className="seo-automation-copy-box">
+              <strong>Shop heading</strong>
+              <p>{snapshot?.generated_copy?.shop_heading || 'Not generated yet.'}</p>
             </div>
             <div className="seo-automation-copy-box">
               <strong>Shop paragraph</strong>
