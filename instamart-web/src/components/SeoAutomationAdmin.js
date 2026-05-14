@@ -5,7 +5,10 @@ function SeoAutomationAdmin({ token, setMessage }) {
   const [snapshot, setSnapshot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [error, setError] = useState('');
+  const [refreshMinutesInput, setRefreshMinutesInput] = useState('20');
+  const [countdownLabel, setCountdownLabel] = useState('');
 
   const loadSnapshot = async () => {
     if (!token) return;
@@ -20,6 +23,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
         throw new Error(data?.error || 'Unable to load SEO automation snapshot');
       }
       setSnapshot(data || {});
+      setRefreshMinutesInput(String(data?.refresh_minutes || 20));
     } catch (nextError) {
       setError(nextError.message || 'Unable to load SEO automation snapshot');
     } finally {
@@ -30,6 +34,34 @@ function SeoAutomationAdmin({ token, setMessage }) {
   useEffect(() => {
     loadSnapshot();
   }, [token]);
+
+  useEffect(() => {
+    if (!snapshot?.next_refresh_at) {
+      setCountdownLabel('');
+      return undefined;
+    }
+
+    const renderCountdown = () => {
+      const nextRun = Date.parse(snapshot.next_refresh_at);
+      if (!Number.isFinite(nextRun)) {
+        setCountdownLabel('');
+        return;
+      }
+      const diffMs = nextRun - Date.now();
+      if (diffMs <= 0) {
+        setCountdownLabel('Updating soon...');
+        return;
+      }
+      const totalSeconds = Math.ceil(diffMs / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      setCountdownLabel(`Next auto update in ${minutes}m ${String(seconds).padStart(2, '0')}s`);
+    };
+
+    renderCountdown();
+    const timer = window.setInterval(renderCountdown, 1000);
+    return () => window.clearInterval(timer);
+  }, [snapshot?.next_refresh_at]);
 
   const handleRefresh = async () => {
     if (!token) return;
@@ -45,6 +77,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
         throw new Error(data?.error || 'Unable to refresh SEO automation snapshot');
       }
       setSnapshot(data?.snapshot || null);
+      setRefreshMinutesInput(String(data?.snapshot?.refresh_minutes || refreshMinutesInput));
       setMessage?.(data?.message || 'SEO automation refreshed.');
     } catch (nextError) {
       const message = nextError.message || 'Unable to refresh SEO automation snapshot';
@@ -55,8 +88,41 @@ function SeoAutomationAdmin({ token, setMessage }) {
     }
   };
 
+  const handleSaveSettings = async () => {
+    if (!token) return;
+    setSavingSettings(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_URL}/admin/seo-automation/settings`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ refresh_minutes: refreshMinutesInput })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Unable to save SEO automation settings');
+      }
+      setSnapshot(data?.snapshot || null);
+      setRefreshMinutesInput(String(data?.snapshot?.refresh_minutes || refreshMinutesInput));
+      setMessage?.(data?.message || 'SEO automation settings saved.');
+    } catch (nextError) {
+      const message = nextError.message || 'Unable to save SEO automation settings';
+      setError(message);
+      setMessage?.(message);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
   if (loading) {
-    return <div className="card seo-automation-panel"><p>Loading SEO intelligence...</p></div>;
+    return (
+      <div className="card seo-automation-panel">
+        <p>Loading SEO intelligence...</p>
+      </div>
+    );
   }
 
   return (
@@ -64,14 +130,16 @@ function SeoAutomationAdmin({ token, setMessage }) {
       <div className="seo-automation-header">
         <div>
           <span className="phone-verify-eyebrow">SEO intelligence</span>
-          <h3 style={{ margin: '6px 0 8px' }}>20-minute keyword automation snapshot</h3>
+          <h3 style={{ margin: '6px 0 8px' }}>Autonomous keyword automation</h3>
           <p className="checkout-note" style={{ margin: 0 }}>
             Camigo now tracks real on-site search terms, local CCTV intent phrases, and priority keyword opportunities for Bhubaneswar and Odisha.
           </p>
         </div>
-        <button className="btn btn-sm btn-primary" onClick={handleRefresh} disabled={refreshing}>
-          {refreshing ? 'Refreshing...' : 'Refresh now'}
-        </button>
+        <div className="seo-automation-actions">
+          <button className="btn btn-sm btn-primary" onClick={handleRefresh} disabled={refreshing}>
+            {refreshing ? 'Refreshing...' : 'Manual update'}
+          </button>
+        </div>
       </div>
 
       {error ? <div className="admin-message">{error}</div> : null}
@@ -81,6 +149,24 @@ function SeoAutomationAdmin({ token, setMessage }) {
         <span className="tag tag-success">Last generated: {snapshot?.generated_at ? new Date(snapshot.generated_at).toLocaleString() : 'Pending'}</span>
         <span className="tag">Tracked signals: {snapshot?.tracked_signal_count || 0}</span>
         <span className="tag">Tracked performance rows: {snapshot?.tracked_performance_count || 0}</span>
+        <span className="tag tag-warning">{countdownLabel || 'Next auto update pending'}</span>
+      </div>
+
+      <div className="seo-automation-settings">
+        <div className="seo-automation-settings-field">
+          <label htmlFor="seo-refresh-minutes">Update interval (minutes)</label>
+          <input
+            id="seo-refresh-minutes"
+            type="number"
+            min="5"
+            max="180"
+            value={refreshMinutesInput}
+            onChange={(event) => setRefreshMinutesInput(event.target.value)}
+          />
+        </div>
+        <button className="btn btn-sm btn-secondary" onClick={handleSaveSettings} disabled={savingSettings}>
+          {savingSettings ? 'Saving...' : 'Save interval'}
+        </button>
       </div>
 
       <div className="seo-automation-grid">

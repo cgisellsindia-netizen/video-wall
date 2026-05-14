@@ -194,7 +194,8 @@ const APP_SETTING_KEYS = {
   codEnabled: 'cod_enabled',
   homepageLayout: 'homepage_layout',
   productPageLayout: 'product_page_layout',
-  seoAutomationSnapshot: 'seo_automation_snapshot'
+  seoAutomationSnapshot: 'seo_automation_snapshot',
+  seoAutomationRefreshMinutes: 'seo_automation_refresh_minutes'
 };
 
 const OPERATIONAL_APP_SETTING_KEYS = [
@@ -202,10 +203,13 @@ const OPERATIONAL_APP_SETTING_KEYS = [
   APP_SETTING_KEYS.codEnabled,
   APP_SETTING_KEYS.homepageLayout,
   APP_SETTING_KEYS.productPageLayout,
-  APP_SETTING_KEYS.seoAutomationSnapshot
+  APP_SETTING_KEYS.seoAutomationSnapshot,
+  APP_SETTING_KEYS.seoAutomationRefreshMinutes
 ];
 
-const SEO_AUTOMATION_REFRESH_MS = 20 * 60 * 1000;
+const DEFAULT_SEO_AUTOMATION_REFRESH_MINUTES = 20;
+const MIN_SEO_AUTOMATION_REFRESH_MINUTES = 5;
+const MAX_SEO_AUTOMATION_REFRESH_MINUTES = 180;
 const SEO_AUTOMATION_MAX_KEYWORDS = 12;
 const SEO_AUTOMATION_MAX_OPPORTUNITIES = 16;
 const SEO_AUTOMATION_MAX_EMERGING = 10;
@@ -1181,8 +1185,22 @@ const buildSeoOpportunities = (keywords = [], strongestKeywords = []) => {
 };
 
 let seoAutomationRefreshPromise = null;
+let seoAutomationIntervalHandle = null;
+let seoAutomationNextRunAt = 0;
+
+const clampSeoAutomationRefreshMinutes = (value) => {
+  const parsed = Math.round(Number(value || DEFAULT_SEO_AUTOMATION_REFRESH_MINUTES));
+  if (!Number.isFinite(parsed)) return DEFAULT_SEO_AUTOMATION_REFRESH_MINUTES;
+  return Math.min(MAX_SEO_AUTOMATION_REFRESH_MINUTES, Math.max(MIN_SEO_AUTOMATION_REFRESH_MINUTES, parsed));
+};
+
+const getSeoAutomationRefreshMinutes = async () => {
+  const stored = await getJsonAppSetting(APP_SETTING_KEYS.seoAutomationRefreshMinutes, DEFAULT_SEO_AUTOMATION_REFRESH_MINUTES);
+  return clampSeoAutomationRefreshMinutes(stored);
+};
 
 const buildSeoAutomationSnapshot = async () => {
+  const refreshMinutes = await getSeoAutomationRefreshMinutes();
   const [products, categories, signalRows, performanceRows] = await Promise.all([
     dbAllAsync('SELECT id, name, description, category_id FROM products ORDER BY id DESC'),
     dbAllAsync('SELECT id, name FROM categories ORDER BY sort_order ASC, id ASC'),
@@ -1246,7 +1264,8 @@ const buildSeoAutomationSnapshot = async () => {
 
   return {
     generated_at: new Date().toISOString(),
-    refresh_minutes: Math.round(SEO_AUTOMATION_REFRESH_MS / 60000),
+    refresh_minutes: refreshMinutes,
+    next_refresh_at: seoAutomationNextRunAt ? new Date(seoAutomationNextRunAt).toISOString() : null,
     homepage_keywords: homepageKeywords,
     strongest_keywords: strongestKeywords,
     emerging_search_terms: emergingSearchTerms,
@@ -1258,10 +1277,14 @@ const buildSeoAutomationSnapshot = async () => {
 };
 
 const getSeoAutomationSnapshot = async ({ force = false } = {}) => {
+  const refreshMinutes = await getSeoAutomationRefreshMinutes();
+  const refreshMs = refreshMinutes * 60 * 1000;
   if (!force) {
     const stored = await getJsonAppSetting(APP_SETTING_KEYS.seoAutomationSnapshot, null);
     const generatedAt = stored?.generated_at ? Date.parse(stored.generated_at) : NaN;
-    if (stored && Number.isFinite(generatedAt) && (Date.now() - generatedAt) < SEO_AUTOMATION_REFRESH_MS) {
+    if (stored && Number.isFinite(generatedAt) && (Date.now() - generatedAt) < refreshMs) {
+      stored.refresh_minutes = refreshMinutes;
+      stored.next_refresh_at = seoAutomationNextRunAt ? new Date(seoAutomationNextRunAt).toISOString() : null;
       return stored;
     }
   }
@@ -1277,6 +1300,21 @@ const getSeoAutomationSnapshot = async ({ force = false } = {}) => {
   }
 
   return seoAutomationRefreshPromise;
+};
+
+const scheduleSeoAutomationRefresh = async () => {
+  const refreshMinutes = await getSeoAutomationRefreshMinutes();
+  const refreshMs = refreshMinutes * 60 * 1000;
+  if (seoAutomationIntervalHandle) {
+    clearInterval(seoAutomationIntervalHandle);
+  }
+  seoAutomationNextRunAt = Date.now() + refreshMs;
+  seoAutomationIntervalHandle = setInterval(() => {
+    seoAutomationNextRunAt = Date.now() + refreshMs;
+    getSeoAutomationSnapshot({ force: true }).catch((error) => {
+      console.warn(`SEO automation refresh failed: ${error.message}`);
+    });
+  }, refreshMs);
 };
 
 const isCodEnabled = async () => Boolean(await getJsonAppSetting(APP_SETTING_KEYS.codEnabled, false));
@@ -5316,6 +5354,21 @@ app.post('/api/admin/seo-automation/refresh', authenticateToken, requireAdmin, a
   }
 });
 
+app.post('/api/admin/seo-automation/settings', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const refreshMinutes = clampSeoAutomationRefreshMinutes(req.body?.refresh_minutes);
+    await saveJsonAppSetting(APP_SETTING_KEYS.seoAutomationRefreshMinutes, refreshMinutes);
+    scheduleSeoAutomationRefresh();
+    const snapshot = await getSeoAutomationSnapshot({ force: true });
+    res.json({
+      message: `SEO automation interval updated to every ${refreshMinutes} minutes.`,
+      snapshot
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/admin/category-banners', authenticateToken, requireAdmin, (req, res) => {
   db.all(
     `SELECT cb.*, COALESCE(c.name, 'Shop by Category') as category_name
@@ -6198,11 +6251,9 @@ const startServer = async () => {
     getSeoAutomationSnapshot({ force: true }).catch((error) => {
       console.warn(`SEO automation warmup failed: ${error.message}`);
     });
-    setInterval(() => {
-      getSeoAutomationSnapshot({ force: true }).catch((error) => {
-        console.warn(`SEO automation refresh failed: ${error.message}`);
-      });
-    }, SEO_AUTOMATION_REFRESH_MS);
+    scheduleSeoAutomationRefresh().catch((error) => {
+      console.warn(`SEO automation scheduler failed: ${error.message}`);
+    });
   });
 };
 

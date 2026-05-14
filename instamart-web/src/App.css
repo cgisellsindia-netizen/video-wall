@@ -195,11 +195,47 @@
   align-items: flex-start;
   margin-bottom: 16px;
 }
+.seo-automation-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .seo-automation-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 18px;
+}
+.seo-automation-settings {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: #ffffff;
+  border: 1px solid rgba(191, 219, 254, 0.55);
+}
+.seo-automation-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 220px;
+}
+.seo-automation-settings-field label {
+  color: #17315f;
+  font-size: 13px;
+  font-weight: 700;
+}
+.seo-automation-settings-field input {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #17315f;
+  background: #f8fbff;
 }
 .seo-automation-grid {
   display: grid;
@@ -5061,6 +5097,13 @@
   .seo-automation-opportunities,
   .seo-automation-copy-preview { grid-template-columns: 1fr; }
   .seo-automation-header { flex-direction: column; align-items: stretch; }
+  .seo-automation-settings {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .seo-automation-settings-field {
+    min-width: 0;
+  }
   .seo-automation-chip,
   .seo-automation-opportunity { flex-direction: column; }
   .seo-automation-chip span { text-align: left; }
