@@ -176,7 +176,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
           <input
             id="seo-refresh-minutes"
             type="number"
-            min="5"
+            min="1"
             max="180"
             value={refreshMinutesInput}
             onChange={(event) => setRefreshMinutesInput(event.target.value)}
@@ -186,6 +186,9 @@ function SeoAutomationAdmin({ token, setMessage }) {
           {savingSettings ? 'Saving...' : 'Save interval'}
         </button>
       </div>
+      <p className="checkout-note" style={{ marginTop: 8 }}>
+        Fastest safe mode is 1 minute. More aggressive than that is likely to get external keyword and ranking checks throttled without improving Google ranking speed.
+      </p>
 
       <div className="seo-automation-grid">
         <article className="seo-automation-card seo-automation-card-wide">
