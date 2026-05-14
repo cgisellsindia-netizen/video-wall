@@ -209,6 +209,8 @@ const SEO_AUTOMATION_REFRESH_MS = 20 * 60 * 1000;
 const SEO_AUTOMATION_MAX_KEYWORDS = 12;
 const SEO_AUTOMATION_MAX_OPPORTUNITIES = 16;
 const SEO_AUTOMATION_MAX_EMERGING = 10;
+const SEO_AUTOMATION_MAX_CATEGORY_BLOCKS = 8;
+const SEO_AUTOMATION_LOW_SIGNAL_IMPRESSIONS = 3;
 const SEO_LOCAL_AREAS = [
   'Bhubaneswar',
   'Patia',
@@ -232,6 +234,11 @@ const SEO_KEYWORD_PATTERNS = [
   'home cctv installation {area}',
   'office cctv installation {area}'
 ];
+const SEO_AUTOMATION_PLACEMENTS = {
+  homepage: 'homepage',
+  shop: 'shop',
+  category: 'category'
+};
 
 const DEFAULT_SETUP_PACKAGES = [
   {
@@ -1009,8 +1016,147 @@ const recordSeoKeywordSignal = async (keyword, source = 'site_search') => {
        hits = seo_keyword_signals.hits + 1,
        source = excluded.source,
        latest_at = CURRENT_TIMESTAMP`,
-    [normalizedKeyword, normalizedSource]
+      [normalizedKeyword, normalizedSource]
+    );
+};
+
+const recordSeoKeywordPerformance = async (keyword, placement, action = 'impression') => {
+  const normalizedKeyword = normalizeSeoKeyword(keyword);
+  const normalizedPlacement = normalizeSeoKeyword(placement).replace(/\s+/g, '_') || SEO_AUTOMATION_PLACEMENTS.homepage;
+  const normalizedAction = action === 'click' ? 'click' : 'impression';
+  if (!normalizedKeyword || normalizedKeyword.length < 3) return;
+
+  const impressionIncrement = normalizedAction === 'impression' ? 1 : 0;
+  const clickIncrement = normalizedAction === 'click' ? 1 : 0;
+
+  await dbRunAsync(
+    `INSERT INTO seo_keyword_performance (
+       keyword, placement, impressions, clicks, last_impression_at, last_click_at, updated_at
+     ) VALUES (
+       ?, ?, ?, ?,
+       CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE NULL END,
+       CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE NULL END,
+       CURRENT_TIMESTAMP
+     )
+     ON CONFLICT(keyword, placement) DO UPDATE SET
+       impressions = seo_keyword_performance.impressions + ?,
+       clicks = seo_keyword_performance.clicks + ?,
+       last_impression_at = CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE seo_keyword_performance.last_impression_at END,
+       last_click_at = CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE seo_keyword_performance.last_click_at END,
+       updated_at = CURRENT_TIMESTAMP`,
+    [
+      normalizedKeyword,
+      normalizedPlacement,
+      impressionIncrement,
+      clickIncrement,
+      impressionIncrement,
+      clickIncrement,
+      impressionIncrement,
+      clickIncrement,
+      impressionIncrement,
+      clickIncrement
+    ]
   );
+};
+
+const buildPerformanceMap = (rows = []) => new Map(
+  rows.map((row) => [`${normalizeSeoKeyword(row.placement)}::${normalizeSeoKeyword(row.keyword)}`, {
+    keyword: normalizeSeoKeyword(row.keyword),
+    placement: normalizeSeoKeyword(row.placement),
+    impressions: Number(row.impressions || 0),
+    clicks: Number(row.clicks || 0),
+    last_impression_at: row.last_impression_at || null,
+    last_click_at: row.last_click_at || null
+  }])
+);
+
+const getKeywordPerformance = (performanceMap, keyword, placement) => (
+  performanceMap.get(`${normalizeSeoKeyword(placement)}::${normalizeSeoKeyword(keyword)}`) || {
+    impressions: 0,
+    clicks: 0,
+    ctr: 0
+  }
+);
+
+const isLowSignalKeyword = (performance = {}) => {
+  const impressions = Number(performance.impressions || 0);
+  const clicks = Number(performance.clicks || 0);
+  return impressions >= SEO_AUTOMATION_LOW_SIGNAL_IMPRESSIONS && clicks === 0;
+};
+
+const buildSeoAutonomousCopy = ({
+  strongestKeywords = [],
+  categories = [],
+  performanceMap
+}) => {
+  const homepageCandidates = [];
+  const homepageDropped = [];
+  strongestKeywords.forEach((item) => {
+    const performance = getKeywordPerformance(performanceMap, item.keyword, SEO_AUTOMATION_PLACEMENTS.homepage);
+    if (isLowSignalKeyword(performance)) {
+      homepageDropped.push({
+        keyword: item.keyword,
+        impressions: performance.impressions,
+        clicks: performance.clicks
+      });
+      return;
+    }
+    homepageCandidates.push({
+      ...item,
+      impressions: performance.impressions,
+      clicks: performance.clicks,
+      ctr: performance.impressions ? Number((performance.clicks / performance.impressions).toFixed(3)) : 0
+    });
+  });
+
+  const homepageKeywords = homepageCandidates.slice(0, 8).map((item) => item.keyword);
+  const homepageLeadKeywords = homepageKeywords.slice(0, 4);
+  const homepageParagraph = homepageLeadKeywords.length
+    ? `Camigo automatically refreshes its homepage around live demand for ${homepageLeadKeywords.join(', ')} across Bhubaneswar and Odisha, helping buyers land on the CCTV cameras, installation services, and security hardware they are actively searching for.`
+    : 'Camigo automatically refreshes its homepage around live CCTV demand across Bhubaneswar and Odisha, keeping the site aligned with the strongest customer search intent.';
+
+  const shopKeywords = homepageCandidates.slice(0, 6).map((item) => item.keyword);
+  const shopParagraph = shopKeywords.length
+    ? `This shop page is automatically strengthened around live commercial searches such as ${shopKeywords.join(', ')}, so category browsing and product discovery stay aligned with the strongest CCTV buying intent in Bhubaneswar and Odisha.`
+    : 'This shop page is automatically updated around live CCTV buying intent so product discovery stays aligned with what customers search most.';
+
+  const categoryBlocks = categories
+    .slice(0, SEO_AUTOMATION_MAX_CATEGORY_BLOCKS)
+    .map((category) => {
+      const categoryName = normalizeSeoKeyword(category.name);
+      const related = homepageCandidates
+        .filter((item) => item.keyword.includes(categoryName) || categoryName.includes(item.keyword))
+        .slice(0, 3)
+        .map((item) => item.keyword);
+      const supportingTerms = related.length
+        ? related
+        : [
+            `${categoryName} bhubaneswar`,
+            `${categoryName} odisha`,
+            `best ${categoryName} bhubaneswar`
+          ].map(normalizeSeoKeyword);
+      return {
+        category_id: Number(category.id),
+        category_name: category.name,
+        supporting_terms: supportingTerms,
+        paragraph: `${category.name} pages are auto-optimized around ${supportingTerms.join(', ')} so Google and buyers can understand the strongest local purchase intent for this category.`
+      };
+    });
+
+  return {
+    homepage_keywords: homepageKeywords,
+    homepage_paragraph: homepageParagraph,
+    shop_paragraph: shopParagraph,
+    category_blocks: categoryBlocks,
+    promoted_links: homepageCandidates.slice(0, 6).map((item) => ({
+      keyword: item.keyword,
+      href: `/shop?search=${encodeURIComponent(item.keyword)}`,
+      score: item.score,
+      clicks: item.clicks,
+      impressions: item.impressions
+    })),
+    dropped_keywords: homepageDropped
+  };
 };
 
 const buildSeoKeywordScore = (keyword, signalsMap, categoryNames, productNames) => {
@@ -1037,13 +1183,15 @@ const buildSeoOpportunities = (keywords = [], strongestKeywords = []) => {
 let seoAutomationRefreshPromise = null;
 
 const buildSeoAutomationSnapshot = async () => {
-  const [products, categories, signalRows] = await Promise.all([
+  const [products, categories, signalRows, performanceRows] = await Promise.all([
     dbAllAsync('SELECT id, name, description, category_id FROM products ORDER BY id DESC'),
     dbAllAsync('SELECT id, name FROM categories ORDER BY sort_order ASC, id ASC'),
-    dbAllAsync('SELECT keyword, hits, source, latest_at FROM seo_keyword_signals ORDER BY hits DESC, latest_at DESC LIMIT 80')
+    dbAllAsync('SELECT keyword, hits, source, latest_at FROM seo_keyword_signals ORDER BY hits DESC, latest_at DESC LIMIT 80'),
+    dbAllAsync('SELECT keyword, placement, impressions, clicks, last_impression_at, last_click_at FROM seo_keyword_performance ORDER BY updated_at DESC LIMIT 240')
   ]);
 
   const signalsMap = new Map(signalRows.map((row) => [String(row.keyword), row]));
+  const performanceMap = buildPerformanceMap(performanceRows);
   const categoryNames = categories.map((row) => normalizeSeoKeyword(row.name)).filter(Boolean);
   const productNames = products.map((row) => normalizeSeoKeyword(row.name)).filter(Boolean);
   const categoriesById = new Map(categories.map((row) => [Number(row.id), normalizeSeoKeyword(row.name)]));
@@ -1065,7 +1213,8 @@ const buildSeoAutomationSnapshot = async () => {
       keyword,
       score: buildSeoKeywordScore(keyword, signalsMap, categoryNames, productNames),
       hits: Number(signalsMap.get(keyword)?.hits || 0),
-      source: signalsMap.get(keyword)?.source || 'cluster'
+      source: signalsMap.get(keyword)?.source || 'cluster',
+      performance: getKeywordPerformance(performanceMap, keyword, SEO_AUTOMATION_PLACEMENTS.homepage)
     }))
     .sort((left, right) => {
       if (right.score !== left.score) return right.score - left.score;
@@ -1084,7 +1233,12 @@ const buildSeoAutomationSnapshot = async () => {
       latest_at: row.latest_at
     }));
 
-  const homepageKeywords = strongestKeywords.slice(0, 8).map((item) => item.keyword);
+  const generatedCopy = buildSeoAutonomousCopy({
+    strongestKeywords,
+    categories,
+    performanceMap
+  });
+  const homepageKeywords = generatedCopy.homepage_keywords;
   const opportunities = buildSeoOpportunities(
     candidateKeywords.filter((keyword) => !homepageKeywords.includes(keyword)),
     strongestKeywords
@@ -1097,7 +1251,9 @@ const buildSeoAutomationSnapshot = async () => {
     strongest_keywords: strongestKeywords,
     emerging_search_terms: emergingSearchTerms,
     opportunities,
-    tracked_signal_count: signalRows.length
+    tracked_signal_count: signalRows.length,
+    tracked_performance_count: performanceRows.length,
+    generated_copy: generatedCopy
   };
 };
 
@@ -3439,6 +3595,24 @@ app.get('/api/seo-automation', async (req, res) => {
       strongest_keywords: Array.isArray(snapshot?.strongest_keywords) ? snapshot.strongest_keywords : [],
       emerging_search_terms: Array.isArray(snapshot?.emerging_search_terms) ? snapshot.emerging_search_terms : []
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/seo-automation/track', async (req, res) => {
+  try {
+    const keyword = String(req.body?.keyword || '').trim();
+    const placement = String(req.body?.placement || SEO_AUTOMATION_PLACEMENTS.homepage).trim();
+    const action = String(req.body?.action || 'impression').trim().toLowerCase();
+    if (!keyword) {
+      return res.status(400).json({ error: 'Keyword is required.' });
+    }
+    if (!['impression', 'click'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid SEO tracking action.' });
+    }
+    await recordSeoKeywordPerformance(keyword, placement, action);
+    res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

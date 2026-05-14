@@ -80,6 +80,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
         <span className="tag tag-info">Auto refresh: every {snapshot?.refresh_minutes || 20} minutes</span>
         <span className="tag tag-success">Last generated: {snapshot?.generated_at ? new Date(snapshot.generated_at).toLocaleString() : 'Pending'}</span>
         <span className="tag">Tracked signals: {snapshot?.tracked_signal_count || 0}</span>
+        <span className="tag">Tracked performance rows: {snapshot?.tracked_performance_count || 0}</span>
       </div>
 
       <div className="seo-automation-grid">
@@ -120,6 +121,33 @@ function SeoAutomationAdmin({ token, setMessage }) {
               </div>
             ))}
           </div>
+        </article>
+
+        <article className="seo-automation-card seo-automation-card-wide">
+          <h4>Live autonomous copy</h4>
+          <div className="seo-automation-copy-preview">
+            <div className="seo-automation-copy-box">
+              <strong>Homepage paragraph</strong>
+              <p>{snapshot?.generated_copy?.homepage_paragraph || 'Not generated yet.'}</p>
+            </div>
+            <div className="seo-automation-copy-box">
+              <strong>Shop paragraph</strong>
+              <p>{snapshot?.generated_copy?.shop_paragraph || 'Not generated yet.'}</p>
+            </div>
+          </div>
+          {(snapshot?.generated_copy?.dropped_keywords || []).length ? (
+            <div className="seo-automation-copy-dropped">
+              <strong>Auto-rotated out for no clicks</strong>
+              <div className="seo-automation-chip-list">
+                {snapshot.generated_copy.dropped_keywords.map((item) => (
+                  <div key={item.keyword} className="seo-automation-chip">
+                    <strong>{item.keyword}</strong>
+                    <span>{item.impressions} impressions · {item.clicks} clicks</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </article>
       </div>
     </div>

@@ -6,7 +6,7 @@ import ProductImage from './ProductImage';
 import { buildProductImageSources, getProductFallbackImage } from '../imageFallbacks';
 import usePageSeo from '../usePageSeo';
 
-function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null, deliveryEtaLabel = '16 mins' }) {
+function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null, deliveryEtaLabel = '16 mins', seoAutomationSnapshot = null }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const categoryId = parseInt(id, 10);
@@ -114,6 +114,9 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
     : 'Browse CCTV products on Camigo for Bhubaneswar and Odisha with fast dispatch and installation support.';
   const canonicalUrl = `https://getcamigo.in/category/${categoryId}`;
   const seoImage = seoProducts[0]?.image || 'https://getcamigo.in/camigo-logo.svg';
+  const categorySeoBlock = Array.isArray(seoAutomationSnapshot?.generated_copy?.category_blocks)
+    ? seoAutomationSnapshot.generated_copy.category_blocks.find((entry) => Number(entry.category_id) === Number(categoryId))
+    : null;
 
   usePageSeo({
     title: seoTitle,
@@ -207,6 +210,21 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
         </div>
         <button className="btn btn-primary" onClick={() => navigate('/shop')}>View all products</button>
       </div>
+
+      {categorySeoBlock?.paragraph ? (
+        <section className="seo-auto-copy-block">
+          <p>{categorySeoBlock.paragraph}</p>
+          {Array.isArray(categorySeoBlock.supporting_terms) && categorySeoBlock.supporting_terms.length ? (
+            <div className="seo-auto-copy-links">
+              {categorySeoBlock.supporting_terms.map((keyword) => (
+                <Link key={keyword} to={`/shop?search=${encodeURIComponent(keyword)}`} className="seo-link-chip subtle">
+                  {keyword}
+                </Link>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="category-chip-row">
         <button type="button" className="category-chip active">

@@ -306,6 +306,17 @@ db.serialize(async () => {
       latest_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    db.run(`CREATE TABLE IF NOT EXISTS seo_keyword_performance (
+      keyword TEXT NOT NULL,
+      placement TEXT NOT NULL,
+      impressions INTEGER DEFAULT 0,
+      clicks INTEGER DEFAULT 0,
+      last_impression_at DATETIME,
+      last_click_at DATETIME,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (keyword, placement)
+    )`);
+
     await ensureColumns('products', [
       'discount_percent REAL DEFAULT 0',
       'dealer_price REAL',
@@ -396,6 +407,14 @@ db.serialize(async () => {
       'hits INTEGER DEFAULT 0',
       'source TEXT DEFAULT "site_search"',
       'latest_at DATETIME DEFAULT CURRENT_TIMESTAMP'
+    ]);
+
+    await ensureColumns('seo_keyword_performance', [
+      'impressions INTEGER DEFAULT 0',
+      'clicks INTEGER DEFAULT 0',
+      'last_impression_at DATETIME',
+      'last_click_at DATETIME',
+      'updated_at DATETIME DEFAULT CURRENT_TIMESTAMP'
     ]);
   db.run(`UPDATE order_items
           SET warranty_years = COALESCE(warranty_years, 5),

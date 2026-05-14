@@ -5,7 +5,7 @@ import ProductImage from './ProductImage';
 import { buildProductImageSources, getProductFallbackImage } from '../imageFallbacks';
 import usePageSeo from '../usePageSeo';
 
-function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null, deliveryEtaLabel = '16 mins' }) {
+function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null, deliveryEtaLabel = '16 mins', seoAutomationSnapshot = null }) {
   const [selectedCat, setSelectedCat] = useState('all');
   const [sortBy, setSortBy] = useState('default');
   const [priceBand, setPriceBand] = useState('all');
@@ -75,6 +75,10 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
     : 'https://getcamigo.in/shop';
   const seoProducts = filtered.slice(0, 10);
   const seoImage = seoProducts[0]?.image || 'https://getcamigo.in/camigo-logo.svg';
+  const automationShopCopy = seoAutomationSnapshot?.generated_copy?.shop_paragraph || '';
+  const shopKeywordLinks = Array.isArray(seoAutomationSnapshot?.generated_copy?.promoted_links)
+    ? seoAutomationSnapshot.generated_copy.promoted_links.slice(0, 6)
+    : [];
 
   usePageSeo({
     title: seoTitle,
@@ -156,6 +160,21 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
           <p>Quick scanning, fast add-to-cart, and clear category jumps across the full Camigo catalog.</p>
         </div>
       </div>
+
+      {automationShopCopy ? (
+        <section className="seo-auto-copy-block">
+          <p>{automationShopCopy}</p>
+          {shopKeywordLinks.length ? (
+            <div className="seo-auto-copy-links">
+              {shopKeywordLinks.map((item) => (
+                <Link key={item.keyword} to={item.href} className="seo-link-chip subtle">
+                  {item.keyword}
+                </Link>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="category-chip-row shop-chip-row">
         <button
