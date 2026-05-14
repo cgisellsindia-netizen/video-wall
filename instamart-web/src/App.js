@@ -10,6 +10,7 @@ import LoginModal from './components/LoginModal';
 import FloatingTracker from './components/FloatingTracker';
 import FloatingCheckoutBar from './components/FloatingCheckoutBar';
 import BottomNav from './components/BottomNav';
+import Footer from './components/Footer';
 import FaqSection from './components/FaqSection';
 import SeoSignalBlock from './components/SeoSignalBlock';
 import { HomepageBlocks } from './components/PageBuilderRenderer';
