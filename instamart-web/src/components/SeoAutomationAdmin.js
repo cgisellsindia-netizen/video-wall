@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { API_URL } from '../api';
 
 function SeoAutomationAdmin({ token, setMessage }) {
@@ -10,7 +10,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
   const [refreshMinutesInput, setRefreshMinutesInput] = useState('20');
   const [countdownLabel, setCountdownLabel] = useState('');
 
-  const loadSnapshot = async () => {
+  const loadSnapshot = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     setError('');
@@ -30,7 +30,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     loadSnapshot();
@@ -50,7 +50,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
       }
       const diffMs = nextRun - Date.now();
       if (diffMs <= 0) {
-        setCountdownLabel('Updating soon...');
+        setCountdownLabel('Running auto update...');
         return;
       }
       const totalSeconds = Math.ceil(diffMs / 1000);
@@ -63,6 +63,17 @@ function SeoAutomationAdmin({ token, setMessage }) {
     const timer = window.setInterval(renderCountdown, 1000);
     return () => window.clearInterval(timer);
   }, [snapshot?.next_refresh_at]);
+
+  useEffect(() => {
+    if (!snapshot?.next_refresh_at || !token) return undefined;
+    const nextRun = Date.parse(snapshot.next_refresh_at);
+    if (!Number.isFinite(nextRun)) return undefined;
+    const delayMs = Math.max(0, nextRun - Date.now()) + 15000;
+    const timer = window.setTimeout(() => {
+      loadSnapshot();
+    }, delayMs);
+    return () => window.clearTimeout(timer);
+  }, [snapshot?.next_refresh_at, token, loadSnapshot]);
 
   const handleRefresh = async () => {
     if (!token) return;
