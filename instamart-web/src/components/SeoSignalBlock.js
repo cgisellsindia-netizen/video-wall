@@ -58,98 +58,102 @@ function SeoSignalBlock({ snapshot }) {
 
   return (
     <section className="category-section">
-      <div className="seo-link-hub seo-automation-public-block">
-        <div className="section-header">
-          <h2 className="section-title">Trending CCTV Searches Around Bhubaneswar</h2>
-        </div>
-        <p className="seo-link-hub-copy">
-          {generatedParagraph || 'This live keyword block refreshes from Camigo search demand and local CCTV buying intent to keep the homepage aligned with what customers are actively searching for.'}
-        </p>
-        <p className="checkout-note" style={{ marginTop: 8 }}>
-          Local focus: {localFocus} · Last keyword refresh: {snapshot?.generated_at ? new Date(snapshot.generated_at).toLocaleString() : 'Pending'} · Fresh suggestions pulled: {snapshot?.harvested_keyword_count || 0}
-        </p>
+      <details className="seo-link-hub seo-automation-public-block seo-automation-disclosure">
+        <summary className="seo-automation-disclosure-summary">
+          <span className="seo-automation-disclosure-title">Popular CCTV searches in Bhubaneswar</span>
+          <span className="seo-automation-disclosure-meta">{localFocus}</span>
+        </summary>
 
-        {homepageKeywords.length ? (
-          <>
-            <h3 className="seo-automation-public-heading">{generatedHeading}</h3>
-            <div className="local-seo-topic-list">
-              {homepageKeywords.map((keyword) => (
-                <Link
-                  key={keyword}
-                  to={`/shop?search=${encodeURIComponent(keyword)}`}
-                  className="seo-link-chip subtle"
-                  onClick={() => handleKeywordClick(keyword)}
-                >
-                  {keyword}
-                </Link>
-              ))}
-            </div>
-          </>
-        ) : null}
+        <div className="seo-automation-disclosure-body">
+          <p className="seo-link-hub-copy">
+            {generatedParagraph || 'This live keyword block refreshes from Camigo search demand and local CCTV buying intent to keep the homepage aligned with what customers are actively searching for.'}
+          </p>
+          <p className="checkout-note" style={{ marginTop: 8 }}>
+            {`Local focus: ${localFocus} - Last keyword refresh: ${snapshot?.generated_at ? new Date(snapshot.generated_at).toLocaleString() : 'Pending'} - Fresh suggestions pulled: ${snapshot?.harvested_keyword_count || 0}`}
+          </p>
 
-        <div className="seo-automation-public-grid">
-          <div className="seo-link-group">
-            <h3>Strongest existing searches</h3>
-            <div className="seo-link-list">
-              {strongestKeywords.map((item) => (
-                <Link
-                  key={item.keyword}
-                  to={`/shop?search=${encodeURIComponent(item.keyword)}`}
-                  className="seo-link-chip"
-                  onClick={() => handleKeywordClick(item.keyword)}
-                >
-                  {item.keyword}
-                </Link>
-              ))}
+          {homepageKeywords.length ? (
+            <>
+              <h3 className="seo-automation-public-heading">{generatedHeading}</h3>
+              <div className="local-seo-topic-list">
+                {homepageKeywords.map((keyword) => (
+                  <Link
+                    key={keyword}
+                    to={`/shop?search=${encodeURIComponent(keyword)}`}
+                    className="seo-link-chip subtle"
+                    onClick={() => handleKeywordClick(keyword)}
+                  >
+                    {keyword}
+                  </Link>
+                ))}
+              </div>
+            </>
+          ) : null}
+
+          <div className="seo-automation-public-grid">
+            <div className="seo-link-group">
+              <h3>Strongest existing searches</h3>
+              <div className="seo-link-list">
+                {strongestKeywords.map((item) => (
+                  <Link
+                    key={item.keyword}
+                    to={`/shop?search=${encodeURIComponent(item.keyword)}`}
+                    className="seo-link-chip"
+                    onClick={() => handleKeywordClick(item.keyword)}
+                  >
+                    {item.keyword}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="seo-link-group">
-            <h3>Stored winning keywords</h3>
-            <div className="seo-link-list">
-              {keywordBank.map((item) => (
-                <Link
-                  key={`${item.keyword}-bank`}
-                  to={`/shop?search=${encodeURIComponent(item.keyword)}`}
-                  className="seo-link-chip subtle"
-                  onClick={() => handleKeywordClick(item.keyword)}
-                >
-                  {item.keyword}
-                </Link>
-              ))}
+            <div className="seo-link-group">
+              <h3>Stored winning keywords</h3>
+              <div className="seo-link-list">
+                {keywordBank.map((item) => (
+                  <Link
+                    key={`${item.keyword}-bank`}
+                    to={`/shop?search=${encodeURIComponent(item.keyword)}`}
+                    className="seo-link-chip subtle"
+                    onClick={() => handleKeywordClick(item.keyword)}
+                  >
+                    {item.keyword}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="seo-link-group">
-            <h3>Emerging customer queries</h3>
-            <div className="seo-link-list">
-              {emerging.map((item) => (
-                <Link
-                  key={`${item.keyword}-${item.source}`}
-                  to={`/shop?search=${encodeURIComponent(item.keyword)}`}
-                  className="seo-link-chip subtle"
-                  onClick={() => handleKeywordClick(item.keyword)}
-                >
-                  {item.keyword}
-                </Link>
-              ))}
+            <div className="seo-link-group">
+              <h3>Emerging customer queries</h3>
+              <div className="seo-link-list">
+                {emerging.map((item) => (
+                  <Link
+                    key={`${item.keyword}-${item.source}`}
+                    to={`/shop?search=${encodeURIComponent(item.keyword)}`}
+                    className="seo-link-chip subtle"
+                    onClick={() => handleKeywordClick(item.keyword)}
+                  >
+                    {item.keyword}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="seo-link-group">
-            <h3>Freshly harvested keyword ideas</h3>
-            <div className="seo-link-list">
-              {harvested.map((item) => (
-                <Link
-                  key={`${item.keyword}-${item.source}`}
-                  to={`/shop?search=${encodeURIComponent(item.keyword)}`}
-                  className="seo-link-chip subtle"
-                  onClick={() => handleKeywordClick(item.keyword)}
-                >
-                  {item.keyword}
-                </Link>
-              ))}
+            <div className="seo-link-group">
+              <h3>Freshly harvested keyword ideas</h3>
+              <div className="seo-link-list">
+                {harvested.map((item) => (
+                  <Link
+                    key={`${item.keyword}-${item.source}`}
+                    to={`/shop?search=${encodeURIComponent(item.keyword)}`}
+                    className="seo-link-chip subtle"
+                    onClick={() => handleKeywordClick(item.keyword)}
+                  >
+                    {item.keyword}
+                  </Link>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </details>
     </section>
   );
 }
