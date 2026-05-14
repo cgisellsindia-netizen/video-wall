@@ -220,6 +220,9 @@ const SEO_AUTOMATION_LOW_SIGNAL_IMPRESSIONS = 3;
 const SEO_AUTOMATION_MAX_SEED_QUERIES = 10;
 const SEO_AUTOMATION_MAX_EXTERNAL_SUGGESTIONS = 40;
 const SEO_AUTOMATION_SUGGEST_TIMEOUT_MS = 5000;
+const SEO_AUTOMATION_MAX_RANK_KEYWORDS = 8;
+const SEO_AUTOMATION_GOOGLE_RESULT_LIMIT = 20;
+const SEO_AUTOMATION_GOOGLE_TIMEOUT_MS = 8000;
 const SEO_PRIORITY_LOCAL_AREAS = [
   'Patia',
   'Bhubaneswar',
@@ -1153,6 +1156,77 @@ const fetchJsonWithTimeout = async (url, options = {}, timeoutMs = SEO_AUTOMATIO
   }
 };
 
+const fetchTextWithTimeout = async (url, options = {}, timeoutMs = SEO_AUTOMATION_GOOGLE_TIMEOUT_MS) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-IN,en;q=0.9',
+        ...(options.headers || {})
+      },
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      throw new Error(`Request failed with ${response.status}`);
+    }
+    return response.text();
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const extractGoogleSearchResultLinks = (html = '') => {
+  const candidates = [];
+  const urlPattern = /\/url\?q=([^&"]+)/g;
+  let match;
+  while ((match = urlPattern.exec(html))) {
+    try {
+      const decoded = decodeURIComponent(match[1]);
+      if (decoded.startsWith('http://') || decoded.startsWith('https://')) {
+        candidates.push(decoded);
+      }
+    } catch (error) {
+      continue;
+    }
+  }
+
+  const fallbackPattern = /href="(https?:\/\/[^"]+)"/g;
+  while ((match = fallbackPattern.exec(html))) {
+    candidates.push(match[1]);
+  }
+
+  const seen = new Set();
+  return candidates.filter((candidate) => {
+    if (!candidate) return false;
+    try {
+      const parsed = new URL(candidate);
+      if (['google.com', 'www.google.com', 'webcache.googleusercontent.com'].includes(parsed.hostname)) return false;
+      const normalized = parsed.toString();
+      if (seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  });
+};
+
+const isCamigoStorefrontUrl = (candidate = '') => {
+  try {
+    const targetHost = new URL(publicStorefrontUrl).hostname.replace(/^www\./, '');
+    const parsed = new URL(candidate);
+    const hostname = parsed.hostname.replace(/^www\./, '');
+    return hostname === targetHost;
+  } catch (error) {
+    return false;
+  }
+};
+
 const fetchGoogleSuggestKeywords = async (query) => {
   const url = `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(query)}`;
   const data = await fetchJsonWithTimeout(url);
@@ -1199,6 +1273,146 @@ const harvestExternalSeoKeywords = async (seedQueries = []) => {
     });
   });
   return deduped.slice(0, SEO_AUTOMATION_MAX_EXTERNAL_SUGGESTIONS);
+};
+
+const recordSeoKeywordRanking = async ({
+  keyword,
+  rankPosition = null,
+  rankUrl = null,
+  found = false,
+  resultsScanned = 0,
+  errorMessage = null
+}) => {
+  const normalizedKeyword = prepareSeoKeywordCandidate(keyword, { requireLocal: true }) || prepareSeoKeywordCandidate(keyword);
+  if (!normalizedKeyword) return;
+  await dbRunAsync(
+    `INSERT INTO seo_keyword_rankings (
+       keyword, rank_position, rank_url, found, results_scanned, checked_at, error_message
+     ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+     ON CONFLICT(keyword) DO UPDATE SET
+       rank_position = excluded.rank_position,
+       rank_url = excluded.rank_url,
+       found = excluded.found,
+       results_scanned = excluded.results_scanned,
+       checked_at = CURRENT_TIMESTAMP,
+       error_message = excluded.error_message`,
+    [
+      normalizedKeyword,
+      Number.isFinite(Number(rankPosition)) ? Number(rankPosition) : null,
+      rankUrl || null,
+      found ? 1 : 0,
+      Math.max(0, Number(resultsScanned || 0)),
+      errorMessage || null
+    ]
+  );
+};
+
+const buildSeoRankTrackingKeywords = ({ strongestKeywords = [], keywordBank = [] }) => Array.from(new Set([
+  ...strongestKeywords.map((entry) => entry?.keyword),
+  ...keywordBank.map((entry) => entry?.keyword)
+].map((keyword) => prepareSeoKeywordCandidate(keyword, { requireLocal: true }) || prepareSeoKeywordCandidate(keyword)).filter(Boolean)))
+  .slice(0, SEO_AUTOMATION_MAX_RANK_KEYWORDS);
+
+const fetchGoogleRankForKeyword = async (keyword) => {
+  const normalizedKeyword = prepareSeoKeywordCandidate(keyword, { requireLocal: true }) || prepareSeoKeywordCandidate(keyword);
+  if (!normalizedKeyword) {
+    return {
+      keyword: '',
+      found: false,
+      position: null,
+      rank_url: null,
+      results_scanned: 0,
+      error: 'Invalid keyword'
+    };
+  }
+
+  try {
+    const searchUrl = `https://www.google.com/search?hl=en&gl=in&num=${SEO_AUTOMATION_GOOGLE_RESULT_LIMIT}&pws=0&q=${encodeURIComponent(normalizedKeyword)}`;
+    const html = await fetchTextWithTimeout(searchUrl, {}, SEO_AUTOMATION_GOOGLE_TIMEOUT_MS);
+    const links = extractGoogleSearchResultLinks(html).slice(0, SEO_AUTOMATION_GOOGLE_RESULT_LIMIT);
+    const matchIndex = links.findIndex((candidate) => isCamigoStorefrontUrl(candidate));
+    return {
+      keyword: normalizedKeyword,
+      found: matchIndex >= 0,
+      position: matchIndex >= 0 ? matchIndex + 1 : null,
+      rank_url: matchIndex >= 0 ? links[matchIndex] : null,
+      results_scanned: links.length,
+      error: null
+    };
+  } catch (error) {
+    return {
+      keyword: normalizedKeyword,
+      found: false,
+      position: null,
+      rank_url: null,
+      results_scanned: 0,
+      error: error.message || 'Unable to fetch Google rank'
+    };
+  }
+};
+
+const refreshSeoKeywordRankings = async (keywords = []) => {
+  const rows = [];
+  for (const keyword of keywords) {
+    const result = await fetchGoogleRankForKeyword(keyword);
+    await recordSeoKeywordRanking({
+      keyword: result.keyword || keyword,
+      rankPosition: result.position,
+      rankUrl: result.rank_url,
+      found: result.found,
+      resultsScanned: result.results_scanned,
+      errorMessage: result.error
+    });
+    rows.push({
+      keyword: result.keyword || keyword,
+      position: result.position,
+      found: result.found,
+      rank_url: result.rank_url,
+      results_scanned: result.results_scanned,
+      checked_at: new Date().toISOString(),
+      error: result.error
+    });
+    await sleep(350);
+  }
+  return rows;
+};
+
+const loadStoredSeoKeywordRankings = async (keywords = []) => {
+  const rows = await dbAllAsync(
+    `SELECT keyword, rank_position, rank_url, found, results_scanned, checked_at, error_message
+     FROM seo_keyword_rankings
+     ORDER BY
+       CASE WHEN found = 1 THEN 0 ELSE 1 END,
+       COALESCE(rank_position, 9999) ASC,
+       checked_at DESC`
+  );
+  const filtered = keywords.length
+    ? rows.filter((row) => keywords.includes(normalizeSeoKeyword(row.keyword)))
+    : rows;
+  return filtered.map((row) => ({
+    keyword: normalizeSeoKeyword(row.keyword),
+    position: Number.isFinite(Number(row.rank_position)) ? Number(row.rank_position) : null,
+    found: Boolean(Number(row.found || 0)),
+    rank_url: row.rank_url || null,
+    results_scanned: Number(row.results_scanned || 0),
+    checked_at: row.checked_at || null,
+    error: row.error_message || null
+  }));
+};
+
+const buildSeoRankingSummary = (rankings = []) => {
+  const found = rankings.filter((entry) => entry.found && Number.isFinite(Number(entry.position)));
+  const averagePosition = found.length
+    ? Number((found.reduce((sum, entry) => sum + Number(entry.position), 0) / found.length).toFixed(1))
+    : null;
+  return {
+    tracked_keywords: rankings.length,
+    found_keywords: found.length,
+    missing_keywords: rankings.length - found.length,
+    top3_keywords: found.filter((entry) => Number(entry.position) <= 3).length,
+    top10_keywords: found.filter((entry) => Number(entry.position) <= 10).length,
+    average_position: averagePosition
+  };
 };
 
 const recordSeoKeywordPerformance = async (keyword, placement, action = 'impression') => {
@@ -1551,6 +1765,13 @@ const buildSeoAutomationSnapshot = async () => {
     candidateKeywords.filter((keyword) => !homepageKeywords.includes(keyword)),
     strongestKeywords
   );
+  const rankTrackingKeywords = buildSeoRankTrackingKeywords({
+    strongestKeywords,
+    keywordBank
+  });
+  const refreshedRankings = await refreshSeoKeywordRankings(rankTrackingKeywords);
+  const rankings = refreshedRankings.length ? refreshedRankings : await loadStoredSeoKeywordRankings(rankTrackingKeywords);
+  const rankingSummary = buildSeoRankingSummary(rankings);
   await saveJsonAppSetting(APP_SETTING_KEYS.seoAutomationKeywordBank, keywordBank);
 
   return {
@@ -1568,7 +1789,9 @@ const buildSeoAutomationSnapshot = async () => {
     external_seed_queries: seedQueries,
     harvested_keyword_count: harvestedKeywords.length,
     harvested_keywords: harvestedKeywords.slice(0, 16),
-    generated_copy: generatedCopy
+    generated_copy: generatedCopy,
+    rankings,
+    ranking_summary: rankingSummary
   };
 };
 
@@ -3936,7 +4159,9 @@ app.get('/api/seo-automation', async (req, res) => {
       harvested_keyword_count: Number(snapshot?.harvested_keyword_count || 0),
       harvested_keywords: Array.isArray(snapshot?.harvested_keywords) ? snapshot.harvested_keywords : [],
       opportunities: Array.isArray(snapshot?.opportunities) ? snapshot.opportunities : [],
-      generated_copy: snapshot?.generated_copy || {}
+      generated_copy: snapshot?.generated_copy || {},
+      rankings: Array.isArray(snapshot?.rankings) ? snapshot.rankings : [],
+      ranking_summary: snapshot?.ranking_summary || {}
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

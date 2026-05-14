@@ -165,6 +165,8 @@ function SeoAutomationAdmin({ token, setMessage }) {
         <span className="tag">Tracked signals: {snapshot?.tracked_signal_count || 0}</span>
         <span className="tag">Tracked performance rows: {snapshot?.tracked_performance_count || 0}</span>
         <span className="tag">Harvested suggestions: {snapshot?.harvested_keyword_count || 0}</span>
+        <span className="tag">Google top 10: {snapshot?.ranking_summary?.top10_keywords || 0}</span>
+        <span className="tag">Avg rank: {snapshot?.ranking_summary?.average_position ?? 'Not found yet'}</span>
         <span className="tag tag-warning">{countdownLabel || 'Next auto update pending'}</span>
       </div>
 
@@ -186,6 +188,27 @@ function SeoAutomationAdmin({ token, setMessage }) {
       </div>
 
       <div className="seo-automation-grid">
+        <article className="seo-automation-card seo-automation-card-wide">
+          <h4>Google rank tracker</h4>
+          <div className="seo-automation-opportunities">
+            {(snapshot?.rankings || []).map((item) => (
+              <div key={item.keyword} className="seo-automation-opportunity">
+                <div>
+                  <strong>{item.keyword}</strong>
+                  <p>
+                    {item.found && item.position
+                      ? `Currently around Google position #${item.position}`
+                      : `Not found in top ${item.results_scanned || 20} results yet`}
+                  </p>
+                </div>
+                <code>
+                  {item.checked_at ? `Checked ${new Date(item.checked_at).toLocaleString()}` : 'Waiting for rank check'}
+                </code>
+              </div>
+            ))}
+          </div>
+        </article>
+
         <article className="seo-automation-card">
           <h4>Strongest existing keywords</h4>
           <div className="seo-automation-chip-list">

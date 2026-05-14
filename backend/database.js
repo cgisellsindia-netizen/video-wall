@@ -317,6 +317,16 @@ db.serialize(async () => {
       PRIMARY KEY (keyword, placement)
     )`);
 
+    db.run(`CREATE TABLE IF NOT EXISTS seo_keyword_rankings (
+      keyword TEXT PRIMARY KEY,
+      rank_position INTEGER,
+      rank_url TEXT,
+      found INTEGER DEFAULT 0,
+      results_scanned INTEGER DEFAULT 0,
+      checked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      error_message TEXT
+    )`);
+
     await ensureColumns('products', [
       'discount_percent REAL DEFAULT 0',
       'dealer_price REAL',
