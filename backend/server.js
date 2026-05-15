@@ -1309,7 +1309,23 @@ const fetchJsonWithTimeout = async (url, options = {}, timeoutMs = SEO_AUTOMATIO
       signal: controller.signal
     });
     if (!response.ok) {
-      throw new Error(`Request failed with ${response.status}`);
+      let detail = '';
+      try {
+        const errorPayload = await response.json();
+        detail = errorPayload?.error?.message
+          || errorPayload?.message
+          || JSON.stringify(errorPayload);
+      } catch (error) {
+        try {
+          detail = await response.text();
+        } catch (nextError) {
+          detail = '';
+        }
+      }
+      const cleanedDetail = String(detail || '').replace(/\s+/g, ' ').trim();
+      throw new Error(cleanedDetail
+        ? `Request failed with ${response.status}: ${cleanedDetail}`
+        : `Request failed with ${response.status}`);
     }
     return response.json();
   } finally {
