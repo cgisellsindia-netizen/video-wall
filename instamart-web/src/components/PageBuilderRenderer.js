@@ -89,6 +89,7 @@ export function HomepageBlocks({
     recommended: recommendedProducts.filter((product) => !String(product.unit || '').toLowerCase().includes('setup')),
     bestselling: bestsellingProducts.filter((product) => !String(product.unit || '').toLowerCase().includes('setup'))
   };
+  const productsById = new Map(regularProducts.map((product) => [Number(product.id), product]));
 
   let feedRenderIndex = 0;
 
@@ -120,7 +121,11 @@ export function HomepageBlocks({
       const prioritizeImages = feedRenderIndex === 1;
       const products = block.source === 'category'
         ? regularProducts.filter((product) => Number(product.category_id) === Number(block.category_id))
-        : (feedMap[block.source] || []);
+        : block.source === 'manual'
+          ? (Array.isArray(block.product_ids) ? block.product_ids : [])
+            .map((productId) => productsById.get(Number(productId)))
+            .filter(Boolean)
+          : (feedMap[block.source] || []);
       if (!products.length) return null;
       const section = (
         <ProductSection

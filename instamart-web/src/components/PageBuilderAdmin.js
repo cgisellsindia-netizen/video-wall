@@ -26,8 +26,39 @@ const PRODUCT_TYPES = [
   ['spacer', 'Spacer']
 ];
 
-function BlockEditorFields({ block, categories, onChange }) {
+function BlockEditorFields({ block, categories, products, onChange }) {
   const update = (field, value) => onChange({ ...block, [field]: value });
+  const selectedManualProducts = useMemo(() => {
+    const selectedIds = Array.isArray(block.product_ids) ? block.product_ids.map((value) => Number(value)) : [];
+    return selectedIds.map((productId) => products.find((product) => Number(product.id) === productId)).filter(Boolean);
+  }, [block.product_ids, products]);
+  const [manualProductId, setManualProductId] = useState('');
+
+  useEffect(() => {
+    setManualProductId('');
+  }, [block.id, block.source]);
+
+  const addManualProduct = () => {
+    const nextId = Number(manualProductId);
+    if (!nextId) return;
+    const nextList = Array.isArray(block.product_ids) ? [...block.product_ids.map((value) => Number(value))] : [];
+    if (nextList.includes(nextId)) return;
+    update('product_ids', [...nextList, nextId]);
+    setManualProductId('');
+  };
+
+  const removeManualProduct = (productId) => {
+    update('product_ids', (Array.isArray(block.product_ids) ? block.product_ids : []).filter((value) => Number(value) !== Number(productId)));
+  };
+
+  const moveManualProduct = (productId, direction) => {
+    const nextList = (Array.isArray(block.product_ids) ? block.product_ids : []).map((value) => Number(value));
+    const index = nextList.findIndex((value) => value === Number(productId));
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= nextList.length) return;
+    [nextList[index], nextList[target]] = [nextList[target], nextList[index]];
+    update('product_ids', nextList);
+  };
 
   return (
     <div className="page-builder-fields">
@@ -88,6 +119,7 @@ function BlockEditorFields({ block, categories, onChange }) {
               <option value="recommended">Recommended</option>
               <option value="bestselling">Bestselling</option>
               <option value="category">Single category</option>
+              <option value="manual">Manual product list</option>
             </select>
           </div>
           <div className="form-group">
@@ -108,6 +140,39 @@ function BlockEditorFields({ block, categories, onChange }) {
                 {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
               </select>
             </div>
+          )}
+          {block.source === 'manual' && (
+            <>
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label>Add product from product list</label>
+                <div className="page-builder-manual-picker">
+                  <select value={manualProductId} onChange={(e) => setManualProductId(e.target.value)}>
+                    <option value="">Choose product</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="button" className="btn btn-sm btn-outline" onClick={addManualProduct}>Add product</button>
+                </div>
+              </div>
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label>Selected manual products</label>
+                <div className="page-builder-manual-list">
+                  {selectedManualProducts.length ? selectedManualProducts.map((product, index) => (
+                    <div key={`${block.id}-${product.id}`} className="page-builder-manual-item">
+                      <span>{index + 1}. {product.name}</span>
+                      <div className="page-builder-manual-item-actions">
+                        <button type="button" className="btn btn-outline btn-sm" onClick={() => moveManualProduct(product.id, -1)} disabled={index === 0}>Up</button>
+                        <button type="button" className="btn btn-outline btn-sm" onClick={() => moveManualProduct(product.id, 1)} disabled={index === selectedManualProducts.length - 1}>Down</button>
+                        <button type="button" className="btn btn-sm banner-delete-btn" onClick={() => removeManualProduct(product.id)}>Remove</button>
+                      </div>
+                    </div>
+                  )) : <p className="checkout-note" style={{ margin: 0 }}>No manual products selected yet.</p>}
+                </div>
+              </div>
+            </>
           )}
         </>
       )}
@@ -244,7 +309,7 @@ function PageBuilderAdmin({ products = [], categories = [], pageContent, onPageC
                     <button type="button" className="btn btn-sm banner-delete-btn" onClick={() => deleteBlock(index)}><Trash2 size={14} /></button>
                   </div>
                 </div>
-                <BlockEditorFields block={block} categories={categories} onChange={(nextBlock) => updateBlock(index, nextBlock)} />
+                <BlockEditorFields block={block} categories={categories} products={products} onChange={(nextBlock) => updateBlock(index, nextBlock)} />
               </div>
             ))}
           </div>

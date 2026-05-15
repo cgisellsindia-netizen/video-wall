@@ -28,7 +28,7 @@ const normalizeBlock = (block = {}, pageKey = 'homepage') => {
   const type = String(block.type || '').trim();
   const base = { ...block, id: block.id || createId(pageKey), type, visible: block.visible !== false };
   if (pageKey === 'homepage') {
-    if (type === 'product_feed') return { tone: 'neutral', source: 'recommended', title: 'Products', ...base };
+    if (type === 'product_feed') return { tone: 'neutral', source: 'recommended', title: 'Products', product_ids: [], ...base };
     if (type === 'custom_banner') return { image_url: '', title: '', subtitle: '', button_label: '', button_link: '', height: 220, ...base };
     if (type === 'custom_text') return { kicker: '', title: 'Text block', body: '', button_label: '', button_link: '', ...base };
     if (type === 'spacer') return { height: 24, ...base };
