@@ -9,6 +9,8 @@ function SeoAutomationAdmin({ token, setMessage }) {
   const [error, setError] = useState('');
   const [refreshMinutesInput, setRefreshMinutesInput] = useState('20');
   const [manualSuggestionsInput, setManualSuggestionsInput] = useState('');
+  const [searchConsolePropertyInput, setSearchConsolePropertyInput] = useState('');
+  const [searchConsoleServiceAccountInput, setSearchConsoleServiceAccountInput] = useState('');
   const [countdownLabel, setCountdownLabel] = useState('');
 
   const loadSnapshot = useCallback(async () => {
@@ -27,6 +29,8 @@ function SeoAutomationAdmin({ token, setMessage }) {
       setSnapshot(data || {});
       setRefreshMinutesInput(String(data?.refresh_minutes || 20));
       setManualSuggestionsInput(Array.isArray(data?.manual_suggestions) ? data.manual_suggestions.join('\n') : '');
+      setSearchConsolePropertyInput(data?.search_console?.property || '');
+      setSearchConsoleServiceAccountInput('');
     } catch (nextError) {
       setError(nextError.message || 'Unable to load SEO automation snapshot');
     } finally {
@@ -94,6 +98,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
       setSnapshot(data?.snapshot || null);
       setRefreshMinutesInput(String(data?.snapshot?.refresh_minutes || refreshMinutesInput));
       setManualSuggestionsInput(Array.isArray(data?.snapshot?.manual_suggestions) ? data.snapshot.manual_suggestions.join('\n') : manualSuggestionsInput);
+      setSearchConsolePropertyInput(data?.snapshot?.search_console?.property || searchConsolePropertyInput);
       setMessage?.(data?.message || 'SEO automation refreshed.');
     } catch (nextError) {
       const message = nextError.message || 'Unable to refresh SEO automation snapshot';
@@ -118,7 +123,9 @@ function SeoAutomationAdmin({ token, setMessage }) {
         },
         body: JSON.stringify({
           refresh_minutes: refreshMinutesInput,
-          manual_suggestions: manualSuggestionsInput
+          manual_suggestions: manualSuggestionsInput,
+          search_console_property: searchConsolePropertyInput,
+          search_console_service_account_json: searchConsoleServiceAccountInput
         })
       });
       const data = await res.json().catch(() => ({}));
@@ -128,6 +135,8 @@ function SeoAutomationAdmin({ token, setMessage }) {
       setSnapshot(data?.snapshot || null);
       setRefreshMinutesInput(String(data?.snapshot?.refresh_minutes || refreshMinutesInput));
       setManualSuggestionsInput(Array.isArray(data?.snapshot?.manual_suggestions) ? data.snapshot.manual_suggestions.join('\n') : manualSuggestionsInput);
+      setSearchConsolePropertyInput(data?.snapshot?.search_console?.property || searchConsolePropertyInput);
+      setSearchConsoleServiceAccountInput('');
       setMessage?.(data?.message || 'SEO automation settings saved.');
     } catch (nextError) {
       const message = nextError.message || 'Unable to save SEO automation settings';
@@ -174,6 +183,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
         <span className="tag">Tracked performance rows: {snapshot?.tracked_performance_count || 0}</span>
         <span className="tag">Harvested suggestions: {snapshot?.harvested_keyword_count || 0}</span>
         <span className="tag">Harvest source: {snapshot?.harvested_keyword_source || 'pending'}</span>
+        <span className="tag">Visibility source: {snapshot?.visibility_source || 'pending'}</span>
         <span className="tag">Google top 10: {snapshot?.ranking_summary?.top10_keywords || 0}</span>
         <span className="tag">Avg rank: {snapshot?.ranking_summary?.average_position ?? 'Not found yet'}</span>
         <span className="tag tag-warning">{countdownLabel || 'Next auto update pending'}</span>
@@ -201,6 +211,26 @@ function SeoAutomationAdmin({ token, setMessage }) {
             placeholder={'One keyword per line\ncctv camera patia\nip camera bhubaneswar\nsecurity camera installation odisha'}
           />
         </div>
+        <div className="seo-automation-settings-field seo-automation-settings-field-wide">
+          <label htmlFor="seo-search-console-property">Google Search Console property</label>
+          <input
+            id="seo-search-console-property"
+            type="text"
+            value={searchConsolePropertyInput}
+            onChange={(event) => setSearchConsolePropertyInput(event.target.value)}
+            placeholder="sc-domain:getcamigo.com or https://getcamigo.com/"
+          />
+        </div>
+        <div className="seo-automation-settings-field seo-automation-settings-field-wide">
+          <label htmlFor="seo-search-console-service-account">Search Console service account JSON</label>
+          <textarea
+            id="seo-search-console-service-account"
+            rows="6"
+            value={searchConsoleServiceAccountInput}
+            onChange={(event) => setSearchConsoleServiceAccountInput(event.target.value)}
+            placeholder={'Paste the full Google service account JSON here to set or replace it.\nLeave this box empty while saving if you want to keep the existing secret.'}
+          />
+        </div>
         <button className="btn btn-sm btn-secondary" onClick={handleSaveSettings} disabled={savingSettings}>
           {savingSettings ? 'Saving...' : 'Save SEO settings'}
         </button>
@@ -208,8 +238,40 @@ function SeoAutomationAdmin({ token, setMessage }) {
       <p className="checkout-note" style={{ marginTop: 8 }}>
         Fastest safe mode is 1 minute. More aggressive than that is likely to get external keyword and ranking checks throttled without improving Google ranking speed. Manual suggestions entered here are also folded into the stored keyword bank, rank checks, and next SEO refresh cycle.
       </p>
+      <p className="checkout-note" style={{ marginTop: 8 }}>
+        For Google-safe reporting, add your Search Console property and a service account JSON, then grant that service account access inside Google Search Console. Once connected, Camigo will prefer approved Search Console query/click/impression data over block-prone SERP scraping.
+      </p>
 
       <div className="seo-automation-grid">
+        <article className="seo-automation-card seo-automation-card-wide">
+          <h4>Google-safe Search Console status</h4>
+          <div className="seo-automation-opportunities">
+            <div className="seo-automation-opportunity">
+              <div>
+                <strong>{snapshot?.search_console?.connected ? 'Connected' : snapshot?.search_console?.configured ? 'Configured but not connected' : 'Not configured yet'}</strong>
+                <p>
+                  {snapshot?.search_console?.connected
+                    ? `Using ${snapshot?.search_console?.query_count || 0} Search Console query rows from ${snapshot?.search_console?.property || 'your property'}`
+                    : snapshot?.search_console?.error || 'Add a property and service account to stop depending on Google result-page scraping.'}
+                </p>
+              </div>
+              <code>
+                {snapshot?.search_console?.checked_at
+                  ? `Checked ${new Date(snapshot.search_console.checked_at).toLocaleString()}`
+                  : 'Waiting for setup'}
+              </code>
+            </div>
+          </div>
+          <div className="seo-automation-chip-list" style={{ marginTop: 12 }}>
+            {(snapshot?.search_console?.top_queries || []).map((item) => (
+              <div key={`search-console-${item.keyword}`} className="seo-automation-chip">
+                <strong>{item.keyword}</strong>
+                <span>{`${item.clicks || 0} clicks - ${item.impressions || 0} impressions - Avg pos ${item.position ?? 'n/a'}`}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+
         <article className="seo-automation-card seo-automation-card-wide">
           <h4>Best current search rankings</h4>
           <div className="seo-automation-opportunities">

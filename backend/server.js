@@ -244,7 +244,9 @@ const APP_SETTING_KEYS = {
   seoAutomationSnapshot: 'seo_automation_snapshot',
   seoAutomationRefreshMinutes: 'seo_automation_refresh_minutes',
   seoAutomationKeywordBank: 'seo_automation_keyword_bank',
-  seoAutomationManualSuggestions: 'seo_automation_manual_suggestions'
+  seoAutomationManualSuggestions: 'seo_automation_manual_suggestions',
+  seoSearchConsoleProperty: 'seo_search_console_property',
+  seoSearchConsoleServiceAccountJson: 'seo_search_console_service_account_json'
 };
 
 const OPERATIONAL_APP_SETTING_KEYS = [
@@ -255,7 +257,9 @@ const OPERATIONAL_APP_SETTING_KEYS = [
   APP_SETTING_KEYS.seoAutomationSnapshot,
   APP_SETTING_KEYS.seoAutomationRefreshMinutes,
   APP_SETTING_KEYS.seoAutomationKeywordBank,
-  APP_SETTING_KEYS.seoAutomationManualSuggestions
+  APP_SETTING_KEYS.seoAutomationManualSuggestions,
+  APP_SETTING_KEYS.seoSearchConsoleProperty,
+  APP_SETTING_KEYS.seoSearchConsoleServiceAccountJson
 ];
 
 const DEFAULT_SEO_AUTOMATION_REFRESH_MINUTES = 20;
@@ -272,6 +276,9 @@ const SEO_AUTOMATION_SUGGEST_TIMEOUT_MS = 5000;
 const SEO_AUTOMATION_MAX_RANK_KEYWORDS = 8;
 const SEO_AUTOMATION_GOOGLE_RESULT_LIMIT = 20;
 const SEO_AUTOMATION_GOOGLE_TIMEOUT_MS = 8000;
+const SEO_SEARCH_CONSOLE_TIMEOUT_MS = 12000;
+const SEO_SEARCH_CONSOLE_MAX_ROWS = 25;
+const SEO_SEARCH_CONSOLE_LOOKBACK_DAYS = 28;
 const SEO_PRIORITY_LOCAL_AREAS = [
   'Patia',
   'Bhubaneswar',
@@ -1191,6 +1198,42 @@ const buildSeoManualSuggestionMap = (values = []) => new Map(
   normalizeSeoManualSuggestions(values).map((keyword, index) => [keyword, index])
 );
 
+const normalizeSearchConsoleProperty = (value = '') => {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('sc-domain:')) return trimmed;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed.replace(/\/+$/, '');
+  return `https://${trimmed.replace(/\/+$/, '')}/`;
+};
+
+const parseSearchConsoleServiceAccountJson = (rawValue = '') => {
+  const trimmed = String(rawValue || '').trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!parsed?.client_email || !parsed?.private_key) return null;
+    return parsed;
+  } catch (error) {
+    return null;
+  }
+};
+
+const getStoredSearchConsoleConfig = async () => {
+  const property = normalizeSearchConsoleProperty(
+    process.env.GOOGLE_SEARCH_CONSOLE_PROPERTY
+    || await getJsonAppSetting(APP_SETTING_KEYS.seoSearchConsoleProperty, '')
+  );
+  const serviceAccount = parseSearchConsoleServiceAccountJson(
+    process.env.GOOGLE_SEARCH_CONSOLE_SERVICE_ACCOUNT_JSON
+    || await getJsonAppSetting(APP_SETTING_KEYS.seoSearchConsoleServiceAccountJson, '')
+  );
+  return {
+    property,
+    serviceAccount,
+    configured: Boolean(property && serviceAccount?.client_email && serviceAccount?.private_key)
+  };
+};
+
 const buildSeoRotationHash = (values = []) => {
   const fingerprint = values.join('|') || 'camigo-seo';
   const hash = crypto.createHash('md5').update(fingerprint).digest('hex');
@@ -1297,6 +1340,123 @@ const fetchTextWithTimeout = async (url, options = {}, timeoutMs = SEO_AUTOMATIO
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const toBase64Url = (value) => Buffer.from(value)
+  .toString('base64')
+  .replace(/\+/g, '-')
+  .replace(/\//g, '_')
+  .replace(/=+$/g, '');
+
+const signGoogleServiceAccountJwt = (serviceAccount) => {
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const expiresAt = issuedAt + 3600;
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const payload = {
+    iss: serviceAccount.client_email,
+    scope: 'https://www.googleapis.com/auth/webmasters.readonly',
+    aud: serviceAccount.token_uri || 'https://oauth2.googleapis.com/token',
+    exp: expiresAt,
+    iat: issuedAt
+  };
+  const encodedHeader = toBase64Url(JSON.stringify(header));
+  const encodedPayload = toBase64Url(JSON.stringify(payload));
+  const signatureInput = `${encodedHeader}.${encodedPayload}`;
+  const signer = crypto.createSign('RSA-SHA256');
+  signer.update(signatureInput);
+  signer.end();
+  const signature = signer.sign(serviceAccount.private_key, 'base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+  return `${signatureInput}.${signature}`;
+};
+
+const fetchGoogleSearchConsoleAccessToken = async (serviceAccount) => {
+  const assertion = signGoogleServiceAccountJwt(serviceAccount);
+  const body = new URLSearchParams({
+    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+    assertion
+  });
+  const tokenResponse = await fetchJsonWithTimeout(
+    serviceAccount.token_uri || 'https://oauth2.googleapis.com/token',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    },
+    SEO_SEARCH_CONSOLE_TIMEOUT_MS
+  );
+  if (!tokenResponse?.access_token) {
+    throw new Error('Google Search Console token exchange failed');
+  }
+  return tokenResponse.access_token;
+};
+
+const fetchSearchConsoleQueryRows = async ({ property, serviceAccount }) => {
+  if (!property || !serviceAccount?.client_email || !serviceAccount?.private_key) {
+    return {
+      connected: false,
+      configured: false,
+      checked_at: new Date().toISOString(),
+      error: 'Search Console property or service account is missing.',
+      rows: []
+    };
+  }
+
+  try {
+    const accessToken = await fetchGoogleSearchConsoleAccessToken(serviceAccount);
+    const endDate = new Date();
+    const startDate = new Date(endDate.getTime() - (SEO_SEARCH_CONSOLE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000));
+    const response = await fetchJsonWithTimeout(
+      `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(property)}/searchAnalytics/query`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate: startDate.toISOString().slice(0, 10),
+          endDate: endDate.toISOString().slice(0, 10),
+          dimensions: ['query'],
+          rowLimit: SEO_SEARCH_CONSOLE_MAX_ROWS
+        })
+      },
+      SEO_SEARCH_CONSOLE_TIMEOUT_MS
+    );
+    const rows = Array.isArray(response?.rows) ? response.rows : [];
+    return {
+      connected: true,
+      configured: true,
+      checked_at: new Date().toISOString(),
+      error: null,
+      rows: rows
+        .map((row) => {
+          const keyword = prepareSeoKeywordCandidate(row?.keys?.[0], { requireLocal: true }) || prepareSeoKeywordCandidate(row?.keys?.[0]);
+          if (!keyword) return null;
+          return {
+            keyword,
+            clicks: Number(row?.clicks || 0),
+            impressions: Number(row?.impressions || 0),
+            ctr: Number(row?.ctr || 0),
+            position: Number.isFinite(Number(row?.position)) ? Number(Number(row.position).toFixed(1)) : null,
+            source: 'google_search_console'
+          };
+        })
+        .filter(Boolean)
+    };
+  } catch (error) {
+    return {
+      connected: false,
+      configured: true,
+      checked_at: new Date().toISOString(),
+      error: error.message || 'Unable to load Search Console data',
+      rows: []
+    };
+  }
+};
 
 const extractGoogleSearchResultLinks = (html = '') => {
   const candidates = [];
@@ -1927,6 +2087,8 @@ const buildSeoAutomationSnapshot = async () => {
   const manualSuggestions = normalizeSeoManualSuggestions(
     await getJsonAppSetting(APP_SETTING_KEYS.seoAutomationManualSuggestions, [])
   );
+  const searchConsoleConfig = await getStoredSearchConsoleConfig();
+  const searchConsoleSnapshot = await fetchSearchConsoleQueryRows(searchConsoleConfig);
   const manualSuggestionMap = buildSeoManualSuggestionMap(manualSuggestions);
   const [products, categories, existingSignalRows, performanceRows] = await Promise.all([
     dbAllAsync('SELECT id, name, description, category_id FROM products ORDER BY id DESC'),
@@ -1949,8 +2111,41 @@ const buildSeoAutomationSnapshot = async () => {
     harvestedKeywords.map((entry) => recordSeoKeywordSignal(entry.keyword, entry.source, entry.weight))
   );
   const signalRows = await dbAllAsync('SELECT keyword, hits, source, latest_at FROM seo_keyword_signals ORDER BY hits DESC, latest_at DESC LIMIT 120');
+  const mergedSignalMap = new Map();
+  signalRows.forEach((row) => {
+    const keyword = normalizeSeoKeyword(row.keyword);
+    if (!keyword) return;
+    mergedSignalMap.set(keyword, {
+      keyword,
+      hits: Number(row.hits || 0),
+      clicks: Number(row.clicks || 0),
+      impressions: Number(row.impressions || 0),
+      source: row.source || 'site_search',
+      latest_at: row.latest_at || null
+    });
+  });
+  searchConsoleSnapshot.rows.forEach((row) => {
+    const keyword = normalizeSeoKeyword(row.keyword);
+    if (!keyword) return;
+    const current = mergedSignalMap.get(keyword) || {
+      keyword,
+      hits: 0,
+      clicks: 0,
+      impressions: 0,
+      source: row.source || 'google_search_console',
+      latest_at: searchConsoleSnapshot.checked_at
+    };
+    mergedSignalMap.set(keyword, {
+      keyword,
+      hits: current.hits + Math.max(1, Math.round(Number(row.impressions || 0) / 5) + Number(row.clicks || 0) * 3),
+      clicks: current.clicks + Number(row.clicks || 0),
+      impressions: current.impressions + Number(row.impressions || 0),
+      source: current.source === 'site_search' ? current.source : (row.source || current.source),
+      latest_at: current.latest_at || searchConsoleSnapshot.checked_at
+    });
+  });
 
-  const signalsMap = new Map(signalRows.map((row) => [String(row.keyword), row]));
+  const signalsMap = mergedSignalMap;
   const performanceMap = buildPerformanceMap(performanceRows);
   const categoryNames = categories.map((row) => normalizeSeoKeyword(row.name)).filter(Boolean);
   const productNames = products.map((row) => normalizeSeoKeyword(row.name)).filter(Boolean);
@@ -1967,6 +2162,7 @@ const buildSeoAutomationSnapshot = async () => {
     ...categoryNames.map((name) => `${name} bhubaneswar`),
     ...categoryNames.map((name) => `${name} odisha`),
     ...productTerms.filter(Boolean),
+    ...searchConsoleSnapshot.rows.map((row) => row.keyword),
     ...previousKeywordBank.map((entry) => entry?.keyword),
     ...manualSuggestions
   ]
@@ -2028,7 +2224,9 @@ const buildSeoAutomationSnapshot = async () => {
     strongestKeywords,
     keywordBank
   });
-  const refreshedRankings = await refreshSeoKeywordRankings(rankTrackingKeywords);
+  const refreshedRankings = searchConsoleSnapshot.connected
+    ? buildSearchConsoleRankingRows(rankTrackingKeywords, searchConsoleSnapshot.rows, searchConsoleSnapshot.checked_at)
+    : await refreshSeoKeywordRankings(rankTrackingKeywords);
   const rankings = refreshedRankings.length ? refreshedRankings : await loadStoredSeoKeywordRankings(rankTrackingKeywords);
   const manualPriorityRankings = manualSuggestions
     .map((keyword) => rankings.find((entry) => entry.keyword === keyword) || {
@@ -2063,8 +2261,9 @@ const buildSeoAutomationSnapshot = async () => {
     keyword_bank: keywordBank,
     emerging_search_terms: emergingSearchTerms,
     opportunities,
-    tracked_signal_count: signalRows.length,
+    tracked_signal_count: signalsMap.size,
     tracked_performance_count: performanceRows.length,
+    visibility_source: searchConsoleSnapshot.connected ? 'google_search_console' : 'serp_fallback',
     external_seed_queries: seedQueries,
     harvested_keyword_count: harvestedKeywords.length,
     harvested_keyword_source: externalHarvestKeywords.length ? 'external' : 'seed_fallback',
@@ -2073,8 +2272,53 @@ const buildSeoAutomationSnapshot = async () => {
     rankings,
     best_ranked_keywords: bestRankedKeywords,
     manual_priority_rankings: manualPriorityRankings,
-    ranking_summary: rankingSummary
+    ranking_summary: rankingSummary,
+    search_console: {
+      configured: searchConsoleConfig.configured,
+      connected: searchConsoleSnapshot.connected,
+      property: searchConsoleConfig.property || null,
+      service_account_email: searchConsoleConfig.serviceAccount?.client_email || null,
+      checked_at: searchConsoleSnapshot.checked_at || null,
+      error: searchConsoleSnapshot.error || null,
+      query_count: searchConsoleSnapshot.rows.length,
+      top_queries: searchConsoleSnapshot.rows.slice(0, 12)
+    }
   };
+};
+
+const buildSearchConsoleRankingRows = (rankTrackingKeywords = [], searchConsoleRows = [], checkedAt = null) => {
+  const searchConsoleMap = new Map(
+    searchConsoleRows.map((row) => [normalizeSeoKeyword(row.keyword), row])
+  );
+  return rankTrackingKeywords.map((keyword) => {
+    const normalizedKeyword = normalizeSeoKeyword(keyword);
+    const match = searchConsoleMap.get(normalizedKeyword);
+    if (!match) {
+      return {
+        keyword: normalizedKeyword,
+        position: null,
+        found: false,
+        rank_url: null,
+        results_scanned: searchConsoleRows.length,
+        checked_at: checkedAt,
+        error: 'Keyword not found in recent Search Console query data.',
+        source: 'google_search_console'
+      };
+    }
+    return {
+      keyword: normalizedKeyword,
+      position: match.position,
+      found: Number(match.impressions || 0) > 0,
+      rank_url: publicStorefrontUrl,
+      results_scanned: searchConsoleRows.length,
+      checked_at: checkedAt,
+      error: null,
+      source: 'google_search_console',
+      clicks: match.clicks,
+      impressions: match.impressions,
+      ctr: match.ctr
+    };
+  });
 };
 
 const getSeoAutomationSnapshot = async ({ force = false } = {}) => {
@@ -6359,8 +6603,17 @@ app.post('/api/admin/seo-automation/settings', authenticateToken, requireAdmin, 
   try {
     const refreshMinutes = clampSeoAutomationRefreshMinutes(req.body?.refresh_minutes);
     const manualSuggestions = normalizeSeoManualSuggestions(req.body?.manual_suggestions || []);
+    const searchConsoleProperty = normalizeSearchConsoleProperty(req.body?.search_console_property || '');
+    const searchConsoleServiceAccountJson = String(req.body?.search_console_service_account_json || '').trim();
+    if (searchConsoleServiceAccountJson && !parseSearchConsoleServiceAccountJson(searchConsoleServiceAccountJson)) {
+      throw new Error('Search Console service account JSON is invalid.');
+    }
     await saveJsonAppSetting(APP_SETTING_KEYS.seoAutomationRefreshMinutes, refreshMinutes);
     await saveJsonAppSetting(APP_SETTING_KEYS.seoAutomationManualSuggestions, manualSuggestions);
+    await saveJsonAppSetting(APP_SETTING_KEYS.seoSearchConsoleProperty, searchConsoleProperty || null);
+    if (searchConsoleServiceAccountJson) {
+      await saveJsonAppSetting(APP_SETTING_KEYS.seoSearchConsoleServiceAccountJson, searchConsoleServiceAccountJson);
+    }
     await scheduleSeoAutomationRefresh();
     const snapshot = await getSeoAutomationSnapshot({ force: true });
     res.set('Cache-Control', 'no-store, max-age=0');
