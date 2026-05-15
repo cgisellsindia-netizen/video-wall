@@ -1187,6 +1187,10 @@ const normalizeSeoManualSuggestions = (values = []) => {
   )).slice(0, 40);
 };
 
+const buildSeoManualSuggestionMap = (values = []) => new Map(
+  normalizeSeoManualSuggestions(values).map((keyword, index) => [keyword, index])
+);
+
 const buildSeoRotationHash = (values = []) => {
   const fingerprint = values.join('|') || 'camigo-seo';
   const hash = crypto.createHash('md5').update(fingerprint).digest('hex');
@@ -1425,7 +1429,8 @@ const recordSeoKeywordRanking = async ({
   );
 };
 
-const buildSeoRankTrackingKeywords = ({ strongestKeywords = [], keywordBank = [] }) => Array.from(new Set([
+const buildSeoRankTrackingKeywords = ({ strongestKeywords = [], keywordBank = [], manualSuggestions = [] }) => Array.from(new Set([
+  ...manualSuggestions,
   ...strongestKeywords.map((entry) => entry?.keyword),
   ...keywordBank.map((entry) => entry?.keyword)
 ].map((keyword) => prepareSeoKeywordCandidate(keyword, { requireLocal: true }) || prepareSeoKeywordCandidate(keyword)).filter(Boolean)))
@@ -1722,7 +1727,7 @@ const buildSeoAutonomousCopy = ({
   };
 };
 
-const buildSeoKeywordScore = (keyword, signalsMap, categoryNames, productNames) => {
+const buildSeoKeywordScore = (keyword, signalsMap, categoryNames, productNames, manualSuggestionMap = new Map()) => {
   const signalHits = Number(signalsMap.get(keyword)?.hits || 0);
   const categoryMatches = categoryNames.filter((name) => keyword.includes(name)).length;
   const productMatches = productNames.filter((name) => keyword.includes(name)).length;
@@ -1733,6 +1738,9 @@ const buildSeoKeywordScore = (keyword, signalsMap, categoryNames, productNames) 
   const primaryPhraseBoost = SEO_PRIMARY_TARGET_KEYWORDS.includes(keyword) ? 35 : 0;
   const readabilityBoost = keyword.split(/\s+/).length <= 4 ? 10 : 0;
   const overlocalizedPenalty = /bhubaneswar odisha/.test(keyword) ? 12 : 0;
+  const manualPriorityBoost = manualSuggestionMap.has(keyword)
+    ? Math.max(48, 96 - manualSuggestionMap.get(keyword) * 3)
+    : 0;
   return signalHits * 5
     + categoryMatches * 4
     + productMatches * 2
@@ -1742,6 +1750,7 @@ const buildSeoKeywordScore = (keyword, signalsMap, categoryNames, productNames) 
     + clickBoost
     + primaryPhraseBoost
     + readabilityBoost
+    + manualPriorityBoost
     - overlocalizedPenalty;
 };
 
@@ -1836,6 +1845,7 @@ const buildSeoAutomationSnapshot = async () => {
   const manualSuggestions = normalizeSeoManualSuggestions(
     await getJsonAppSetting(APP_SETTING_KEYS.seoAutomationManualSuggestions, [])
   );
+  const manualSuggestionMap = buildSeoManualSuggestionMap(manualSuggestions);
   const [products, categories, existingSignalRows, performanceRows] = await Promise.all([
     dbAllAsync('SELECT id, name, description, category_id FROM products ORDER BY id DESC'),
     dbAllAsync('SELECT id, name FROM categories ORDER BY sort_order ASC, id ASC'),
@@ -1882,10 +1892,11 @@ const buildSeoAutomationSnapshot = async () => {
   const strongestKeywords = candidateKeywords
     .map((keyword) => ({
       keyword,
-      score: buildSeoKeywordScore(keyword, signalsMap, categoryNames, productNames),
+      score: buildSeoKeywordScore(keyword, signalsMap, categoryNames, productNames, manualSuggestionMap),
       hits: Number(signalsMap.get(keyword)?.hits || 0),
       source: signalsMap.get(keyword)?.source || 'cluster',
-      performance: getKeywordPerformance(performanceMap, keyword, SEO_AUTOMATION_PLACEMENTS.homepage)
+      performance: getKeywordPerformance(performanceMap, keyword, SEO_AUTOMATION_PLACEMENTS.homepage),
+      is_manual_priority: manualSuggestionMap.has(keyword)
     }))
     .sort((left, right) => {
       if (right.score !== left.score) return right.score - left.score;
@@ -1928,11 +1939,22 @@ const buildSeoAutomationSnapshot = async () => {
     strongestKeywords
   );
   const rankTrackingKeywords = buildSeoRankTrackingKeywords({
+    manualSuggestions,
     strongestKeywords,
     keywordBank
   });
   const refreshedRankings = await refreshSeoKeywordRankings(rankTrackingKeywords);
   const rankings = refreshedRankings.length ? refreshedRankings : await loadStoredSeoKeywordRankings(rankTrackingKeywords);
+  const manualPriorityRankings = manualSuggestions
+    .map((keyword) => rankings.find((entry) => entry.keyword === keyword) || {
+      keyword,
+      position: null,
+      found: false,
+      rank_url: null,
+      results_scanned: 0,
+      checked_at: null,
+      error: 'Waiting for rank check'
+    });
   const rankingSummary = buildSeoRankingSummary(rankings);
   await saveJsonAppSetting(APP_SETTING_KEYS.seoAutomationKeywordBank, keywordBank);
 
@@ -1954,6 +1976,7 @@ const buildSeoAutomationSnapshot = async () => {
     harvested_keywords: harvestedKeywords.slice(0, 16),
     generated_copy: generatedCopy,
     rankings,
+    manual_priority_rankings: manualPriorityRankings,
     ranking_summary: rankingSummary
   };
 };

@@ -170,6 +170,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
         <span className="tag tag-success">Last generated: {snapshot?.generated_at ? new Date(snapshot.generated_at).toLocaleString() : 'Pending'}</span>
         <span className="tag">Local focus: {(snapshot?.local_focus || []).join(', ') || 'Patia, Bhubaneswar, Odisha'}</span>
         <span className="tag">Tracked signals: {snapshot?.tracked_signal_count || 0}</span>
+        <span className="tag">Manual priorities: {snapshot?.manual_suggestions?.length || 0}</span>
         <span className="tag">Tracked performance rows: {snapshot?.tracked_performance_count || 0}</span>
         <span className="tag">Harvested suggestions: {snapshot?.harvested_keyword_count || 0}</span>
         <span className="tag">Google top 10: {snapshot?.ranking_summary?.top10_keywords || 0}</span>
@@ -208,6 +209,27 @@ function SeoAutomationAdmin({ token, setMessage }) {
       </p>
 
       <div className="seo-automation-grid">
+        <article className="seo-automation-card seo-automation-card-wide">
+          <h4>Manual priority Google rankings</h4>
+          <div className="seo-automation-opportunities">
+            {(snapshot?.manual_priority_rankings || []).map((item) => (
+              <div key={`manual-rank-${item.keyword}`} className="seo-automation-opportunity">
+                <div>
+                  <strong>{item.keyword}</strong>
+                  <p>
+                    {item.found && item.position
+                      ? `Manual priority is ranking around Google position #${item.position}`
+                      : `Manual priority is not found in top ${item.results_scanned || 20} results yet`}
+                  </p>
+                </div>
+                <code>
+                  {item.checked_at ? `Checked ${new Date(item.checked_at).toLocaleString()}` : 'Waiting for rank check'}
+                </code>
+              </div>
+            ))}
+          </div>
+        </article>
+
         <article className="seo-automation-card seo-automation-card-wide">
           <h4>Google rank tracker</h4>
           <div className="seo-automation-opportunities">
