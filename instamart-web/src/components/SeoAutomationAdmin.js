@@ -8,6 +8,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
   const [savingSettings, setSavingSettings] = useState(false);
   const [error, setError] = useState('');
   const [refreshMinutesInput, setRefreshMinutesInput] = useState('20');
+  const [manualSuggestionsInput, setManualSuggestionsInput] = useState('');
   const [countdownLabel, setCountdownLabel] = useState('');
 
   const loadSnapshot = useCallback(async () => {
@@ -25,6 +26,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
       }
       setSnapshot(data || {});
       setRefreshMinutesInput(String(data?.refresh_minutes || 20));
+      setManualSuggestionsInput(Array.isArray(data?.manual_suggestions) ? data.manual_suggestions.join('\n') : '');
     } catch (nextError) {
       setError(nextError.message || 'Unable to load SEO automation snapshot');
     } finally {
@@ -91,6 +93,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
       }
       setSnapshot(data?.snapshot || null);
       setRefreshMinutesInput(String(data?.snapshot?.refresh_minutes || refreshMinutesInput));
+      setManualSuggestionsInput(Array.isArray(data?.snapshot?.manual_suggestions) ? data.snapshot.manual_suggestions.join('\n') : manualSuggestionsInput);
       setMessage?.(data?.message || 'SEO automation refreshed.');
     } catch (nextError) {
       const message = nextError.message || 'Unable to refresh SEO automation snapshot';
@@ -113,7 +116,10 @@ function SeoAutomationAdmin({ token, setMessage }) {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ refresh_minutes: refreshMinutesInput })
+        body: JSON.stringify({
+          refresh_minutes: refreshMinutesInput,
+          manual_suggestions: manualSuggestionsInput
+        })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -121,6 +127,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
       }
       setSnapshot(data?.snapshot || null);
       setRefreshMinutesInput(String(data?.snapshot?.refresh_minutes || refreshMinutesInput));
+      setManualSuggestionsInput(Array.isArray(data?.snapshot?.manual_suggestions) ? data.snapshot.manual_suggestions.join('\n') : manualSuggestionsInput);
       setMessage?.(data?.message || 'SEO automation settings saved.');
     } catch (nextError) {
       const message = nextError.message || 'Unable to save SEO automation settings';
@@ -182,12 +189,22 @@ function SeoAutomationAdmin({ token, setMessage }) {
             onChange={(event) => setRefreshMinutesInput(event.target.value)}
           />
         </div>
+        <div className="seo-automation-settings-field seo-automation-settings-field-wide">
+          <label htmlFor="seo-manual-suggestions">Manual keyword suggestions for the SEO machine</label>
+          <textarea
+            id="seo-manual-suggestions"
+            rows="5"
+            value={manualSuggestionsInput}
+            onChange={(event) => setManualSuggestionsInput(event.target.value)}
+            placeholder={'One keyword per line\ncctv camera patia\nip camera bhubaneswar\nsecurity camera installation odisha'}
+          />
+        </div>
         <button className="btn btn-sm btn-secondary" onClick={handleSaveSettings} disabled={savingSettings}>
-          {savingSettings ? 'Saving...' : 'Save interval'}
+          {savingSettings ? 'Saving...' : 'Save SEO settings'}
         </button>
       </div>
       <p className="checkout-note" style={{ marginTop: 8 }}>
-        Fastest safe mode is 1 minute. More aggressive than that is likely to get external keyword and ranking checks throttled without improving Google ranking speed.
+        Fastest safe mode is 1 minute. More aggressive than that is likely to get external keyword and ranking checks throttled without improving Google ranking speed. Manual suggestions entered here are also folded into the stored keyword bank, rank checks, and next SEO refresh cycle.
       </p>
 
       <div className="seo-automation-grid">
@@ -243,6 +260,18 @@ function SeoAutomationAdmin({ token, setMessage }) {
               <div key={`${item.keyword}-${item.source}`} className="seo-automation-chip">
                 <strong>{item.keyword}</strong>
                 <span>{`${item.hits || 0} searches - ${String(item.source || 'signal').replaceAll('_', ' ')}`}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="seo-automation-card">
+          <h4>Manual keyword suggestions</h4>
+          <div className="seo-automation-chip-list">
+            {(snapshot?.manual_suggestions || []).map((keyword) => (
+              <div key={`${keyword}-manual`} className="seo-automation-chip">
+                <strong>{keyword}</strong>
+                <span>Manual priority</span>
               </div>
             ))}
           </div>

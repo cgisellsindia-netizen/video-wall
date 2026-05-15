@@ -262,6 +262,7 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 14px;
   margin-bottom: 18px;
   padding: 14px 16px;
@@ -275,12 +276,16 @@
   gap: 8px;
   min-width: 220px;
 }
+.seo-automation-settings-field-wide {
+  flex: 1 1 420px;
+}
 .seo-automation-settings-field label {
   color: #17315f;
   font-size: 13px;
   font-weight: 700;
 }
-.seo-automation-settings-field input {
+.seo-automation-settings-field input,
+.seo-automation-settings-field textarea {
   width: 100%;
   border: 1px solid rgba(148, 163, 184, 0.28);
   border-radius: 12px;
@@ -288,6 +293,12 @@
   font-size: 14px;
   color: #17315f;
   background: #f8fbff;
+}
+.seo-automation-settings-field textarea {
+  min-height: 116px;
+  resize: vertical;
+  line-height: 1.5;
+  font-family: inherit;
 }
 .seo-automation-grid {
   display: grid;

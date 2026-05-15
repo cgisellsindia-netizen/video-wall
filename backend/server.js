@@ -243,7 +243,8 @@ const APP_SETTING_KEYS = {
   productPageLayout: 'product_page_layout',
   seoAutomationSnapshot: 'seo_automation_snapshot',
   seoAutomationRefreshMinutes: 'seo_automation_refresh_minutes',
-  seoAutomationKeywordBank: 'seo_automation_keyword_bank'
+  seoAutomationKeywordBank: 'seo_automation_keyword_bank',
+  seoAutomationManualSuggestions: 'seo_automation_manual_suggestions'
 };
 
 const OPERATIONAL_APP_SETTING_KEYS = [
@@ -253,7 +254,8 @@ const OPERATIONAL_APP_SETTING_KEYS = [
   APP_SETTING_KEYS.productPageLayout,
   APP_SETTING_KEYS.seoAutomationSnapshot,
   APP_SETTING_KEYS.seoAutomationRefreshMinutes,
-  APP_SETTING_KEYS.seoAutomationKeywordBank
+  APP_SETTING_KEYS.seoAutomationKeywordBank,
+  APP_SETTING_KEYS.seoAutomationManualSuggestions
 ];
 
 const DEFAULT_SEO_AUTOMATION_REFRESH_MINUTES = 20;
@@ -1164,6 +1166,27 @@ const uniqueSeoKeywords = (values = []) => Array.from(new Set(
     .filter(Boolean)
 ));
 
+const normalizeSeoManualSuggestions = (values = []) => {
+  const list = Array.isArray(values)
+    ? values
+    : String(values || '').split(/[\n,]+/);
+  return Array.from(new Set(
+    list
+      .flatMap((value) => {
+        const raw = String(value || '').trim();
+        if (!raw) return [];
+        const variants = buildNaturalSeoKeywordVariants(raw);
+        if (variants.length) return variants;
+        return [
+          prepareSeoKeywordCandidate(raw, { requireLocal: true }),
+          prepareSeoKeywordCandidate(`${raw} bhubaneswar`, { requireLocal: true }),
+          prepareSeoKeywordCandidate(raw)
+        ].filter(Boolean);
+      })
+      .filter(Boolean)
+  )).slice(0, 40);
+};
+
 const buildSeoRotationHash = (values = []) => {
   const fingerprint = values.join('|') || 'camigo-seo';
   const hash = crypto.createHash('md5').update(fingerprint).digest('hex');
@@ -1199,7 +1222,7 @@ const buildNaturalSeoKeywordVariants = (keyword = '') => {
   ));
 };
 
-const buildSeoSuggestSeedQueries = ({ categories = [], products = [], signalRows = [] }) => {
+const buildSeoSuggestSeedQueries = ({ categories = [], products = [], signalRows = [], manualKeywords = [] }) => {
   const categoryNames = uniqueSeoKeywords(categories.flatMap((row) => [
     `${row.name} bhubaneswar`,
     `${row.name} patia`,
@@ -1218,6 +1241,7 @@ const buildSeoSuggestSeedQueries = ({ categories = [], products = [], signalRows
   ]).slice(0, 28);
   return uniqueSeoKeywords([
     ...SEO_PRIMARY_TARGET_KEYWORDS,
+    ...manualKeywords,
     ...signalKeywords,
     ...localKeywordSeeds,
     ...categoryNames,
@@ -1733,7 +1757,7 @@ const buildSeoOpportunities = (keywords = [], strongestKeywords = []) => {
     }));
 };
 
-const buildSeoKeywordBank = ({ strongestKeywords = [], performanceRows = [], previousBank = [] }) => {
+const buildSeoKeywordBank = ({ strongestKeywords = [], performanceRows = [], previousBank = [], manualSuggestions = [] }) => {
   const bankScores = new Map();
   previousBank.forEach((entry, index) => {
     const keyword = prepareSeoKeywordCandidate(entry?.keyword, { requireLocal: true }) || prepareSeoKeywordCandidate(entry?.keyword);
@@ -1770,6 +1794,18 @@ const buildSeoKeywordBank = ({ strongestKeywords = [], performanceRows = [], pre
       impressions: current.impressions + Number(entry.impressions || 0)
     });
   });
+  manualSuggestions.forEach((entry, index) => {
+    const keyword = prepareSeoKeywordCandidate(entry, { requireLocal: true }) || prepareSeoKeywordCandidate(entry);
+    if (!keyword) return;
+    const current = bankScores.get(keyword) || { keyword, score: 0, source: 'manual_suggestion', clicks: 0, impressions: 0 };
+    bankScores.set(keyword, {
+      keyword,
+      score: current.score + Math.max(18, 72 - index * 2),
+      source: current.source || 'manual_suggestion',
+      clicks: current.clicks,
+      impressions: current.impressions
+    });
+  });
   return Array.from(bankScores.values())
     .sort((left, right) => {
       if (right.score !== left.score) return right.score - left.score;
@@ -1797,6 +1833,9 @@ const getSeoAutomationRefreshMinutes = async () => {
 const buildSeoAutomationSnapshot = async () => {
   const refreshMinutes = await getSeoAutomationRefreshMinutes();
   const previousKeywordBank = await getJsonAppSetting(APP_SETTING_KEYS.seoAutomationKeywordBank, []);
+  const manualSuggestions = normalizeSeoManualSuggestions(
+    await getJsonAppSetting(APP_SETTING_KEYS.seoAutomationManualSuggestions, [])
+  );
   const [products, categories, existingSignalRows, performanceRows] = await Promise.all([
     dbAllAsync('SELECT id, name, description, category_id FROM products ORDER BY id DESC'),
     dbAllAsync('SELECT id, name FROM categories ORDER BY sort_order ASC, id ASC'),
@@ -1807,7 +1846,8 @@ const buildSeoAutomationSnapshot = async () => {
   const seedQueries = buildSeoSuggestSeedQueries({
     categories,
     products,
-    signalRows: existingSignalRows
+    signalRows: existingSignalRows,
+    manualKeywords: manualSuggestions
   });
   const harvestedKeywords = await harvestExternalSeoKeywords(seedQueries);
   await Promise.all(
@@ -1832,7 +1872,8 @@ const buildSeoAutomationSnapshot = async () => {
     ...categoryNames.map((name) => `${name} bhubaneswar`),
     ...categoryNames.map((name) => `${name} odisha`),
     ...productTerms.filter(Boolean),
-    ...previousKeywordBank.map((entry) => entry?.keyword)
+    ...previousKeywordBank.map((entry) => entry?.keyword),
+    ...manualSuggestions
   ]
     .flatMap((keyword) => buildNaturalSeoKeywordVariants(keyword))
     .map((keyword) => prepareSeoKeywordCandidate(keyword, { requireLocal: true }) || prepareSeoKeywordCandidate(keyword))
@@ -1856,7 +1897,8 @@ const buildSeoAutomationSnapshot = async () => {
   const keywordBank = buildSeoKeywordBank({
     strongestKeywords,
     performanceRows,
-    previousBank: previousKeywordBank
+    previousBank: previousKeywordBank,
+    manualSuggestions
   });
 
   const emergingSearchTerms = signalRows
@@ -1898,6 +1940,7 @@ const buildSeoAutomationSnapshot = async () => {
     generated_at: new Date().toISOString(),
     refresh_minutes: refreshMinutes,
     next_refresh_at: seoAutomationNextRunAt ? new Date(seoAutomationNextRunAt).toISOString() : null,
+    manual_suggestions: manualSuggestions,
     local_focus: SEO_PRIORITY_LOCAL_AREAS,
     homepage_keywords: homepageKeywords,
     strongest_keywords: strongestKeywords,
@@ -6196,12 +6239,14 @@ app.post('/api/admin/seo-automation/refresh', authenticateToken, requireAdmin, a
 app.post('/api/admin/seo-automation/settings', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const refreshMinutes = clampSeoAutomationRefreshMinutes(req.body?.refresh_minutes);
+    const manualSuggestions = normalizeSeoManualSuggestions(req.body?.manual_suggestions || []);
     await saveJsonAppSetting(APP_SETTING_KEYS.seoAutomationRefreshMinutes, refreshMinutes);
+    await saveJsonAppSetting(APP_SETTING_KEYS.seoAutomationManualSuggestions, manualSuggestions);
     await scheduleSeoAutomationRefresh();
     const snapshot = await getSeoAutomationSnapshot({ force: true });
     res.set('Cache-Control', 'no-store, max-age=0');
     res.json({
-      message: `SEO automation interval updated to every ${refreshMinutes} minutes.`,
+      message: `SEO automation updated with ${manualSuggestions.length} manual keyword suggestions and a ${refreshMinutes}-minute refresh cycle.`,
       snapshot: {
         ...(snapshot || {}),
         refresh_minutes: refreshMinutes,
