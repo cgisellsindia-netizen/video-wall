@@ -173,6 +173,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
         <span className="tag">Manual priorities: {snapshot?.manual_suggestions?.length || 0}</span>
         <span className="tag">Tracked performance rows: {snapshot?.tracked_performance_count || 0}</span>
         <span className="tag">Harvested suggestions: {snapshot?.harvested_keyword_count || 0}</span>
+        <span className="tag">Harvest source: {snapshot?.harvested_keyword_source || 'pending'}</span>
         <span className="tag">Google top 10: {snapshot?.ranking_summary?.top10_keywords || 0}</span>
         <span className="tag">Avg rank: {snapshot?.ranking_summary?.average_position ?? 'Not found yet'}</span>
         <span className="tag tag-warning">{countdownLabel || 'Next auto update pending'}</span>
@@ -210,6 +211,27 @@ function SeoAutomationAdmin({ token, setMessage }) {
 
       <div className="seo-automation-grid">
         <article className="seo-automation-card seo-automation-card-wide">
+          <h4>Best current search rankings</h4>
+          <div className="seo-automation-opportunities">
+            {(snapshot?.best_ranked_keywords || []).map((item) => (
+              <div key={`best-rank-${item.keyword}`} className="seo-automation-opportunity">
+                <div>
+                  <strong>{item.keyword}</strong>
+                  <p>
+                    {item.found && item.position
+                      ? `Best detected rank is #${item.position}`
+                      : `Not detected yet in tracked results`}
+                  </p>
+                </div>
+                <code>
+                  {item.source === 'duckduckgo_fallback' ? 'DuckDuckGo fallback' : 'Google'}
+                </code>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="seo-automation-card seo-automation-card-wide">
           <h4>Manual priority Google rankings</h4>
           <div className="seo-automation-opportunities">
             {(snapshot?.manual_priority_rankings || []).map((item) => (
@@ -218,12 +240,14 @@ function SeoAutomationAdmin({ token, setMessage }) {
                   <strong>{item.keyword}</strong>
                   <p>
                     {item.found && item.position
-                      ? `Manual priority is ranking around Google position #${item.position}`
-                      : `Manual priority is not found in top ${item.results_scanned || 20} results yet`}
+                      ? `Manual priority is ranking around position #${item.position}`
+                      : `${item.error || `Manual priority is not found in top ${item.results_scanned || 20} results yet`}`}
                   </p>
                 </div>
                 <code>
-                  {item.checked_at ? `Checked ${new Date(item.checked_at).toLocaleString()}` : 'Waiting for rank check'}
+                  {item.checked_at
+                    ? `${item.source === 'duckduckgo_fallback' ? 'DuckDuckGo fallback' : 'Google'} - Checked ${new Date(item.checked_at).toLocaleString()}`
+                    : 'Waiting for rank check'}
                 </code>
               </div>
             ))}
@@ -240,11 +264,13 @@ function SeoAutomationAdmin({ token, setMessage }) {
                   <p>
                     {item.found && item.position
                       ? `Currently around Google position #${item.position}`
-                      : `Not found in top ${item.results_scanned || 20} results yet`}
+                      : `${item.error || `Not found in top ${item.results_scanned || 20} results yet`}`}
                   </p>
                 </div>
                 <code>
-                  {item.checked_at ? `Checked ${new Date(item.checked_at).toLocaleString()}` : 'Waiting for rank check'}
+                  {item.checked_at
+                    ? `${item.source === 'duckduckgo_fallback' ? 'DuckDuckGo fallback' : 'Google'} - Checked ${new Date(item.checked_at).toLocaleString()}`
+                    : 'Waiting for rank check'}
                 </code>
               </div>
             ))}

@@ -1397,6 +1397,18 @@ const harvestExternalSeoKeywords = async (seedQueries = []) => {
   return deduped.slice(0, SEO_AUTOMATION_MAX_EXTERNAL_SUGGESTIONS);
 };
 
+const buildFallbackHarvestKeywords = (seedQueries = [], manualSuggestions = []) => uniqueSeoKeywords([
+  ...manualSuggestions,
+  ...seedQueries,
+  ...SEO_PRIMARY_TARGET_KEYWORDS
+])
+  .slice(0, Math.min(SEO_AUTOMATION_MAX_EXTERNAL_SUGGESTIONS, 20))
+  .map((keyword, index) => ({
+    keyword,
+    source: 'seed_fallback',
+    weight: Math.max(1, 5 - Math.floor(index / 4))
+  }));
+
 const recordSeoKeywordRanking = async ({
   keyword,
   rankPosition = null,
@@ -1436,6 +1448,63 @@ const buildSeoRankTrackingKeywords = ({ strongestKeywords = [], keywordBank = []
 ].map((keyword) => prepareSeoKeywordCandidate(keyword, { requireLocal: true }) || prepareSeoKeywordCandidate(keyword)).filter(Boolean)))
   .slice(0, SEO_AUTOMATION_MAX_RANK_KEYWORDS);
 
+const extractDuckDuckGoTargetUrl = (candidate = '') => {
+  const raw = String(candidate || '').trim();
+  if (!raw) return '';
+  try {
+    const normalized = raw.startsWith('//') ? `https:${raw}` : raw;
+    const parsed = new URL(normalized);
+    const uddg = parsed.searchParams.get('uddg');
+    return uddg ? decodeURIComponent(uddg) : normalized;
+  } catch (error) {
+    return '';
+  }
+};
+
+const fetchDuckDuckGoRankForKeyword = async (keyword) => {
+  const normalizedKeyword = prepareSeoKeywordCandidate(keyword, { requireLocal: true }) || prepareSeoKeywordCandidate(keyword);
+  if (!normalizedKeyword) {
+    return {
+      keyword: '',
+      found: false,
+      position: null,
+      rank_url: null,
+      results_scanned: 0,
+      error: 'Invalid keyword',
+      source: 'duckduckgo_fallback'
+    };
+  }
+
+  try {
+    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(normalizedKeyword)}`;
+    const html = await fetchTextWithTimeout(searchUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }, SEO_AUTOMATION_GOOGLE_TIMEOUT_MS);
+    const links = [...html.matchAll(/class=\"result__a\"[^>]*href=\"([^\"]+)\"/g)]
+      .map((match) => extractDuckDuckGoTargetUrl(match[1]))
+      .filter(Boolean)
+      .slice(0, SEO_AUTOMATION_GOOGLE_RESULT_LIMIT);
+    const matchIndex = links.findIndex((candidate) => isCamigoStorefrontUrl(candidate));
+    return {
+      keyword: normalizedKeyword,
+      found: matchIndex >= 0,
+      position: matchIndex >= 0 ? matchIndex + 1 : null,
+      rank_url: matchIndex >= 0 ? links[matchIndex] : null,
+      results_scanned: links.length,
+      error: null,
+      source: 'duckduckgo_fallback'
+    };
+  } catch (error) {
+    return {
+      keyword: normalizedKeyword,
+      found: false,
+      position: null,
+      rank_url: null,
+      results_scanned: 0,
+      error: error.message || 'Unable to fetch DuckDuckGo rank',
+      source: 'duckduckgo_fallback'
+    };
+  }
+};
+
 const fetchGoogleRankForKeyword = async (keyword) => {
   const normalizedKeyword = prepareSeoKeywordCandidate(keyword, { requireLocal: true }) || prepareSeoKeywordCandidate(keyword);
   if (!normalizedKeyword) {
@@ -1452,7 +1521,18 @@ const fetchGoogleRankForKeyword = async (keyword) => {
   try {
     const searchUrl = `https://www.google.com/search?hl=en&gl=in&num=${SEO_AUTOMATION_GOOGLE_RESULT_LIMIT}&pws=0&q=${encodeURIComponent(normalizedKeyword)}`;
     const html = await fetchTextWithTimeout(searchUrl, {}, SEO_AUTOMATION_GOOGLE_TIMEOUT_MS);
+    const googleBlocked = /enablejs|httpservice\/retry|unusual traffic/i.test(html);
     const links = extractGoogleSearchResultLinks(html).slice(0, SEO_AUTOMATION_GOOGLE_RESULT_LIMIT);
+    if (googleBlocked || links.length <= 1) {
+      const fallback = await fetchDuckDuckGoRankForKeyword(normalizedKeyword);
+      return {
+        ...fallback,
+        keyword: normalizedKeyword,
+        error: googleBlocked
+          ? 'Google blocked automated results; fallback visibility rank used.'
+          : fallback.error
+      };
+    }
     const matchIndex = links.findIndex((candidate) => isCamigoStorefrontUrl(candidate));
     return {
       keyword: normalizedKeyword,
@@ -1460,7 +1540,8 @@ const fetchGoogleRankForKeyword = async (keyword) => {
       position: matchIndex >= 0 ? matchIndex + 1 : null,
       rank_url: matchIndex >= 0 ? links[matchIndex] : null,
       results_scanned: links.length,
-      error: null
+      error: null,
+      source: 'google'
     };
   } catch (error) {
     return {
@@ -1469,7 +1550,8 @@ const fetchGoogleRankForKeyword = async (keyword) => {
       position: null,
       rank_url: null,
       results_scanned: 0,
-      error: error.message || 'Unable to fetch Google rank'
+      error: error.message || 'Unable to fetch Google rank',
+      source: 'google'
     };
   }
 };
@@ -1859,7 +1941,10 @@ const buildSeoAutomationSnapshot = async () => {
     signalRows: existingSignalRows,
     manualKeywords: manualSuggestions
   });
-  const harvestedKeywords = await harvestExternalSeoKeywords(seedQueries);
+  const externalHarvestKeywords = await harvestExternalSeoKeywords(seedQueries);
+  const harvestedKeywords = externalHarvestKeywords.length
+    ? externalHarvestKeywords
+    : buildFallbackHarvestKeywords(seedQueries, manualSuggestions);
   await Promise.all(
     harvestedKeywords.map((entry) => recordSeoKeywordSignal(entry.keyword, entry.source, entry.weight))
   );
@@ -1955,6 +2040,15 @@ const buildSeoAutomationSnapshot = async () => {
       checked_at: null,
       error: 'Waiting for rank check'
     });
+  const bestRankedKeywords = [...rankings]
+    .sort((left, right) => {
+      const leftFound = left.found && Number.isFinite(Number(left.position));
+      const rightFound = right.found && Number.isFinite(Number(right.position));
+      if (leftFound !== rightFound) return rightFound ? 1 : -1;
+      if (leftFound && rightFound && Number(left.position) !== Number(right.position)) return Number(left.position) - Number(right.position);
+      return String(left.keyword || '').localeCompare(String(right.keyword || ''));
+    })
+    .slice(0, 12);
   const rankingSummary = buildSeoRankingSummary(rankings);
   await saveJsonAppSetting(APP_SETTING_KEYS.seoAutomationKeywordBank, keywordBank);
 
@@ -1973,9 +2067,11 @@ const buildSeoAutomationSnapshot = async () => {
     tracked_performance_count: performanceRows.length,
     external_seed_queries: seedQueries,
     harvested_keyword_count: harvestedKeywords.length,
+    harvested_keyword_source: externalHarvestKeywords.length ? 'external' : 'seed_fallback',
     harvested_keywords: harvestedKeywords.slice(0, 16),
     generated_copy: generatedCopy,
     rankings,
+    best_ranked_keywords: bestRankedKeywords,
     manual_priority_rankings: manualPriorityRankings,
     ranking_summary: rankingSummary
   };
