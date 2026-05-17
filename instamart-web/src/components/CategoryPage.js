@@ -117,10 +117,14 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
   const categorySeoBlock = Array.isArray(seoAutomationSnapshot?.generated_copy?.category_blocks)
     ? seoAutomationSnapshot.generated_copy.category_blocks.find((entry) => Number(entry.category_id) === Number(categoryId))
     : null;
+  const resolvedSeoTitle = categorySeoBlock?.supporting_terms?.[0]
+    ? `${categorySeoBlock.supporting_terms[0]} | Camigo`
+    : seoTitle;
+  const resolvedSeoDescription = categorySeoBlock?.paragraph || seoDescription;
 
   usePageSeo({
-    title: seoTitle,
-    description: seoDescription,
+    title: resolvedSeoTitle,
+    description: resolvedSeoDescription,
     canonicalUrl,
     image: seoImage,
     schema: category ? {
@@ -128,8 +132,8 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
       '@graph': [
         {
           '@type': 'CollectionPage',
-          name: seoTitle,
-          description: seoDescription,
+          name: resolvedSeoTitle,
+          description: resolvedSeoDescription,
           url: canonicalUrl,
           mainEntity: {
             '@type': 'ItemList',
@@ -205,8 +209,8 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
       <div className="category-page-hero">
         <div>
           <span className="eyebrow">Fast local delivery</span>
-          <h1>{category?.name || 'Loading category...'}</h1>
-          <p>{categoryProducts.length} products ready for quick CCTV dispatch and installation support.</p>
+          <h1>{categorySeoBlock?.heading || category?.name || 'Loading category...'}</h1>
+          <p>{categorySeoBlock?.paragraph || `${categoryProducts.length} products ready for quick CCTV dispatch and installation support.`}</p>
         </div>
         <button className="btn btn-primary" onClick={() => navigate('/shop')}>View all products</button>
       </div>

@@ -80,10 +80,17 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
   const shopKeywordLinks = Array.isArray(seoAutomationSnapshot?.generated_copy?.promoted_links)
     ? seoAutomationSnapshot.generated_copy.promoted_links.slice(0, 6)
     : [];
+  const automationShopKeywords = shopKeywordLinks.map((item) => item.keyword).filter(Boolean);
+  const resolvedSeoTitle = !activeCategory && automationShopKeywords.length
+    ? `${automationShopKeywords.slice(0, 2).join(' | ')} | Camigo Shop`
+    : seoTitle;
+  const resolvedSeoDescription = !activeCategory && automationShopCopy
+    ? automationShopCopy
+    : seoDescription;
 
   usePageSeo({
-    title: seoTitle,
-    description: seoDescription,
+    title: resolvedSeoTitle,
+    description: resolvedSeoDescription,
     canonicalUrl,
     image: seoImage,
     schema: {
@@ -91,8 +98,8 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
       '@graph': [
         {
           '@type': 'CollectionPage',
-          name: seoTitle,
-          description: seoDescription,
+          name: resolvedSeoTitle,
+          description: resolvedSeoDescription,
           url: canonicalUrl,
           mainEntity: {
             '@type': 'ItemList',
@@ -157,8 +164,8 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
       <div className="category-page-hero shop-hero-compact">
         <div>
           <span className="eyebrow">Fast category browsing</span>
-          <h1>Shop All Products</h1>
-          <p>Quick scanning, fast add-to-cart, and clear category jumps across the full Camigo catalog.</p>
+          <h1>{automationShopHeading || 'Shop All Products'}</h1>
+          <p>{automationShopCopy || 'Quick scanning, fast add-to-cart, and clear category jumps across the full Camigo catalog.'}</p>
         </div>
       </div>
 

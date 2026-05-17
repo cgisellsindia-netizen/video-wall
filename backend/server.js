@@ -1417,13 +1417,14 @@ const fetchSearchConsoleQueryRows = async ({ property, serviceAccount }) => {
       configured: false,
       checked_at: new Date().toISOString(),
       error: 'Search Console property or service account is missing.',
-      rows: []
+      rows: [],
+      seo_rows: []
     };
   }
 
   try {
     const accessToken = await fetchGoogleSearchConsoleAccessToken(serviceAccount);
-    const endDate = new Date();
+    const endDate = new Date(Date.now() - (2 * 24 * 60 * 60 * 1000));
     const startDate = new Date(endDate.getTime() - (SEO_SEARCH_CONSOLE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000));
     const response = await fetchJsonWithTimeout(
       `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(property)}/searchAnalytics/query`,
@@ -1443,25 +1444,37 @@ const fetchSearchConsoleQueryRows = async ({ property, serviceAccount }) => {
       SEO_SEARCH_CONSOLE_TIMEOUT_MS
     );
     const rows = Array.isArray(response?.rows) ? response.rows : [];
+    const normalizedRows = rows
+      .map((row) => {
+        const rawKeyword = normalizeSeoKeyword(row?.keys?.[0] || '');
+        if (!rawKeyword) return null;
+        return {
+          keyword: rawKeyword,
+          clicks: Number(row?.clicks || 0),
+          impressions: Number(row?.impressions || 0),
+          ctr: Number(row?.ctr || 0),
+          position: Number.isFinite(Number(row?.position)) ? Number(Number(row.position).toFixed(1)) : null,
+          source: 'google_search_console'
+        };
+      })
+      .filter(Boolean);
+    const seoRows = normalizedRows
+      .map((row) => {
+        const keyword = prepareSeoKeywordCandidate(row.keyword, { requireLocal: true }) || prepareSeoKeywordCandidate(row.keyword);
+        if (!keyword) return null;
+        return {
+          ...row,
+          keyword
+        };
+      })
+      .filter(Boolean);
     return {
       connected: true,
       configured: true,
       checked_at: new Date().toISOString(),
       error: null,
-      rows: rows
-        .map((row) => {
-          const keyword = prepareSeoKeywordCandidate(row?.keys?.[0], { requireLocal: true }) || prepareSeoKeywordCandidate(row?.keys?.[0]);
-          if (!keyword) return null;
-          return {
-            keyword,
-            clicks: Number(row?.clicks || 0),
-            impressions: Number(row?.impressions || 0),
-            ctr: Number(row?.ctr || 0),
-            position: Number.isFinite(Number(row?.position)) ? Number(Number(row.position).toFixed(1)) : null,
-            source: 'google_search_console'
-          };
-        })
-        .filter(Boolean)
+      rows: normalizedRows,
+      seo_rows: seoRows
     };
   } catch (error) {
     return {
@@ -1469,7 +1482,8 @@ const fetchSearchConsoleQueryRows = async ({ property, serviceAccount }) => {
       configured: true,
       checked_at: new Date().toISOString(),
       error: error.message || 'Unable to load Search Console data',
-      rows: []
+      rows: [],
+      seo_rows: []
     };
   }
 };
@@ -2105,6 +2119,9 @@ const buildSeoAutomationSnapshot = async () => {
   );
   const searchConsoleConfig = await getStoredSearchConsoleConfig();
   const searchConsoleSnapshot = await fetchSearchConsoleQueryRows(searchConsoleConfig);
+  const searchConsoleSeoRows = Array.isArray(searchConsoleSnapshot.seo_rows)
+    ? searchConsoleSnapshot.seo_rows
+    : searchConsoleSnapshot.rows;
   const manualSuggestionMap = buildSeoManualSuggestionMap(manualSuggestions);
   const [products, categories, existingSignalRows, performanceRows] = await Promise.all([
     dbAllAsync('SELECT id, name, description, category_id FROM products ORDER BY id DESC'),
@@ -2140,7 +2157,7 @@ const buildSeoAutomationSnapshot = async () => {
       latest_at: row.latest_at || null
     });
   });
-  searchConsoleSnapshot.rows.forEach((row) => {
+  searchConsoleSeoRows.forEach((row) => {
     const keyword = normalizeSeoKeyword(row.keyword);
     if (!keyword) return;
     const current = mergedSignalMap.get(keyword) || {
@@ -2178,7 +2195,7 @@ const buildSeoAutomationSnapshot = async () => {
     ...categoryNames.map((name) => `${name} bhubaneswar`),
     ...categoryNames.map((name) => `${name} odisha`),
     ...productTerms.filter(Boolean),
-    ...searchConsoleSnapshot.rows.map((row) => row.keyword),
+    ...searchConsoleSeoRows.map((row) => row.keyword),
     ...previousKeywordBank.map((entry) => entry?.keyword),
     ...manualSuggestions
   ]
@@ -2241,7 +2258,7 @@ const buildSeoAutomationSnapshot = async () => {
     keywordBank
   });
   const refreshedRankings = searchConsoleSnapshot.connected
-    ? buildSearchConsoleRankingRows(rankTrackingKeywords, searchConsoleSnapshot.rows, searchConsoleSnapshot.checked_at)
+    ? buildSearchConsoleRankingRows(rankTrackingKeywords, searchConsoleSeoRows, searchConsoleSnapshot.checked_at)
     : await refreshSeoKeywordRankings(rankTrackingKeywords);
   const rankings = refreshedRankings.length ? refreshedRankings : await loadStoredSeoKeywordRankings(rankTrackingKeywords);
   const manualPriorityRankings = manualSuggestions
@@ -2297,7 +2314,10 @@ const buildSeoAutomationSnapshot = async () => {
       checked_at: searchConsoleSnapshot.checked_at || null,
       error: searchConsoleSnapshot.error || null,
       query_count: searchConsoleSnapshot.rows.length,
-      top_queries: searchConsoleSnapshot.rows.slice(0, 12)
+      seo_query_count: searchConsoleSeoRows.length,
+      dropped_query_count: Math.max(0, searchConsoleSnapshot.rows.length - searchConsoleSeoRows.length),
+      top_queries: searchConsoleSnapshot.rows.slice(0, 12),
+      top_seo_queries: searchConsoleSeoRows.slice(0, 12)
     }
   };
 };

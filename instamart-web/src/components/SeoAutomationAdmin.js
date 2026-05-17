@@ -265,9 +265,14 @@ function SeoAutomationAdmin({ token, setMessage }) {
                 <strong>{snapshot?.search_console?.connected ? 'Connected' : snapshot?.search_console?.configured ? 'Configured but not connected' : 'Not configured yet'}</strong>
                 <p>
                   {snapshot?.search_console?.connected
-                    ? `Using ${snapshot?.search_console?.query_count || 0} Search Console query rows from ${snapshot?.search_console?.property || 'your property'}`
+                    ? `Loaded ${snapshot?.search_console?.query_count || 0} Search Console query rows from ${snapshot?.search_console?.property || 'your property'}, with ${snapshot?.search_console?.seo_query_count || 0} rows currently usable for Camigo SEO automation.`
                     : snapshot?.search_console?.error || 'Add a property and service account to stop depending on Google result-page scraping.'}
                 </p>
+                {snapshot?.search_console?.connected && Number(snapshot?.search_console?.dropped_query_count || 0) > 0 ? (
+                  <p style={{ marginTop: 6 }}>
+                    {`${snapshot.search_console.dropped_query_count} Google queries were ignored because they do not yet match Camigo's CCTV/local commercial filters.`}
+                  </p>
+                ) : null}
                 {snapshot?.search_console?.service_account_email ? (
                   <p style={{ marginTop: 6 }}>
                     Service account: <code>{snapshot.search_console.service_account_email}</code>

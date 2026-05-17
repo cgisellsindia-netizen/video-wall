@@ -317,10 +317,20 @@ function MainPage({
     label: page.label,
     to: `/${page.slug}`
   })), []);
+  const homepageKeywordFocus = Array.isArray(seoAutomationSnapshot?.homepage_keywords)
+    ? seoAutomationSnapshot.homepage_keywords.filter(Boolean)
+    : [];
+  const homepageGeneratedHeading = seoAutomationSnapshot?.generated_copy?.homepage_heading || 'CCTV Camera in Bhubaneswar and Odisha';
+  const homepageGeneratedParagraph = seoAutomationSnapshot?.generated_copy?.homepage_paragraph || '';
+  const homepageTitle = homepageKeywordFocus.length
+    ? `${homepageKeywordFocus.slice(0, 2).join(' | ')} | Camigo`
+    : 'CCTV Camera in Bhubaneswar | CCTV Installation in Odisha | Camigo';
+  const homepageDescription = homepageGeneratedParagraph
+    || 'Buy CCTV cameras in Bhubaneswar and Odisha with Camigo. Shop IP cameras, dome cameras, bullet cameras, PTZ cameras, DVRs, NVRs, PoE switches, and get CCTV installation support in Bhubaneswar.';
 
   usePageSeo({
-    title: 'CCTV Camera in Bhubaneswar | CCTV Installation in Odisha | Camigo',
-    description: 'Buy CCTV cameras in Bhubaneswar and Odisha with Camigo. Shop IP cameras, dome cameras, bullet cameras, PTZ cameras, DVRs, NVRs, PoE switches, and get CCTV installation support in Bhubaneswar.',
+    title: homepageTitle,
+    description: homepageDescription,
     canonicalUrl: 'https://getcamigo.in/',
     image: 'https://getcamigo.in/camigo-logo.svg',
     schema: {
@@ -341,8 +351,8 @@ function MainPage({
           '@type': 'CollectionPage',
           '@id': 'https://getcamigo.in/#homepage',
           url: 'https://getcamigo.in/',
-          name: 'Camigo CCTV Cameras Bhubaneswar Odisha',
-          description: 'CCTV camera dealer and installation support page for Bhubaneswar and Odisha with IP cameras, PTZ cameras, DVRs, NVRs, switches, and accessories.',
+          name: homepageTitle,
+          description: homepageDescription,
           mainEntity: {
             '@type': 'ItemList',
             itemListElement: featuredHomepageProducts.map((product, index) => ({
@@ -369,7 +379,7 @@ function MainPage({
           name: 'Camigo',
           url: 'https://getcamigo.in/',
           image: 'https://getcamigo.in/camigo-logo.svg',
-          description: 'CCTV camera shop, CCTV dealer, and CCTV installation support service for Bhubaneswar and Odisha.',
+          description: homepageDescription,
           areaServed: ['Bhubaneswar', 'Odisha', 'Cuttack', 'Khordha'],
           address: {
             '@type': 'PostalAddress',
@@ -433,10 +443,10 @@ function MainPage({
           <section className="category-section">
             <div className="seo-link-hub">
               <div className="section-header">
-                <h2 className="section-title">Explore Camigo Categories and Products</h2>
+                <h2 className="section-title">{homepageGeneratedHeading || 'Explore Camigo Categories and Products'}</h2>
               </div>
               <p className="seo-link-hub-copy">
-                Browse priority CCTV categories and product pages directly from the homepage for faster discovery by customers and search engines.
+                {homepageGeneratedParagraph || 'Browse priority CCTV categories and product pages directly from the homepage for faster discovery by customers and search engines.'}
               </p>
               <div className="seo-link-hub-grid">
                 <div className="seo-link-group">
@@ -467,14 +477,20 @@ function MainPage({
           <section className="category-section">
             <div className="seo-link-hub local-seo-hub">
               <div className="section-header">
-                <h2 className="section-title">CCTV Cameras and Installation in Bhubaneswar and Odisha</h2>
+                <h2 className="section-title">{homepageGeneratedHeading || 'CCTV Cameras and Installation in Bhubaneswar and Odisha'}</h2>
               </div>
               <p className="seo-link-hub-copy">
-                Camigo serves customers searching for CCTV cameras in Bhubaneswar, CCTV installation in Bhubaneswar,
-                security camera installation in Odisha, IP camera dealers, PTZ camera suppliers, DVR and NVR dealers,
-                and complete CCTV setup packages for homes, offices, shops, apartments, and warehouses.
+                {homepageGeneratedParagraph || `Camigo serves customers searching for CCTV cameras in Bhubaneswar,
+                CCTV installation in Bhubaneswar, security camera installation in Odisha, IP camera dealers,
+                PTZ camera suppliers, DVR and NVR dealers, and complete CCTV setup packages for homes,
+                offices, shops, apartments, and warehouses.`}
               </p>
               <div className="local-seo-topic-list">
+                {homepageKeywordFocus.slice(0, 6).map((keyword) => (
+                  <Link key={keyword} to={`/shop?search=${encodeURIComponent(keyword)}`} className="seo-link-chip">
+                    {keyword}
+                  </Link>
+                ))}
                 {localSeoTopics.map((topic) => (
                   <Link key={topic.label} to={topic.to} className="seo-link-chip subtle">{topic.label}</Link>
                 ))}
