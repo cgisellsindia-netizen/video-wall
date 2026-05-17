@@ -6621,20 +6621,28 @@ app.post('/api/admin/seo-automation/settings', authenticateToken, requireAdmin, 
     const manualSuggestions = normalizeSeoManualSuggestions(req.body?.manual_suggestions || []);
     const searchConsoleProperty = normalizeSearchConsoleProperty(req.body?.search_console_property || '');
     const searchConsoleServiceAccountJson = String(req.body?.search_console_service_account_json || '').trim();
+    const clearSearchConsole = Boolean(req.body?.clear_search_console);
     if (searchConsoleServiceAccountJson && !parseSearchConsoleServiceAccountJson(searchConsoleServiceAccountJson)) {
       throw new Error('Search Console service account JSON is invalid.');
     }
     await saveJsonAppSetting(APP_SETTING_KEYS.seoAutomationRefreshMinutes, refreshMinutes);
     await saveJsonAppSetting(APP_SETTING_KEYS.seoAutomationManualSuggestions, manualSuggestions);
-    await saveJsonAppSetting(APP_SETTING_KEYS.seoSearchConsoleProperty, searchConsoleProperty || null);
-    if (searchConsoleServiceAccountJson) {
+    await saveJsonAppSetting(
+      APP_SETTING_KEYS.seoSearchConsoleProperty,
+      clearSearchConsole ? null : (searchConsoleProperty || null)
+    );
+    if (clearSearchConsole) {
+      await saveJsonAppSetting(APP_SETTING_KEYS.seoSearchConsoleServiceAccountJson, null);
+    } else if (searchConsoleServiceAccountJson) {
       await saveJsonAppSetting(APP_SETTING_KEYS.seoSearchConsoleServiceAccountJson, searchConsoleServiceAccountJson);
     }
     await scheduleSeoAutomationRefresh();
     const snapshot = await getSeoAutomationSnapshot({ force: true });
     res.set('Cache-Control', 'no-store, max-age=0');
     res.json({
-      message: `SEO automation updated with ${manualSuggestions.length} manual keyword suggestions and a ${refreshMinutes}-minute refresh cycle.`,
+      message: clearSearchConsole
+        ? `SEO automation updated with ${manualSuggestions.length} manual keyword suggestions, a ${refreshMinutes}-minute refresh cycle, and cleared stored Search Console settings.`
+        : `SEO automation updated with ${manualSuggestions.length} manual keyword suggestions and a ${refreshMinutes}-minute refresh cycle.`,
       snapshot: {
         ...(snapshot || {}),
         refresh_minutes: refreshMinutes,

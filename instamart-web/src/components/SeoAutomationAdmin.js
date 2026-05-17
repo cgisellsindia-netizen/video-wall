@@ -11,6 +11,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
   const [manualSuggestionsInput, setManualSuggestionsInput] = useState('');
   const [searchConsolePropertyInput, setSearchConsolePropertyInput] = useState('');
   const [searchConsoleServiceAccountInput, setSearchConsoleServiceAccountInput] = useState('');
+  const [clearSearchConsole, setClearSearchConsole] = useState(false);
   const [countdownLabel, setCountdownLabel] = useState('');
 
   const loadSnapshot = useCallback(async () => {
@@ -31,6 +32,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
       setManualSuggestionsInput(Array.isArray(data?.manual_suggestions) ? data.manual_suggestions.join('\n') : '');
       setSearchConsolePropertyInput(data?.search_console?.property || '');
       setSearchConsoleServiceAccountInput('');
+      setClearSearchConsole(false);
     } catch (nextError) {
       setError(nextError.message || 'Unable to load SEO automation snapshot');
     } finally {
@@ -99,6 +101,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
       setRefreshMinutesInput(String(data?.snapshot?.refresh_minutes || refreshMinutesInput));
       setManualSuggestionsInput(Array.isArray(data?.snapshot?.manual_suggestions) ? data.snapshot.manual_suggestions.join('\n') : manualSuggestionsInput);
       setSearchConsolePropertyInput(data?.snapshot?.search_console?.property || searchConsolePropertyInput);
+      setClearSearchConsole(false);
       setMessage?.(data?.message || 'SEO automation refreshed.');
     } catch (nextError) {
       const message = nextError.message || 'Unable to refresh SEO automation snapshot';
@@ -125,7 +128,8 @@ function SeoAutomationAdmin({ token, setMessage }) {
           refresh_minutes: refreshMinutesInput,
           manual_suggestions: manualSuggestionsInput,
           search_console_property: searchConsolePropertyInput,
-          search_console_service_account_json: searchConsoleServiceAccountInput
+          search_console_service_account_json: searchConsoleServiceAccountInput,
+          clear_search_console: clearSearchConsole
         })
       });
       const data = await res.json().catch(() => ({}));
@@ -137,6 +141,7 @@ function SeoAutomationAdmin({ token, setMessage }) {
       setManualSuggestionsInput(Array.isArray(data?.snapshot?.manual_suggestions) ? data.snapshot.manual_suggestions.join('\n') : manualSuggestionsInput);
       setSearchConsolePropertyInput(data?.snapshot?.search_console?.property || searchConsolePropertyInput);
       setSearchConsoleServiceAccountInput('');
+      setClearSearchConsole(false);
       setMessage?.(data?.message || 'SEO automation settings saved.');
     } catch (nextError) {
       const message = nextError.message || 'Unable to save SEO automation settings';
@@ -229,8 +234,17 @@ function SeoAutomationAdmin({ token, setMessage }) {
             value={searchConsoleServiceAccountInput}
             onChange={(event) => setSearchConsoleServiceAccountInput(event.target.value)}
             placeholder={'Paste the full Google service account JSON here to set or replace it.\nLeave this box empty while saving if you want to keep the existing secret.'}
+            disabled={clearSearchConsole}
           />
         </div>
+        <label className="checkout-note" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            type="checkbox"
+            checked={clearSearchConsole}
+            onChange={(event) => setClearSearchConsole(event.target.checked)}
+          />
+          Clear the stored Search Console property and service account on save
+        </label>
         <button className="btn btn-sm btn-secondary" onClick={handleSaveSettings} disabled={savingSettings}>
           {savingSettings ? 'Saving...' : 'Save SEO settings'}
         </button>
@@ -254,6 +268,11 @@ function SeoAutomationAdmin({ token, setMessage }) {
                     ? `Using ${snapshot?.search_console?.query_count || 0} Search Console query rows from ${snapshot?.search_console?.property || 'your property'}`
                     : snapshot?.search_console?.error || 'Add a property and service account to stop depending on Google result-page scraping.'}
                 </p>
+                {snapshot?.search_console?.service_account_email ? (
+                  <p style={{ marginTop: 6 }}>
+                    Service account: <code>{snapshot.search_console.service_account_email}</code>
+                  </p>
+                ) : null}
               </div>
               <code>
                 {snapshot?.search_console?.checked_at
