@@ -4968,6 +4968,16 @@ const buildSharePreviewImageUrl = (productId, imageIndex = 0) => (
   `${publicServerBaseUrl}/merchant-feed/images/${encodeURIComponent(String(productId))}/${encodeURIComponent(String(imageIndex))}.jpg`
 );
 
+const buildShareMetaImageUrl = (value = '', product = {}) => {
+  const raw = String(value || '').trim();
+  if (!raw) return `${publicStorefrontUrl}${buildShareFallbackImagePath(product)}`;
+  if (/^https?:\/\//i.test(raw)) {
+    return `${publicServerBaseUrl}/api/media/proxy?url=${encodeURIComponent(raw)}&format=jpg&q=90`;
+  }
+  if (raw.startsWith('/')) return `${publicStorefrontUrl}${raw}`;
+  return `${publicStorefrontUrl}${buildShareFallbackImagePath(product)}`;
+};
+
 const shareImageAllowedHosts = (() => {
   const hosts = new Set();
   [
@@ -5048,9 +5058,7 @@ app.get('/share/product/:id', async (req, res) => {
     );
     const gallery = buildShareProductGallery(product, imageRows);
     const primaryImage = gallery[0] || `${publicStorefrontUrl}/camigo-logo.svg`;
-    const sharePreviewImage = gallery.length
-      ? buildSharePreviewImageUrl(productId, 0)
-      : `${publicStorefrontUrl}/camigo-logo.svg`;
+    const sharePreviewImage = buildShareMetaImageUrl(gallery[0], product);
     const sellingPrice = Math.round(Number(product.price || 0));
     const mrp = Math.round(Number(product.mrp || 0));
     const discount = Number(product.discount_percent) > 0
