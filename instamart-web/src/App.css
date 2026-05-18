@@ -2668,6 +2668,25 @@
   font-weight: 800;
 }
 
+.banner-resolution-hint {
+  display: grid;
+  gap: 8px;
+}
+
+.banner-resolution-chip {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: #eef6ff;
+  border: 1px solid #cfe0ff;
+  color: #123c88;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .category-admin-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

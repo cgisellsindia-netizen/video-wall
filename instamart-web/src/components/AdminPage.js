@@ -267,6 +267,49 @@ function AdminPage({ user, authReady, pageContent, onPageContentSaved }) {
     }, 50);
   };
 
+  const readImageResolution = (imageUrl) => new Promise((resolve, reject) => {
+    const src = String(imageUrl || '').trim();
+    if (!src) {
+      reject(new Error('Banner image is empty.'));
+      return;
+    }
+    const image = new window.Image();
+    image.onload = () => {
+      const width = Number(image.naturalWidth || image.width || 0);
+      const height = Number(image.naturalHeight || image.height || 0);
+      if (!width || !height) {
+        reject(new Error('Could not read image size.'));
+        return;
+      }
+      resolve({ width, height });
+    };
+    image.onerror = () => reject(new Error('Could not read image size.'));
+    image.src = src;
+  });
+
+  const detectBannerResolution = async (imageUrl, { announce = true } = {}) => {
+    const src = String(imageUrl || '').trim();
+    if (!src) return null;
+    try {
+      const dimensions = await readImageResolution(src);
+      setBannerForm(prev => ({
+        ...prev,
+        image_url: src,
+        width: String(dimensions.width),
+        height: String(dimensions.height)
+      }));
+      if (announce) {
+        setMessage(`Banner resolution detected automatically: ${dimensions.width} x ${dimensions.height}px`);
+      }
+      return dimensions;
+    } catch (error) {
+      if (announce) {
+        setMessage('Banner image loaded, but resolution could not be detected automatically. You can still save it.');
+      }
+      return null;
+    }
+  };
+
   const buildProductPayload = (productLike) => ({
     name: productLike.name,
     description: productLike.description,
@@ -599,10 +642,12 @@ function AdminPage({ user, authReady, pageContent, onPageContentSaved }) {
     setBannerUploadBusy(true);
     setMessage(`Reading banner file: ${file.name}`);
     const reader = new FileReader();
-    reader.onload = () => {
-      setBannerForm(prev => ({ ...prev, image_url: reader.result }));
+    reader.onload = async () => {
+      const imageUrl = String(reader.result || '');
+      setBannerForm(prev => ({ ...prev, image_url: imageUrl }));
+      await detectBannerResolution(imageUrl, { announce: false });
       setBannerUploadBusy(false);
-      setMessage(`Banner file loaded: ${file.name}`);
+      setMessage(`Banner file loaded and resolution detected: ${file.name}`);
     };
     reader.onerror = () => {
       setBannerUploadBusy(false);
@@ -668,12 +713,12 @@ function AdminPage({ user, authReady, pageContent, onPageContentSaved }) {
     loadMediaLibrary(mediaBrowser.dir || '/', mode);
   };
 
-  const chooseInfinityImage = (url) => {
+  const chooseInfinityImage = async (url) => {
     const imageUrl = String(url || '').trim();
     if (!imageUrl) return;
     if (mediaBrowser.mode === 'banner') {
-      setBannerForm(prev => ({ ...prev, image_url: imageUrl }));
-      setMessage('InfinityFree image selected as category banner.');
+      await detectBannerResolution(imageUrl, { announce: false });
+      setMessage('InfinityFree image selected and banner resolution detected automatically.');
       return;
     }
     if (String(mediaBrowser.mode || '').startsWith('setup:')) {
@@ -734,12 +779,20 @@ function AdminPage({ user, authReady, pageContent, onPageContentSaved }) {
       setMessage('Please choose a banner file or paste a banner image URL first.');
       return;
     }
+    let resolvedWidth = parseInt(bannerForm.width, 10);
+    let resolvedHeight = parseInt(bannerForm.height, 10);
+    if (!Number.isFinite(resolvedWidth) || resolvedWidth <= 0 || !Number.isFinite(resolvedHeight) || resolvedHeight <= 0) {
+      const detected = await readImageResolution(bannerForm.image_url).catch(() => null);
+      resolvedWidth = Number(detected?.width || 1200);
+      resolvedHeight = Number(detected?.height || 320);
+      setBannerForm(prev => ({ ...prev, width: String(resolvedWidth), height: String(resolvedHeight) }));
+    }
     const token = localStorage.getItem('token');
     const body = {
       ...bannerForm,
       category_id: parseInt(bannerForm.category_id, 10),
-      width: parseInt(bannerForm.width, 10),
-      height: parseInt(bannerForm.height, 10),
+      width: resolvedWidth,
+      height: resolvedHeight,
       sort_order: parseInt(bannerForm.sort_order, 10) || 0,
       active: Boolean(bannerForm.active)
     };
@@ -2064,7 +2117,7 @@ function AdminPage({ user, authReady, pageContent, onPageContentSaved }) {
           <div className="card" id="banner-form-card" style={{ marginBottom: '18px' }}>
             <h3 style={{ marginTop: 0 }}>{editBanner ? 'Edit category banner' : 'Add category banner'}</h3>
             <p className="checkout-note" style={{ marginTop: 0 }}>
-              Recommended mobile-wide banner size: <strong>1200 x 320 px</strong>. Keep banners low in height and wide in width for best mobile fit.
+              Upload or paste a banner image and Camigo will detect its resolution automatically. Recommended mobile-wide banner shape is still <strong>1200 x 320 px</strong>.
             </p>
             <form className="admin-product-form" onSubmit={handleSaveBanner}>
               <div className="form-group">
@@ -2074,7 +2127,15 @@ function AdminPage({ user, authReady, pageContent, onPageContentSaved }) {
                   {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
                 </select>
               </div>
-              <div className="form-group"><label>Banner Image URL / Data</label><input value={bannerForm.image_url} onChange={e => setBannerForm(prev => ({ ...prev, image_url: e.target.value }))} required /></div>
+              <div className="form-group">
+                <label>Banner Image URL / Data</label>
+                <input
+                  value={bannerForm.image_url}
+                  onChange={e => setBannerForm(prev => ({ ...prev, image_url: e.target.value }))}
+                  onBlur={e => detectBannerResolution(e.target.value, { announce: false })}
+                  required
+                />
+              </div>
               <div className="form-group"><label>Upload Banner</label><input type="file" accept="image/*" onChange={e => handleBannerImageFile(e.target.files?.[0])} /></div>
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                 <label>InfinityFree banner library</label>
@@ -2132,10 +2193,24 @@ function AdminPage({ user, authReady, pageContent, onPageContentSaved }) {
                   )}
                 </div>
               )}
-              <div className="form-group"><label>Banner Width (px)</label><input type="number" value={bannerForm.width} onChange={e => setBannerForm(prev => ({ ...prev, width: e.target.value }))} required /></div>
-              <div className="form-group"><label>Banner Height (px)</label><input type="number" value={bannerForm.height} onChange={e => setBannerForm(prev => ({ ...prev, height: e.target.value }))} required /></div>
+              <div className="form-group">
+                <label>Auto Width (px)</label>
+                <input type="number" value={bannerForm.width} onChange={e => setBannerForm(prev => ({ ...prev, width: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label>Auto Height (px)</label>
+                <input type="number" value={bannerForm.height} onChange={e => setBannerForm(prev => ({ ...prev, height: e.target.value }))} />
+              </div>
               <div className="form-group"><label>Order</label><input type="number" value={bannerForm.sort_order} onChange={e => setBannerForm(prev => ({ ...prev, sort_order: e.target.value }))} /></div>
               <div className="form-group"><label>Active</label><select value={bannerForm.active ? '1' : '0'} onChange={e => setBannerForm(prev => ({ ...prev, active: e.target.value === '1' }))}><option value="1">Active</option><option value="0">Inactive</option></select></div>
+              <div className="form-group banner-resolution-hint" style={{ gridColumn: '1 / -1' }}>
+                <label>Auto Resolution</label>
+                <div className="banner-resolution-chip">
+                  {Number(bannerForm.width) > 0 && Number(bannerForm.height) > 0
+                    ? `${bannerForm.width} x ${bannerForm.height}px detected`
+                    : 'Resolution will fill automatically after image load'}
+                </div>
+              </div>
               <div className="admin-image-preview">
                 <span>Banner preview</span>
                     <ProductImage src={bannerForm.image_url || '/images/cgi-hd3e.jpg'} alt="Banner preview" style={{ objectFit: 'cover', aspectRatio: `${Number(bannerForm.width) || 1200} / ${Number(bannerForm.height) || 320}` }} />
