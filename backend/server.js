@@ -4968,6 +4968,26 @@ const buildSharePreviewImageUrl = (productId, imageIndex = 0) => (
   `${publicServerBaseUrl}/merchant-feed/images/${encodeURIComponent(String(productId))}/${encodeURIComponent(String(imageIndex))}.jpg`
 );
 
+const shareImageAllowedHosts = (() => {
+  const hosts = new Set();
+  [
+    publicStorefrontUrl,
+    publicServerBaseUrl,
+    MEDIA_LIBRARY_PUBLIC_BASE,
+    ...MEDIA_LIBRARY_LEGACY_PUBLIC_BASES
+  ]
+    .filter(Boolean)
+    .forEach((value) => {
+      try {
+        hosts.add(new URL(value).hostname);
+      } catch (error) {
+        // Ignore invalid host strings.
+      }
+    });
+  hosts.add('camigo.ct.ws');
+  return hosts;
+})();
+
 const buildShareFallbackImagePath = (product = {}) => {
   const haystack = normalizeSeoKeyword([
     product?.name,
@@ -4995,13 +5015,7 @@ const resolveShareSourceImageUrl = (value = '', product = {}) => {
 
 const assertShareImageHostAllowed = (imageUrl = '') => {
   const parsed = new URL(imageUrl);
-  const allowedHosts = new Set([
-    'camigo.ct.ws',
-    'getcamigo.in',
-    'www.getcamigo.in',
-    'camigo-store.onrender.com'
-  ]);
-  if (!allowedHosts.has(parsed.hostname)) {
+  if (!shareImageAllowedHosts.has(parsed.hostname)) {
     throw new Error(`Merchant image host not allowed: ${parsed.hostname}`);
   }
   return parsed;
@@ -5138,7 +5152,7 @@ app.get('/merchant-feed/images/:productId/:imageIndex.jpg', async (req, res) => 
       type: 'merchant-feed-image',
       productId,
       imageIndex,
-      format: 'jpg-v1'
+      format: 'jpg-v2'
     });
     const cached = readMediaProxyCache(cacheKey);
     if (cached) {
