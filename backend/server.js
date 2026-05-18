@@ -4968,6 +4968,45 @@ const buildSharePreviewImageUrl = (productId, imageIndex = 0) => (
   `${publicServerBaseUrl}/merchant-feed/images/${encodeURIComponent(String(productId))}/${encodeURIComponent(String(imageIndex))}.jpg`
 );
 
+const buildShareFallbackImagePath = (product = {}) => {
+  const haystack = normalizeSeoKeyword([
+    product?.name,
+    product?.description,
+    product?.category_name
+  ].filter(Boolean).join(' '));
+  if (/bullet/.test(haystack)) return '/images/cgi-hb3e.jpg';
+  if (/dome/.test(haystack)) return '/images/cgi-hd3e.jpg';
+  if (/ptz/.test(haystack)) return '/images/cgi-ptz4g.jpg';
+  if (/nvr/.test(haystack)) return '/images/cgi-nvr8.jpg';
+  if (/dvr/.test(haystack)) return '/images/cgi-dvr8.jpg';
+  if (/poe/.test(haystack)) return '/images/cgi-poe8.jpg';
+  if (/smps|power supply/.test(haystack)) return '/images/cgi-smps4.jpg';
+  if (/accessor|cat6|cable|connector/.test(haystack)) return '/images/cgi-accessory-box.jpg';
+  return '/images/cgi-hd3e.jpg';
+};
+
+const resolveShareSourceImageUrl = (value = '', product = {}) => {
+  const raw = String(value || '').trim();
+  if (!raw) return `${publicStorefrontUrl}${buildShareFallbackImagePath(product)}`;
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+  if (raw.startsWith('/')) return `${publicStorefrontUrl}${raw}`;
+  return `${publicStorefrontUrl}${buildShareFallbackImagePath(product)}`;
+};
+
+const assertShareImageHostAllowed = (imageUrl = '') => {
+  const parsed = new URL(imageUrl);
+  const allowedHosts = new Set([
+    'camigo.ct.ws',
+    'getcamigo.in',
+    'www.getcamigo.in',
+    'camigo-store.onrender.com'
+  ]);
+  if (!allowedHosts.has(parsed.hostname)) {
+    throw new Error(`Merchant image host not allowed: ${parsed.hostname}`);
+  }
+  return parsed;
+};
+
 app.get('/share/product/:id', async (req, res) => {
   try {
     const productId = Number(req.params.id);
@@ -5120,13 +5159,19 @@ app.get('/merchant-feed/images/:productId/:imageIndex.jpg', async (req, res) => 
     );
     const gallery = buildShareProductGallery(product, rows);
     const rawImageUrl = gallery[imageIndex] || gallery[0];
-    const sourceImageUrl = resolveMerchantSourceImageUrl(rawImageUrl);
-    if (!sourceImageUrl) {
-      return res.status(404).json({ error: 'Image not found' });
+    let sourceImageUrl = resolveShareSourceImageUrl(rawImageUrl, product);
+    let upstream;
+    try {
+      assertShareImageHostAllowed(sourceImageUrl);
+      upstream = await fetch(sourceImageUrl, { redirect: 'follow' });
+    } catch (error) {
+      upstream = null;
     }
-
-    assertMerchantImageHostAllowed(sourceImageUrl);
-    const upstream = await fetch(sourceImageUrl, { redirect: 'follow' });
+    if (!upstream?.ok) {
+      sourceImageUrl = `${publicStorefrontUrl}${buildShareFallbackImagePath(product)}`;
+      assertShareImageHostAllowed(sourceImageUrl);
+      upstream = await fetch(sourceImageUrl, { redirect: 'follow' });
+    }
     if (!upstream.ok) {
       return res.status(404).json({ error: 'Source image unavailable' });
     }
