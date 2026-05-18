@@ -4954,6 +4954,20 @@ app.get('/api/products/:id', (req, res) => {
   });
 });
 
+const buildShareProductGallery = (product = {}, imageRows = []) => {
+  const merged = [
+    ...imageRows.map((row) => row?.image_url),
+    product?.image
+  ]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  return merged.filter((value, index) => merged.indexOf(value) === index);
+};
+
+const buildSharePreviewImageUrl = (productId, imageIndex = 0) => (
+  `${publicServerBaseUrl}/merchant-feed/images/${encodeURIComponent(String(productId))}/${encodeURIComponent(String(imageIndex))}.jpg`
+);
+
 app.get('/share/product/:id', async (req, res) => {
   try {
     const productId = Number(req.params.id);
@@ -4979,13 +4993,10 @@ app.get('/share/product/:id', async (req, res) => {
        ORDER BY sort_order ASC, id ASC`,
       [productId]
     );
-    const grouped = {
-      [productId]: imageRows.map((row) => row.image_url)
-    };
-    const gallery = buildProductGallery(product, grouped);
+    const gallery = buildShareProductGallery(product, imageRows);
     const primaryImage = gallery[0] || `${publicStorefrontUrl}/camigo-logo.svg`;
     const sharePreviewImage = gallery.length
-      ? merchantFeedImageUrl(productId, 0)
+      ? buildSharePreviewImageUrl(productId, 0)
       : `${publicStorefrontUrl}/camigo-logo.svg`;
     const sellingPrice = Math.round(Number(product.price || 0));
     const mrp = Math.round(Number(product.mrp || 0));
@@ -4994,7 +5005,7 @@ app.get('/share/product/:id', async (req, res) => {
       : mrp > sellingPrice && mrp > 0
         ? Math.max(0, Math.round((1 - (sellingPrice / mrp)) * 100))
         : 0;
-    const shareUrl = `${publicStorefrontUrl}/share/product/${productId}`;
+    const shareUrl = `${publicServerBaseUrl}/share/product/${productId}`;
     const productUrl = `${publicStorefrontUrl}/product/${productId}`;
     const descriptionBits = [
       `Buy ${product.name} on Camigo for Rs ${sellingPrice}.`,
@@ -5068,6 +5079,7 @@ app.get('/share/product/:id', async (req, res) => {
 </body>
 </html>`);
   } catch (error) {
+    console.error('Product share page failed:', error);
     res.status(500).send('Unable to build product share page');
   }
 });
@@ -5106,10 +5118,7 @@ app.get('/merchant-feed/images/:productId/:imageIndex.jpg', async (req, res) => 
        ORDER BY sort_order ASC, id ASC`,
       [productId]
     );
-    const grouped = {
-      [productId]: rows.map((row) => row.image_url)
-    };
-    const gallery = buildProductGallery(product, grouped);
+    const gallery = buildShareProductGallery(product, rows);
     const rawImageUrl = gallery[imageIndex] || gallery[0];
     const sourceImageUrl = resolveMerchantSourceImageUrl(rawImageUrl);
     if (!sourceImageUrl) {

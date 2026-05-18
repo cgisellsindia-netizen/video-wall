@@ -59,7 +59,14 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
   const [shareFeedback, setShareFeedback] = useState('');
 
   const siteUrl = 'https://getcamigo.in';
-  const shareUrl = product ? `${siteUrl}/share/product/${productId}` : '';
+  const shareBaseUrl = (() => {
+    try {
+      return new URL(API_URL).origin;
+    } catch (error) {
+      return 'https://camigo-store.onrender.com';
+    }
+  })();
+  const shareUrl = product ? `${shareBaseUrl}/share/product/${productId}` : '';
   const sharePrice = Math.round(Number(priceForRole ? priceForRole(product || {}, user) : product?.price || 0));
   const shareText = product
     ? `${product.name} on Camigo for Rs ${sharePrice}. Fast CCTV delivery and support.`
