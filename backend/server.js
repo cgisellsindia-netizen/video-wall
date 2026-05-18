@@ -4984,6 +4984,9 @@ app.get('/share/product/:id', async (req, res) => {
     };
     const gallery = buildProductGallery(product, grouped);
     const primaryImage = gallery[0] || `${publicStorefrontUrl}/camigo-logo.svg`;
+    const sharePreviewImage = gallery.length
+      ? merchantFeedImageUrl(productId, 0)
+      : `${publicStorefrontUrl}/camigo-logo.svg`;
     const sellingPrice = Math.round(Number(product.price || 0));
     const mrp = Math.round(Number(product.mrp || 0));
     const discount = Number(product.discount_percent) > 0
@@ -5018,13 +5021,19 @@ app.get('/share/product/:id', async (req, res) => {
   <meta property="og:title" content="${escapeHtml(title)}" />
   <meta property="og:description" content="${escapeHtml(metaDescription)}" />
   <meta property="og:url" content="${escapeHtml(shareUrl)}" />
-  <meta property="og:image" content="${escapeHtml(primaryImage)}" />
+  <meta property="og:image" content="${escapeHtml(sharePreviewImage)}" />
+  <meta property="og:image:secure_url" content="${escapeHtml(sharePreviewImage)}" />
+  <meta property="og:image:type" content="image/jpeg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="1200" />
+  <meta property="og:image:alt" content="${escapeHtml(product.name)}" />
   <meta property="product:price:amount" content="${escapeHtml(String(sellingPrice))}" />
   <meta property="product:price:currency" content="INR" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${escapeHtml(title)}" />
   <meta name="twitter:description" content="${escapeHtml(metaDescription)}" />
-  <meta name="twitter:image" content="${escapeHtml(primaryImage)}" />
+  <meta name="twitter:image" content="${escapeHtml(sharePreviewImage)}" />
+  <meta name="twitter:url" content="${escapeHtml(shareUrl)}" />
   <meta http-equiv="refresh" content="1; url=${escapeHtml(productUrl)}" />
   <style>
     body{margin:0;font-family:Arial,sans-serif;background:#082a63;color:#fff;display:grid;place-items:center;min-height:100vh;padding:24px;box-sizing:border-box}
