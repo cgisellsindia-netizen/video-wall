@@ -448,86 +448,83 @@ function MainPage({
         )}
         {!searchQuery && (
           <section className="category-section">
-            <div className="seo-link-hub">
-              <div className="section-header">
-                <h2 className="section-title">{homepageGeneratedHeading || 'Explore Camigo Categories and Products'}</h2>
-              </div>
-              <p className="seo-link-hub-copy">
-                {homepageGeneratedParagraph || 'Browse priority CCTV categories and product pages directly from the homepage for faster discovery by customers and search engines.'}
-              </p>
-              <div className="seo-link-hub-grid">
-                <div className="seo-link-group">
-                  <h3>Popular Categories</h3>
-                  <div className="seo-link-list">
-                    {featuredHomepageCategories.map((category) => (
-                      <Link key={category.id} to={`/category/${category.id}`} className="seo-link-chip">
-                        {category.name}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-                <div className="seo-link-group">
-                  <h3>Featured Product Pages</h3>
-                  <div className="seo-link-list">
-                    {featuredHomepageProducts.map((product) => (
-                      <Link key={product.id} to={`/product/${product.id}`} className="seo-link-chip subtle">
-                        {product.name}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-                <div className="seo-link-group">
-                  <h3>Why Camigo matters for search and buyers</h3>
-                  <p className="seo-link-group-copy">
-                    Camigo is not just a generic catalog. It is a Bhubaneswar-focused CCTV buying and installation support brand with local product pages, category pages, setup packages, and Odisha-ready delivery coverage.
+            <details className="seo-link-hub seo-home-disclosure">
+              <summary className="seo-home-disclosure-summary">
+                <div className="seo-home-disclosure-copy">
+                  <span className="seo-home-disclosure-eyebrow">Camigo SEO hub</span>
+                  <h2 className="section-title seo-home-disclosure-title">
+                    {homepageGeneratedHeading || 'CCTV Cameras and Installation in Bhubaneswar and Odisha'}
+                  </h2>
+                  <p className="seo-home-disclosure-caption">
+                    Hidden from the main home flow by default. Open only when you want the search links and brand SEO copy.
                   </p>
-                  <div className="seo-link-list">
-                    <Link to="/about-camigo" className="seo-link-chip subtle">About Camigo</Link>
-                    <Link to="/cctv-camera-bhubaneswar" className="seo-link-chip subtle">CCTV Camera Bhubaneswar</Link>
-                    <Link to="/cctv-installation-bhubaneswar" className="seo-link-chip subtle">CCTV Installation Bhubaneswar</Link>
-                    <Link to="/security-camera-odisha" className="seo-link-chip subtle">Security Camera Odisha</Link>
+                </div>
+              </summary>
+              <div className="seo-home-disclosure-body">
+                <p className="seo-link-hub-copy">
+                  {homepageGeneratedParagraph || `Camigo serves customers searching for CCTV cameras in Bhubaneswar,
+                  CCTV installation in Bhubaneswar, security camera installation in Odisha, IP camera dealers,
+                  PTZ camera suppliers, DVR and NVR dealers, and complete CCTV setup packages for homes,
+                  offices, shops, apartments, and warehouses.`}
+                </p>
+                <div className="seo-link-hub-grid">
+                  <div className="seo-link-group">
+                    <h3>Popular Categories</h3>
+                    <div className="seo-link-list">
+                      {featuredHomepageCategories.map((category) => (
+                        <Link key={category.id} to={`/category/${category.id}`} className="seo-link-chip">
+                          {category.name}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="seo-link-group">
+                    <h3>Featured Product Pages</h3>
+                    <div className="seo-link-list">
+                      {featuredHomepageProducts.map((product) => (
+                        <Link key={product.id} to={`/product/${product.id}`} className="seo-link-chip subtle">
+                          {product.name}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="seo-link-group">
+                    <h3>Why Camigo matters for search and buyers</h3>
+                    <p className="seo-link-group-copy">
+                      Camigo is a Bhubaneswar-focused CCTV buying and installation support brand with local product pages,
+                      category pages, setup packages, and Odisha-ready delivery coverage.
+                    </p>
+                    <div className="seo-link-list">
+                      <Link to="/about-camigo" className="seo-link-chip subtle">About Camigo</Link>
+                      <Link to="/cctv-camera-bhubaneswar" className="seo-link-chip subtle">CCTV Camera Bhubaneswar</Link>
+                      <Link to="/cctv-installation-bhubaneswar" className="seo-link-chip subtle">CCTV Installation Bhubaneswar</Link>
+                      <Link to="/security-camera-odisha" className="seo-link-chip subtle">Security Camera Odisha</Link>
+                    </div>
+                  </div>
+                  <div className="seo-link-group">
+                    <h3>High-priority search targets</h3>
+                    <div className="local-seo-topic-list">
+                      {homepageKeywordFocus.slice(0, 6).map((keyword) => (
+                        <Link key={keyword} to={`/shop?search=${encodeURIComponent(keyword)}`} className="seo-link-chip">
+                          {keyword}
+                        </Link>
+                      ))}
+                      {localSeoTopics.map((topic) => (
+                        <Link key={topic.label} to={topic.to} className="seo-link-chip subtle">{topic.label}</Link>
+                      ))}
+                      {[
+                        'Camigo CCTV Bhubaneswar',
+                        'Camigo CCTV camera Odisha',
+                        'Camigo installation support Bhubaneswar',
+                        'Camigo security camera shop'
+                      ].map((term) => (
+                        <span key={term} className="seo-link-chip subtle">{term}</span>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div className="seo-link-group">
-                  <h3>High-priority brand searches we want to win</h3>
-                  <div className="local-seo-topic-list">
-                    {[
-                      'Camigo CCTV Bhubaneswar',
-                      'Camigo CCTV camera Odisha',
-                      'Camigo installation support Bhubaneswar',
-                      'Camigo security camera shop'
-                    ].map((term) => (
-                      <span key={term} className="seo-link-chip subtle">{term}</span>
-                    ))}
-                  </div>
-                </div>
               </div>
-            </div>
-          </section>
-        )}
-        {!searchQuery && (
-          <section className="category-section">
-            <div className="seo-link-hub local-seo-hub">
-              <div className="section-header">
-                <h2 className="section-title">{homepageGeneratedHeading || 'CCTV Cameras and Installation in Bhubaneswar and Odisha'}</h2>
-              </div>
-              <p className="seo-link-hub-copy">
-                {homepageGeneratedParagraph || `Camigo serves customers searching for CCTV cameras in Bhubaneswar,
-                CCTV installation in Bhubaneswar, security camera installation in Odisha, IP camera dealers,
-                PTZ camera suppliers, DVR and NVR dealers, and complete CCTV setup packages for homes,
-                offices, shops, apartments, and warehouses.`}
-              </p>
-              <div className="local-seo-topic-list">
-                {homepageKeywordFocus.slice(0, 6).map((keyword) => (
-                  <Link key={keyword} to={`/shop?search=${encodeURIComponent(keyword)}`} className="seo-link-chip">
-                    {keyword}
-                  </Link>
-                ))}
-                {localSeoTopics.map((topic) => (
-                  <Link key={topic.label} to={topic.to} className="seo-link-chip subtle">{topic.label}</Link>
-                ))}
-              </div>
-            </div>
+            </details>
           </section>
         )}
         {!searchQuery && <SeoSignalBlock snapshot={seoAutomationSnapshot} />}
