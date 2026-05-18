@@ -56,10 +56,23 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
   ), [product?.description]);
   const categoryName = product?.category_name || listProduct?.category_name || 'Category';
   const categoryId = Number(product?.category_id || listProduct?.category_id || 0);
+  const [shareFeedback, setShareFeedback] = useState('');
+
+  const siteUrl = 'https://getcamigo.in';
+  const shareUrl = product ? `${siteUrl}/share/product/${productId}` : '';
+  const sharePrice = Math.round(Number(priceForRole ? priceForRole(product || {}, user) : product?.price || 0));
+  const shareText = product
+    ? `${product.name} on Camigo for Rs ${sharePrice}. Fast CCTV delivery and support.`
+    : '';
+
+  useEffect(() => {
+    if (!shareFeedback) return undefined;
+    const timeoutId = window.setTimeout(() => setShareFeedback(''), 2400);
+    return () => window.clearTimeout(timeoutId);
+  }, [shareFeedback]);
 
   useEffect(() => {
     if (!product) return undefined;
-    const siteUrl = 'https://getcamigo.in';
     const currentUrl = `${siteUrl}/product/${productId}`;
     const title = `${product.name} | Camigo`;
     const description = String(product.description || 'Buy CCTV products from Camigo with fast dispatch and installation support.').slice(0, 160);
@@ -166,7 +179,38 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
       ensureMeta('meta[property="og:image"]', 'content', previousOgImage);
       schemaNode.remove();
     };
-  }, [gallery, product, productId]);
+  }, [gallery, product, productId, siteUrl]);
+
+  const handleShare = async () => {
+    if (!product || !shareUrl) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `${product.name} | Camigo`,
+          text: shareText,
+          url: shareUrl
+        });
+        setShareFeedback('Shared');
+        return;
+      }
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        setShareFeedback('Share link copied');
+        return;
+      }
+      window.prompt('Copy this product link', shareUrl);
+    } catch (error) {
+      if (error?.name !== 'AbortError') {
+        setShareFeedback('Share failed');
+      }
+    }
+  };
+
+  const handleWhatsAppShare = () => {
+    if (!product || !shareUrl) return;
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${shareText}\n${shareUrl}`)}`;
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+  };
 
   if (loading) {
     return <div className="container" style={{ padding: '48px 16px' }}><h2 className="section-title">Loading product...</h2></div>;
@@ -213,6 +257,9 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
         priceForRole={priceForRole}
         savedProductIds={savedProductIds}
         onToggleSaved={onToggleSaved}
+        onShare={handleShare}
+        onWhatsAppShare={handleWhatsAppShare}
+        shareFeedback={shareFeedback}
       />
     </div>
   );

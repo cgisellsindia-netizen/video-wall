@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, BadgeCheck, Clock3, Heart, Minus, Package2, Plus, ShoppingCart, ShieldCheck, Sparkles, Star, Truck, Zap } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Clock3, Heart, MessageCircle, Minus, Package2, Plus, Share2, ShoppingCart, ShieldCheck, Sparkles, Star, Truck, Zap } from 'lucide-react';
 import HeroBanner from './HeroBanner';
 import CategoryGrid from './CategoryGrid';
 import SetupPackagesSection from './SetupPackagesSection';
@@ -197,7 +197,10 @@ function ProductHeroBlock({
   onRemove,
   cartItem,
   onLogin,
-  navigate
+  navigate,
+  onShare,
+  onWhatsAppShare,
+  shareFeedback
 }) {
   const featureList = String(product?.description || '').split(',').map((item) => item.trim()).filter(Boolean).slice(0, 6);
   const discount = Number(product.discount_percent) > 0
@@ -336,6 +339,15 @@ function ProductHeroBlock({
                 <Heart size={18} fill={isSaved ? 'currentColor' : 'none'} /> {isSaved ? 'Saved for later' : 'Save for later'}
               </button>
             )}
+            <div className="product-share-row">
+              <button className="product-secondary-action share-action" type="button" onClick={onShare}>
+                <Share2 size={18} /> Share
+              </button>
+              <button className="product-secondary-action whatsapp-share-action" type="button" onClick={onWhatsAppShare}>
+                <MessageCircle size={18} /> WhatsApp
+              </button>
+            </div>
+            {shareFeedback ? <div className="product-share-feedback">{shareFeedback}</div> : null}
             {isOutOfStock ? (
               <button className="add-btn-large sold-out-detail-btn" type="button" disabled aria-disabled="true">
                 <ShoppingCart size={20} /> Sold out
@@ -380,7 +392,10 @@ export function ProductPageBlocks({
   cartItems,
   priceForRole,
   savedProductIds,
-  onToggleSaved
+  onToggleSaved,
+  onShare,
+  onWhatsAppShare,
+  shareFeedback
 }) {
   const navigate = useNavigate();
   const cartItem = cartItems.find((item) => Number(item.product_id || item.id) === Number(product.id));
@@ -417,6 +432,9 @@ export function ProductPageBlocks({
               cartItem={cartItem}
               onLogin={onLogin}
               navigate={navigate}
+              onShare={onShare}
+              onWhatsAppShare={onWhatsAppShare}
+              shareFeedback={shareFeedback}
             />
           );
         }

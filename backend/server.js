@@ -4954,6 +4954,115 @@ app.get('/api/products/:id', (req, res) => {
   });
 });
 
+app.get('/share/product/:id', async (req, res) => {
+  try {
+    const productId = Number(req.params.id);
+    if (!Number.isFinite(productId) || productId <= 0) {
+      return res.status(400).send('Invalid product id');
+    }
+
+    const product = await dbGetAsync(
+      `SELECT p.*, c.name as category_name
+       FROM products p
+       LEFT JOIN categories c ON p.category_id = c.id
+       WHERE p.id = ?`,
+      [productId]
+    );
+    if (!product) {
+      return res.status(404).send('Product not found');
+    }
+
+    const imageRows = await dbAllAsync(
+      `SELECT image_url
+       FROM product_images
+       WHERE product_id = ?
+       ORDER BY sort_order ASC, id ASC`,
+      [productId]
+    );
+    const grouped = {
+      [productId]: imageRows.map((row) => row.image_url)
+    };
+    const gallery = buildProductGallery(product, grouped);
+    const primaryImage = gallery[0] || `${publicStorefrontUrl}/camigo-logo.svg`;
+    const sellingPrice = Math.round(Number(product.price || 0));
+    const mrp = Math.round(Number(product.mrp || 0));
+    const discount = Number(product.discount_percent) > 0
+      ? Math.round(Number(product.discount_percent))
+      : mrp > sellingPrice && mrp > 0
+        ? Math.max(0, Math.round((1 - (sellingPrice / mrp)) * 100))
+        : 0;
+    const shareUrl = `${publicStorefrontUrl}/share/product/${productId}`;
+    const productUrl = `${publicStorefrontUrl}/product/${productId}`;
+    const descriptionBits = [
+      `Buy ${product.name} on Camigo for Rs ${sellingPrice}.`,
+      product.category_name ? `${product.category_name}.` : '',
+      Number(product.stock || 0) > 0 ? 'In stock with fast dispatch.' : 'Currently sold out.',
+      discount > 0 ? `${discount}% off on Camigo.` : '',
+      'Open to view details and add to cart.'
+    ].filter(Boolean);
+    const metaDescription = descriptionBits.join(' ').replace(/\s+/g, ' ').trim().slice(0, 220);
+    const title = `${product.name} | Camigo`;
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
+    res.send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(metaDescription)}" />
+  <link rel="canonical" href="${escapeHtml(productUrl)}" />
+  <meta property="og:type" content="product" />
+  <meta property="og:site_name" content="Camigo" />
+  <meta property="og:title" content="${escapeHtml(title)}" />
+  <meta property="og:description" content="${escapeHtml(metaDescription)}" />
+  <meta property="og:url" content="${escapeHtml(shareUrl)}" />
+  <meta property="og:image" content="${escapeHtml(primaryImage)}" />
+  <meta property="product:price:amount" content="${escapeHtml(String(sellingPrice))}" />
+  <meta property="product:price:currency" content="INR" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${escapeHtml(title)}" />
+  <meta name="twitter:description" content="${escapeHtml(metaDescription)}" />
+  <meta name="twitter:image" content="${escapeHtml(primaryImage)}" />
+  <meta http-equiv="refresh" content="1; url=${escapeHtml(productUrl)}" />
+  <style>
+    body{margin:0;font-family:Arial,sans-serif;background:#082a63;color:#fff;display:grid;place-items:center;min-height:100vh;padding:24px;box-sizing:border-box}
+    .share-card{width:min(100%,640px);background:#fff;color:#0f172a;border-radius:28px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.26)}
+    .share-card img{display:block;width:100%;aspect-ratio:16/10;object-fit:contain;background:linear-gradient(180deg,#f8fbff,#edf5ff)}
+    .share-copy{padding:22px}
+    .share-chip{display:inline-block;padding:7px 12px;border-radius:999px;background:#eef5ff;color:#163a7a;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+    .share-copy h1{margin:12px 0 10px;font-size:30px;line-height:1.08}
+    .share-copy p{margin:0 0 14px;color:#475569;line-height:1.6}
+    .share-price{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 18px}
+    .share-price strong{font-size:28px;color:#082a63}
+    .share-price s{color:#94a3b8;font-weight:700}
+    .share-buy{display:inline-flex;align-items:center;justify-content:center;padding:14px 18px;border-radius:16px;background:#f6c400;color:#082a63;text-decoration:none;font-weight:900}
+  </style>
+</head>
+<body>
+  <div class="share-card">
+    <img src="${escapeHtml(primaryImage)}" alt="${escapeHtml(product.name)}" />
+    <div class="share-copy">
+      <span class="share-chip">${escapeHtml(product.category_name || 'Camigo product')}</span>
+      <h1>${escapeHtml(product.name)}</h1>
+      <p>${escapeHtml(metaDescription)}</p>
+      <div class="share-price">
+        <strong>Rs ${escapeHtml(String(sellingPrice))}</strong>
+        ${mrp > sellingPrice ? `<s>Rs ${escapeHtml(String(mrp))}</s>` : ''}
+        ${discount > 0 ? `<span class="share-chip">${escapeHtml(String(discount))}% OFF</span>` : ''}
+      </div>
+      <a class="share-buy" href="${escapeHtml(productUrl)}">View and add on Camigo</a>
+    </div>
+  </div>
+  <script>setTimeout(function(){window.location.replace(${JSON.stringify(productUrl)});}, 900);</script>
+</body>
+</html>`);
+  } catch (error) {
+    res.status(500).send('Unable to build product share page');
+  }
+});
+
 app.get('/merchant-feed/images/:productId/:imageIndex.jpg', async (req, res) => {
   try {
     const productId = Number(req.params.productId);
