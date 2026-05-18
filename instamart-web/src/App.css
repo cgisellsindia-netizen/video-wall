@@ -143,6 +143,12 @@
   font-size: 17px;
   font-weight: 800;
 }
+.seo-link-group-copy {
+  margin: 0 0 12px;
+  color: #5f7189;
+  font-size: 14px;
+  line-height: 1.6;
+}
 .seo-link-list {
   display: flex;
   flex-wrap: wrap;

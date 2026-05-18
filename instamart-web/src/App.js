@@ -323,10 +323,10 @@ function MainPage({
   const homepageGeneratedHeading = seoAutomationSnapshot?.generated_copy?.homepage_heading || 'CCTV Camera in Bhubaneswar and Odisha';
   const homepageGeneratedParagraph = seoAutomationSnapshot?.generated_copy?.homepage_paragraph || '';
   const homepageTitle = homepageKeywordFocus.length
-    ? `${homepageKeywordFocus.slice(0, 2).join(' | ')} | Camigo`
-    : 'CCTV Camera in Bhubaneswar | CCTV Installation in Odisha | Camigo';
+    ? `Camigo | ${homepageKeywordFocus.slice(0, 2).join(' | ')}`
+    : 'Camigo | CCTV Camera in Bhubaneswar | CCTV Installation in Odisha';
   const homepageDescription = homepageGeneratedParagraph
-    || 'Buy CCTV cameras in Bhubaneswar and Odisha with Camigo. Shop IP cameras, dome cameras, bullet cameras, PTZ cameras, DVRs, NVRs, PoE switches, and get CCTV installation support in Bhubaneswar.';
+    || 'Camigo is a Bhubaneswar CCTV shopping and installation support brand. Buy CCTV cameras, IP cameras, dome cameras, bullet cameras, PTZ cameras, DVRs, NVRs, PoE switches, and setup support across Bhubaneswar and Odisha.';
 
   usePageSeo({
     title: homepageTitle,
@@ -389,6 +389,13 @@ function MainPage({
             postalCode: '751024',
             addressCountry: 'IN'
           }
+        },
+        {
+          '@type': 'Organization',
+          name: 'Camigo',
+          url: 'https://getcamigo.in/',
+          logo: 'https://getcamigo.in/camigo-logo.svg',
+          description: homepageDescription
         }
       ]
     }
@@ -466,6 +473,31 @@ function MainPage({
                       <Link key={product.id} to={`/product/${product.id}`} className="seo-link-chip subtle">
                         {product.name}
                       </Link>
+                    ))}
+                  </div>
+                </div>
+                <div className="seo-link-group">
+                  <h3>Why Camigo matters for search and buyers</h3>
+                  <p className="seo-link-group-copy">
+                    Camigo is not just a generic catalog. It is a Bhubaneswar-focused CCTV buying and installation support brand with local product pages, category pages, setup packages, and Odisha-ready delivery coverage.
+                  </p>
+                  <div className="seo-link-list">
+                    <Link to="/about-camigo" className="seo-link-chip subtle">About Camigo</Link>
+                    <Link to="/cctv-camera-bhubaneswar" className="seo-link-chip subtle">CCTV Camera Bhubaneswar</Link>
+                    <Link to="/cctv-installation-bhubaneswar" className="seo-link-chip subtle">CCTV Installation Bhubaneswar</Link>
+                    <Link to="/security-camera-odisha" className="seo-link-chip subtle">Security Camera Odisha</Link>
+                  </div>
+                </div>
+                <div className="seo-link-group">
+                  <h3>High-priority brand searches we want to win</h3>
+                  <div className="local-seo-topic-list">
+                    {[
+                      'Camigo CCTV Bhubaneswar',
+                      'Camigo CCTV camera Odisha',
+                      'Camigo installation support Bhubaneswar',
+                      'Camigo security camera shop'
+                    ].map((term) => (
+                      <span key={term} className="seo-link-chip subtle">{term}</span>
                     ))}
                   </div>
                 </div>

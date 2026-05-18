@@ -258,6 +258,42 @@ function SeoAutomationAdmin({ token, setMessage }) {
 
       <div className="seo-automation-grid">
         <article className="seo-automation-card seo-automation-card-wide">
+          <h4>Indexing and brand checklist</h4>
+          <div className="seo-automation-opportunities">
+            {[
+              {
+                title: 'Submit and monitor sitemap',
+                body: 'Keep https://getcamigo.in/sitemap.xml submitted in Search Console and recheck it after major product or category updates.',
+                status: 'Search Console'
+              },
+              {
+                title: 'Request indexing for core brand pages',
+                body: 'Request indexing for the homepage, shop page, top category pages, top product pages, and the local Bhubaneswar/Odisha SEO landing pages.',
+                status: 'Indexing'
+              },
+              {
+                title: 'Build Camigo brand search demand',
+                body: 'Push searches and mentions for Camigo, Camigo CCTV, Camigo Bhubaneswar, and Camigo Odisha through business profiles, socials, maps, and customer sharing.',
+                status: 'Brand'
+              },
+              {
+                title: 'Wait for Google data maturity',
+                body: 'A fresh Search Console connection can show zero usable rows for a while. That means Google has not collected enough query impressions yet, not that the SEO engine is broken.',
+                status: 'Patience'
+              }
+            ].map((item) => (
+              <div key={item.title} className="seo-automation-opportunity">
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.body}</p>
+                </div>
+                <code>{item.status}</code>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="seo-automation-card seo-automation-card-wide">
           <h4>Google-safe Search Console status</h4>
           <div className="seo-automation-opportunities">
             <div className="seo-automation-opportunity">

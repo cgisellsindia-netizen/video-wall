@@ -1925,32 +1925,32 @@ const buildSeoAutonomousCopy = ({
   ]).slice(0, 8);
   const homepageLeadKeywords = homepageKeywords.slice(0, 4);
   const homepageTemplates = [
-    (keywords) => `Camigo is currently pushing around live demand for ${keywords.join(', ')} across Bhubaneswar and Odisha, so shoppers reach the CCTV cameras, installation services, and security hardware people are actively searching for right now.`,
-    (keywords) => `Live customer demand is steering Camigo toward ${keywords.join(', ')} in Bhubaneswar and Odisha, keeping the homepage aligned with the strongest CCTV buying and installation intent.`,
-    (keywords) => `This homepage automatically re-focuses around ${keywords.join(', ')} so Camigo can match fast-moving CCTV searches, local installation needs, and stronger purchase intent in Bhubaneswar and Odisha.`
+    (keywords) => `Camigo is a Bhubaneswar-based CCTV shopping and installation support brand, and this homepage is currently aligned with live demand for ${keywords.join(', ')} across Bhubaneswar and Odisha.`,
+    (keywords) => `Camigo keeps its homepage focused on ${keywords.join(', ')} so local buyers in Bhubaneswar and Odisha can find CCTV cameras, recorders, accessories, and installation support with stronger brand clarity.`,
+    (keywords) => `This Camigo homepage automatically re-focuses around ${keywords.join(', ')} to match live CCTV buying intent, local installation needs, and branded search relevance across Bhubaneswar and Odisha.`
   ];
   const homepageHeading = homepageLeadKeywords.length
-    ? `Live focus: ${homepageLeadKeywords.slice(0, 2).join(' + ')}`
-    : 'Live CCTV search focus';
+    ? `Camigo CCTV in Bhubaneswar: ${homepageLeadKeywords.slice(0, 2).join(' + ')}`
+    : 'Camigo CCTV shopping in Bhubaneswar';
   const homepageParagraph = homepageLeadKeywords.length
     ? homepageTemplates[buildSeoRotationHash(homepageLeadKeywords) % homepageTemplates.length](homepageLeadKeywords)
-    : 'Camigo automatically refreshes its homepage around live CCTV demand across Bhubaneswar and Odisha, keeping the site aligned with the strongest customer search intent.';
+    : 'Camigo automatically refreshes its homepage around live CCTV demand across Bhubaneswar and Odisha, keeping the site aligned with stronger local customer and brand search intent.';
 
   const shopKeywords = uniqueSeoKeywords([
     ...homepageCandidates.slice(0, 4).map((item) => item.keyword),
     ...homepageCandidates.slice(4, 10).map((item) => item.keyword).reverse()
   ]).slice(0, 6);
   const shopTemplates = [
-    (keywords) => `This shop page is automatically strengthened around live commercial searches such as ${keywords.join(', ')}, so category browsing and product discovery stay aligned with the strongest CCTV buying intent in Bhubaneswar and Odisha.`,
-    (keywords) => `Camigo keeps this shop page tuned to keywords like ${keywords.join(', ')}, helping Google and local buyers connect product discovery with the highest CCTV demand in Bhubaneswar and Odisha.`,
-    (keywords) => `The live shop copy rotates around ${keywords.join(', ')} so Camigo can keep surfacing the CCTV, recorder, and installation queries that matter most across Bhubaneswar and Odisha.`
+    (keywords) => `The Camigo shop page is automatically strengthened around live commercial searches such as ${keywords.join(', ')}, so category browsing and product discovery stay aligned with the strongest CCTV buying intent in Bhubaneswar and Odisha.`,
+    (keywords) => `Camigo keeps this shop page tuned to keywords like ${keywords.join(', ')}, helping Google and local buyers connect product discovery with a clearer CCTV brand for Bhubaneswar and Odisha.`,
+    (keywords) => `The live Camigo shop copy rotates around ${keywords.join(', ')} so the site can keep surfacing CCTV, recorder, and installation queries that matter most across Bhubaneswar and Odisha.`
   ];
   const shopParagraph = shopKeywords.length
     ? shopTemplates[buildSeoRotationHash(shopKeywords) % shopTemplates.length](shopKeywords)
-    : 'This shop page is automatically updated around live CCTV buying intent so product discovery stays aligned with what customers search most.';
+    : 'This Camigo shop page is automatically updated around live CCTV buying intent so product discovery stays aligned with what Bhubaneswar and Odisha customers search most.';
   const shopHeading = shopKeywords.length
-    ? `Live shopping trend: ${shopKeywords[0]}`
-    : 'Live shopping trend';
+    ? `Camigo shop focus: ${shopKeywords[0]}`
+    : 'Camigo shop focus';
 
   const categoryBlocks = categories
     .slice(0, SEO_AUTOMATION_MAX_CATEGORY_BLOCKS)

@@ -101,6 +101,15 @@ function LocalSeoLandingPage({ page }) {
         </section>
 
         <section className="policy-section">
+          <h2>Why this page is tied to Camigo</h2>
+          <p>
+            Camigo is building these Bhubaneswar and Odisha CCTV pages to help Google and buyers connect a real local
+            brand with CCTV cameras, recorders, installation support, setup packages, and fast product discovery.
+            This page is part of that stronger brand and local-intent footprint.
+          </p>
+        </section>
+
+        <section className="policy-section">
           <h2>Coverage and local relevance</h2>
           <p>{page.coverageText}</p>
           {!!page.areaServed?.length && (
@@ -121,6 +130,18 @@ function LocalSeoLandingPage({ page }) {
               </li>
             ))}
           </ul>
+        </section>
+
+        <section className="policy-section">
+          <h2>Best next Camigo pages to index</h2>
+          <div className="local-seo-topic-list">
+            <Link to="/" className="seo-link-chip subtle">Camigo homepage</Link>
+            <Link to="/shop" className="seo-link-chip subtle">Camigo shop</Link>
+            <Link to="/about-camigo" className="seo-link-chip subtle">About Camigo</Link>
+            {(page.internalLinks || []).slice(0, 3).map((item) => (
+              <Link key={`index-${item.to}`} to={item.to} className="seo-link-chip subtle">{item.label}</Link>
+            ))}
+          </div>
         </section>
 
         <section className="policy-section">

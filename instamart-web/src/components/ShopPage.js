@@ -65,10 +65,10 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
     ? null
     : categories.find((category) => String(category.id) === String(selectedCat));
   const seoTitle = activeCategory
-    ? `${activeCategory.name} in Bhubaneswar and Odisha | Camigo Shop`
-    : 'Shop CCTV Cameras in Bhubaneswar and Odisha | Camigo';
+    ? `Camigo Shop | ${activeCategory.name} in Bhubaneswar and Odisha`
+    : 'Camigo Shop | CCTV Cameras in Bhubaneswar and Odisha';
   const seoDescription = activeCategory
-    ? `Explore ${filtered.length} ${activeCategory.name} products on Camigo for Bhubaneswar and Odisha CCTV buyers, with local dispatch, CCTV installation support, and fast delivery options.`
+    ? `Explore ${filtered.length} ${activeCategory.name} products on Camigo for Bhubaneswar and Odisha CCTV buyers, with local dispatch, installation support, and brand-led product discovery.`
     : `Browse ${filtered.length} CCTV products, IP cameras, dome cameras, bullet cameras, PTZ cameras, DVRs, NVRs, setup packages, and accessories on Camigo for Bhubaneswar and Odisha.`;
   const canonicalUrl = activeCategory
     ? `https://getcamigo.in/shop?category=${activeCategory.id}`
@@ -82,7 +82,7 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
     : [];
   const automationShopKeywords = shopKeywordLinks.map((item) => item.keyword).filter(Boolean);
   const resolvedSeoTitle = !activeCategory && automationShopKeywords.length
-    ? `${automationShopKeywords.slice(0, 2).join(' | ')} | Camigo Shop`
+    ? `Camigo Shop | ${automationShopKeywords.slice(0, 2).join(' | ')}`
     : seoTitle;
   const resolvedSeoDescription = !activeCategory && automationShopCopy
     ? automationShopCopy
