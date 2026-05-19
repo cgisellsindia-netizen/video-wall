@@ -5192,15 +5192,29 @@ app.get('/share/product/:id/story.png', async (req, res) => {
       [productId]
     );
     const gallery = buildShareProductGallery(product, imageRows);
-    const primarySourceImageUrl = resolveShareSourceImageUrl(gallery[0], product);
-    assertShareImageHostAllowed(primarySourceImageUrl);
+    const storyImageCandidates = [
+      buildShareMetaImageUrl(gallery[0], product),
+      buildSharePreviewImageUrl(productId, 0),
+      `${publicStorefrontUrl}${buildShareFallbackImagePath(product)}`
+    ].filter(Boolean);
 
-    const upstream = await fetch(primarySourceImageUrl, { redirect: 'follow' });
-    if (!upstream.ok) {
+    let sourceBuffer = null;
+    for (const imageUrl of storyImageCandidates) {
+      try {
+        if (/^https?:\/\//i.test(imageUrl)) {
+          assertShareImageHostAllowed(imageUrl);
+        }
+        const upstream = await fetch(imageUrl, { redirect: 'follow' });
+        if (!upstream.ok) continue;
+        sourceBuffer = Buffer.from(await upstream.arrayBuffer());
+        if (sourceBuffer.length) break;
+      } catch (error) {
+        // Try the next candidate.
+      }
+    }
+    if (!sourceBuffer?.length) {
       return res.status(404).json({ error: 'Product image unavailable' });
     }
-
-    const sourceBuffer = Buffer.from(await upstream.arrayBuffer());
     const productImageBuffer = await sharp(sourceBuffer, { failOn: 'none' })
       .resize(860, 760, { fit: 'contain', background: '#ffffff' })
       .png()
