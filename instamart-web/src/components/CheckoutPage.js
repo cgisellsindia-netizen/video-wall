@@ -413,7 +413,12 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
         ));
 
     setCartItems(nextCartItems);
-    localStorage.setItem('cart_backup', JSON.stringify(nextCartItems));
+    if (nextCartItems.length > 0) {
+      localStorage.setItem('cart_backup', JSON.stringify(nextCartItems));
+    } else {
+      localStorage.removeItem('cart_backup');
+      navigate('/shop', { replace: true });
+    }
 
     if (!token || !item?.id) return;
 
