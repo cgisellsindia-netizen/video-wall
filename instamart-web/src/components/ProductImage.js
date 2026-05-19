@@ -96,10 +96,15 @@ const buildFallbackSources = (src, extraSources = [], fallbackSrc = '', options 
       addSource(resolvedSourceCache.get(resolutionCacheKey));
     }
     const webpVariant = buildWebpVariant(cleanCandidate);
-    const prefersProxy = isRemoteSource(cleanCandidate);
-    if (prefersProxy) {
-      addSource(proxiedMediaSource(cleanCandidate, options));
-      addSource(cleanCandidate);
+    const isRemote = isRemoteSource(cleanCandidate);
+    if (isRemote) {
+      if (options.preferDirect) {
+        addSource(cleanCandidate);
+        addSource(proxiedMediaSource(cleanCandidate, options));
+      } else {
+        addSource(proxiedMediaSource(cleanCandidate, options));
+        addSource(cleanCandidate);
+      }
     } else {
       addSource(webpVariant);
       addSource(cleanCandidate);
@@ -126,6 +131,7 @@ function ProductImage({
   proxyWidth = 0,
   proxyQuality = 80,
   proxyFormat = 'webp',
+  preferDirect = false,
   onLoad,
   onError,
   ...imgProps
@@ -144,9 +150,10 @@ function ProductImage({
     () => buildFallbackSources(src, sources, fallbackSrc, {
       width: proxyWidth,
       quality: proxyQuality,
-      format: proxyFormat
+      format: proxyFormat,
+      preferDirect
     }),
-    [src, sources, fallbackSrc, proxyWidth, proxyQuality, proxyFormat]
+    [src, sources, fallbackSrc, proxyWidth, proxyQuality, proxyFormat, preferDirect]
   );
   const sourceList = sourcePlan.sources;
   const [sourceIndex, setSourceIndex] = useState(0);

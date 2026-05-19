@@ -267,6 +267,7 @@ function ProductHeroBlock({
                 proxyWidth={960}
                 proxyQuality={82}
                 proxyFormat="webp"
+                preferDirect
               />
             </div>
             {gallery.length > 1 && (
@@ -279,6 +280,7 @@ function ProductHeroBlock({
                       proxyWidth={140}
                       proxyQuality={58}
                       proxyFormat="webp"
+                      preferDirect
                     />
                   </button>
                 ))}
