@@ -438,7 +438,7 @@ export function ProductPageBlocks({
   const ratingAverage = Number(product.rating_average || 4.6).toFixed(1);
   const ratingCount = Number(product.rating_count || 200);
   const warrantyYears = Math.max(1, Number(product.warranty_years || 5));
-  const relatedProducts = products.filter((item) => item.id !== product.id && item.category_id === product.category_id).slice(0, 4);
+  const relatedProducts = products.filter((item) => item.id !== product.id && item.category_id === product.category_id);
 
   return (
     <div className="product-detail-page container">
