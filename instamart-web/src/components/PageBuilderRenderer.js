@@ -548,17 +548,22 @@ export function ProductPageBlocks({
               <div className="related-product-grid">
                 {relatedProducts.map((item) => (
                   <button key={item.id} className="related-product-card" onClick={() => navigate(`/product/${item.id}`)}>
-                    <ProductImage
-                      src={item.image}
-                      alt={item.name}
-                      proxyWidth={260}
-                      proxyQuality={68}
-                      proxyFormat="webp"
-                    />
+                    <div className="related-product-visual">
+                      <ProductImage
+                        src={item.image}
+                        alt={item.name}
+                        proxyWidth={260}
+                        proxyQuality={68}
+                        proxyFormat="webp"
+                      />
+                    </div>
                     <div className="related-product-body">
-                      <small>{item.unit}</small>
+                      <small>{item.unit || '1 Unit'}</small>
                       <strong>{item.name}</strong>
-                      <span>Rs {priceForRole ? priceForRole(item, user) : item.price}</span>
+                      <div className="related-product-footer">
+                        <span>Rs {priceForRole ? priceForRole(item, user) : item.price}</span>
+                        <em>View</em>
+                      </div>
                     </div>
                   </button>
                 ))}
