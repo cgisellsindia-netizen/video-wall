@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CheckCircle2, CreditCard, MapPin, Minus, Plus, Search, Smartphone, Wrench, X, XCircle } from 'lucide-react';
+import { BadgePercent, CheckCircle2, CreditCard, MapPin, Minus, Package, Plus, Receipt, Search, ShieldCheck, Smartphone, Wrench, X, XCircle } from 'lucide-react';
 import { API_URL } from '../api';
 import { captureCustomerLocation, getSavedCustomerLocation } from '../locationLock';
 import { checkServiceability, extractPincode } from '../deliveryZone';
 import PhoneVerificationCard from './PhoneVerificationCard';
+import ProductImage from './ProductImage';
 
 function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItems = [] }) {
   const location = useLocation();
@@ -177,6 +178,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
   };
 
   const subtotal = cartItems.reduce((s, i) => s + (Number(i.price) * Number(i.quantity || 1)), 0);
+  const cartItemCount = cartItems.reduce((sum, item) => sum + Number(item.quantity || 1), 0);
   const promoDiscount = Number(promoResult?.discount_amount || 0);
   const discountedSubtotal = Math.max(0, subtotal - promoDiscount);
   const cameraCount = cartItems.reduce((sum, item) => (isCameraItem(item) ? sum + Number(item.quantity || 1) : sum), 0);
@@ -643,7 +645,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
           </div>
         </section>
 
-          <section className="checkout-card">
+        <section className="checkout-card">
             <h3><CreditCard size={18} /> Payment gateway</h3>
           <div className={`payment-options ${codEnabled ? '' : 'payment-options-two'}`}>
             <button type="button" className={paymentMethod === 'upi' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('upi')}><Smartphone size={18} /> UPI</button>
@@ -666,39 +668,108 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
       </div>
 
         <aside className="checkout-summary">
-          <h3>Order Summary</h3>
-          <div className="checkout-items">
-            {cartItems.map((item, i) => (
-              <div key={i} className="checkout-item">
-                <div className="checkout-item-copy">
-                  <span>{item.name}</span>
-                  <div className="checkout-item-qty">
-                    <button type="button" onClick={() => handleSummaryQuantityChange(item, Number(item.quantity || 1) - 1)} aria-label={`Decrease quantity for ${item.name}`}>
-                      <Minus size={14} />
-                    </button>
-                    <strong>{item.quantity}</strong>
-                    <button type="button" onClick={() => handleSummaryQuantityChange(item, Number(item.quantity || 1) + 1)} aria-label={`Increase quantity for ${item.name}`}>
-                      <Plus size={14} />
-                    </button>
+          <div className="checkout-summary-card checkout-cart-card">
+            <div className="checkout-summary-head">
+              <div>
+                <span className="checkout-section-tag">Your cart</span>
+                <h3><Package size={18} /> Order summary</h3>
+              </div>
+              <div className="checkout-summary-meta">
+                <strong>{deliveryAvailable ? deliveryEstimate : 'Pending'}</strong>
+                <small>{cartItemCount} item{cartItemCount !== 1 ? 's' : ''}</small>
+              </div>
+            </div>
+            <div className="checkout-items">
+              {cartItems.map((item, i) => (
+                <div key={i} className="checkout-item">
+                  <div className="checkout-item-media">
+                    <ProductImage
+                      src={item.image}
+                      alt={item.name}
+                      proxyWidth={160}
+                      proxyQuality={66}
+                      proxyFormat="webp"
+                    />
+                  </div>
+                  <div className="checkout-item-copy">
+                    <span>{item.name}</span>
+                    <small>{item.unit || '1 Unit'}</small>
+                    <div className="checkout-item-bottom">
+                      <div className="checkout-item-qty">
+                        <button type="button" onClick={() => handleSummaryQuantityChange(item, Number(item.quantity || 1) - 1)} aria-label={`Decrease quantity for ${item.name}`}>
+                          <Minus size={14} />
+                        </button>
+                        <strong>{item.quantity}</strong>
+                        <button type="button" onClick={() => handleSummaryQuantityChange(item, Number(item.quantity || 1) + 1)} aria-label={`Increase quantity for ${item.name}`}>
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                      <div className="checkout-item-price">
+                        <strong>Rs {item.price * item.quantity}</strong>
+                        {Number(item.mrp || 0) > Number(item.price || 0) && (
+                          <small>Rs {Number(item.mrp || 0) * Number(item.quantity || 1)}</small>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <strong>Rs {item.price * item.quantity}</strong>
-              </div>
-            ))}
+              ))}
+            </div>
+            <button type="button" className="checkout-link-button" onClick={() => navigate('/shop')}>
+              Add more items
+            </button>
           </div>
-        <div className="summary-row"><span>Subtotal</span><strong>Rs {subtotal}</strong></div>
-        {promoDiscount > 0 && <div className="summary-row"><span>Discount</span><strong>- Rs {promoDiscount}</strong></div>}
-        <div className="summary-row"><span>GST 18%</span><strong>Rs {gst}</strong></div>
-        <div className="summary-row"><span>Delivery</span><strong>{deliveryAvailable ? `Rs ${deliveryFee}` : 'Pending'}</strong></div>
-        <div className="summary-row"><span>Installation</span><strong>{cameraCount > 0 ? (installationRequested ? `Rs ${installationFee}` : 'Not added') : 'No cameras'}</strong></div>
-        <div className="summary-row"><span>Provider</span><strong>{deliveryProvider}</strong></div>
-        <div className="summary-row"><span>Estimate</span><strong>{deliveryEstimate}</strong></div>
-        <div className="summary-row"><span>Delivery zone</span><strong>{deliveryZoneLabel}</strong></div>
-        {deliveryQuote?.distanceKm != null && <div className="summary-row"><span>Road distance</span><strong>{deliveryQuote.distanceKm} km</strong></div>}
-        {deliveryQuote?.chargeableWeightKg != null && <div className="summary-row"><span>Courier slab</span><strong>{deliveryQuote.chargeableWeightKg} kg</strong></div>}
-        <div className="summary-row"><span>GPS accuracy</span><strong>{coords?.accuracy ? `${Math.round(coords.accuracy)}m` : 'Not locked'}</strong></div>
-        <div className="summary-total"><span>Payable</span><strong>Rs {payable}</strong></div>
-        <div className="installation-choice-card">
+
+          <div className="checkout-summary-card checkout-savings-card">
+            <div className="checkout-summary-head compact">
+              <div>
+                <span className="checkout-section-tag">Savings corner</span>
+                <h3><BadgePercent size={18} /> Offers and unlocks</h3>
+              </div>
+            </div>
+            {promoDiscount > 0 ? (
+              <div className="checkout-saving-highlight success">
+                <strong>{promoResult?.code || 'Offer applied'}</strong>
+                <span>You are already saving Rs {promoDiscount} on this order.</span>
+              </div>
+            ) : (
+              <div className="checkout-saving-highlight">
+                <strong>Apply a promo code</strong>
+                <span>Use the offer field on the left to unlock extra savings before payment.</span>
+              </div>
+            )}
+            <div className="checkout-mini-status-row">
+              <div className="checkout-mini-status">
+                <span>Delivery partner</span>
+                <strong>{deliveryProvider}</strong>
+              </div>
+              <div className="checkout-mini-status">
+                <span>Delivery zone</span>
+                <strong>{deliveryZoneLabel}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="checkout-summary-card checkout-bill-card">
+            <div className="checkout-summary-head compact">
+              <div>
+                <span className="checkout-section-tag">Bill details</span>
+                <h3><Receipt size={18} /> Pay breakdown</h3>
+              </div>
+            </div>
+            <div className="summary-row"><span>Subtotal</span><strong>Rs {subtotal}</strong></div>
+            {promoDiscount > 0 && <div className="summary-row savings"><span>Discount</span><strong>- Rs {promoDiscount}</strong></div>}
+            <div className="summary-row"><span>GST 18%</span><strong>Rs {gst}</strong></div>
+            <div className="summary-row"><span>Delivery</span><strong>{deliveryAvailable ? `Rs ${deliveryFee}` : 'Pending'}</strong></div>
+            <div className="summary-row"><span>Installation</span><strong>{cameraCount > 0 ? (installationRequested ? `Rs ${installationFee}` : 'Not added') : 'No cameras'}</strong></div>
+            <div className="summary-row"><span>Estimate</span><strong>{deliveryEstimate}</strong></div>
+            {deliveryQuote?.distanceKm != null && <div className="summary-row"><span>Road distance</span><strong>{deliveryQuote.distanceKm} km</strong></div>}
+            {deliveryQuote?.chargeableWeightKg != null && <div className="summary-row"><span>Courier slab</span><strong>{deliveryQuote.chargeableWeightKg} kg</strong></div>}
+            <div className="summary-row"><span>GPS accuracy</span><strong>{coords?.accuracy ? `${Math.round(coords.accuracy)}m` : 'Not locked'}</strong></div>
+            <div className="summary-total"><span>To pay</span><strong>Rs {payable}</strong></div>
+          </div>
+
+          <div className="installation-choice-card">
           <div className="installation-choice-head">
             <div>
               <span className="installation-choice-label">Service add-on</span>
@@ -737,22 +808,40 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
               : 'Installation becomes available when camera products are in the cart.'}
           </p>
         </div>
-        <button className="checkout-pay-btn" onClick={handlePlaceOrder} disabled={payDisabled}>
-          {loading
-            ? 'Opening Razorpay...'
-            : !deliveryAvailable
-              ? 'Enter valid delivery pincode'
-              : quoteLoading
-                ? 'Calculating delivery charge...'
-                : !user?.phone_verified
-                    ? 'Verify mobile to pay'
-                    : paymentMethod === 'cod'
-                      ? `Place COD order Rs ${payable}`
-                      : razorpayReady
-                        ? `Pay Rs ${payable}`
-                        : 'Loading payment gateway...'}
+          <div className="checkout-summary-card checkout-assurance-card">
+            <div className="checkout-assurance-row">
+              <ShieldCheck size={18} />
+              <div>
+                <strong>Secure checkout</strong>
+                <span>Camigo confirms delivery area, GPS lock, and payment route before placing the order.</span>
+              </div>
+            </div>
+          </div>
+          <button className="checkout-pay-btn" onClick={handlePlaceOrder} disabled={payDisabled}>
+            {loading
+              ? 'Opening Razorpay...'
+              : !deliveryAvailable
+                ? 'Enter valid delivery pincode'
+                : quoteLoading
+                  ? 'Calculating delivery charge...'
+                  : !user?.phone_verified
+                      ? 'Verify mobile to pay'
+                      : paymentMethod === 'cod'
+                        ? `Place COD order Rs ${payable}`
+                        : razorpayReady
+                          ? `Pay Rs ${payable}`
+                          : 'Loading payment gateway...'}
           </button>
       </aside>
+      <div className="checkout-mobile-bar">
+        <div className="checkout-mobile-bar-copy">
+          <strong>To pay: Rs {payable}</strong>
+          <span>{deliveryAvailable ? deliveryEstimate : 'Enter serviceable pincode'}</span>
+        </div>
+        <button type="button" className="checkout-mobile-pay" onClick={handlePlaceOrder} disabled={payDisabled}>
+          {loading ? 'Processing...' : 'Pay now'}
+        </button>
+      </div>
       {phoneVerifyOpen && (
         <div className="checkout-verify-overlay" role="dialog" aria-modal="true" aria-label="Verify mobile number">
           <div className="checkout-verify-modal">
