@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, BadgeCheck, Clock3, Download, Heart, MessageCircle, Minus, Package2, Plus, Share2, ShoppingCart, ShieldCheck, Sparkles, Star, Truck, Zap } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Camera, Clock3, Heart, MessageCircle, Minus, Package2, Plus, Share2, ShoppingCart, ShieldCheck, Sparkles, Star, Truck, Zap } from 'lucide-react';
 import HeroBanner from './HeroBanner';
 import CategoryGrid from './CategoryGrid';
 import SetupPackagesSection from './SetupPackagesSection';
@@ -343,14 +343,32 @@ function ProductHeroBlock({
               </button>
             )}
             <div className="product-share-row">
-              <button className="product-secondary-action share-action" type="button" onClick={onShare}>
-                <Share2 size={18} /> Share
+              <button
+                className="product-secondary-action product-share-icon-btn share-action"
+                type="button"
+                onClick={onShare}
+                aria-label="Share product"
+                title="Share product"
+              >
+                <Share2 size={19} />
               </button>
-              <button className="product-secondary-action whatsapp-share-action" type="button" onClick={onWhatsAppShare}>
-                <MessageCircle size={18} /> WhatsApp
+              <button
+                className="product-secondary-action product-share-icon-btn whatsapp-share-action"
+                type="button"
+                onClick={onWhatsAppShare}
+                aria-label="Share on WhatsApp"
+                title="Share on WhatsApp"
+              >
+                <MessageCircle size={19} />
               </button>
-              <button className="product-secondary-action instagram-share-action" type="button" onClick={onInstagramStoryShare}>
-                <Download size={18} /> Instagram Story
+              <button
+                className="product-secondary-action product-share-icon-btn instagram-share-action"
+                type="button"
+                onClick={onInstagramStoryShare}
+                aria-label="Share to Instagram Story"
+                title="Share to Instagram Story"
+              >
+                <Camera size={19} />
               </button>
             </div>
             {shareFeedback ? <div className="product-share-feedback">{shareFeedback}</div> : null}

@@ -6209,6 +6209,22 @@ body.bottom-nav-hidden .floating-tracker {
 .instagram-share-action:hover {
   background: #fce7f3;
 }
+.product-share-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.product-share-icon-btn {
+  min-width: 54px;
+  width: 54px;
+  padding: 0;
+  border-radius: 16px;
+  flex: 0 0 auto;
+  box-shadow: none;
+}
+.product-share-icon-btn svg {
+  flex: 0 0 auto;
+}
 .add-btn-large,
 .product-secondary-action {
   transition: transform 160ms ease, box-shadow 160ms ease;
@@ -6229,6 +6245,17 @@ body.bottom-nav-hidden .floating-tracker {
 .sold-out-detail-btn:hover,
 .product-secondary-action:disabled:hover {
   transform: none;
+}
+@media (max-width: 640px) {
+  .product-share-row {
+    gap: 10px;
+  }
+  .product-share-icon-btn {
+    min-width: 50px;
+    width: 50px;
+    min-height: 50px;
+    border-radius: 14px;
+  }
 }
 .product-trust-strip {
   display: flex;
