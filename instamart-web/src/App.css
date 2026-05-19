@@ -3257,6 +3257,222 @@
   margin-bottom: 16px;
   font-size: 22px;
 }
+.checkout-stage-card,
+.checkout-payment-screen {
+  display: grid;
+  gap: 16px;
+}
+.checkout-step-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 2px;
+}
+.checkout-step-head h3 {
+  margin: 8px 0 0;
+  font-size: 24px;
+}
+.checkout-mini-action {
+  border: 1px solid #dbe4f0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: #fff;
+  color: #123c88;
+  font-weight: 900;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.checkout-back-link {
+  color: #0f172a;
+}
+.checkout-inline-choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.checkout-inline-choice strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+.checkout-address-editor {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid #e7edf7;
+}
+.saved-address-list-rich button {
+  display: grid;
+  gap: 2px;
+  padding: 14px 16px;
+  border-radius: 18px;
+}
+.saved-address-list-rich button.active {
+  box-shadow: 0 12px 24px rgba(246, 196, 0, .16);
+}
+.checkout-selected-address-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid #dbe4f0;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  cursor: pointer;
+  color: #123c88;
+}
+.checkout-selected-address-copy {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+}
+.checkout-selected-address-copy strong {
+  color: #0f172a;
+  font-size: 15px;
+}
+.checkout-selected-address-copy span {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.checkout-selected-address-copy small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+}
+.serviceability-status.compact {
+  margin-top: 0;
+}
+.checkout-stage-continue {
+  margin-top: 4px;
+}
+.checkout-payment-route {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  column-gap: 14px;
+  row-gap: 0;
+  padding: 16px 18px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+  border: 1px solid #e3ebf7;
+}
+.checkout-payment-route-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #123c88;
+  margin: 2px 0 0 3px;
+  position: relative;
+  z-index: 1;
+}
+.checkout-payment-route-dot.destination {
+  background: #f6c400;
+  grid-column: 1;
+  grid-row: 3;
+}
+.checkout-payment-route-line {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  justify-self: center;
+  width: 2px;
+  height: calc(100% - 24px);
+  margin-top: 12px;
+  background: linear-gradient(180deg, rgba(18, 60, 136, .75), rgba(246, 196, 0, .95));
+}
+.checkout-payment-route-copy {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  display: grid;
+  gap: 4px;
+}
+.checkout-payment-route-copy strong {
+  color: #0f172a;
+  font-size: 15px;
+}
+.checkout-payment-route-copy span,
+.checkout-payment-route-copy small {
+  color: #64748b;
+  font-weight: 700;
+}
+.checkout-payment-route-copy small {
+  color: #123c88;
+}
+.checkout-payment-groups {
+  display: grid;
+  gap: 14px;
+}
+.checkout-payment-group {
+  display: grid;
+  gap: 8px;
+}
+.checkout-payment-group-title {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.payment-method-card {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 16px;
+  border-radius: 20px;
+  border: 1px solid #dbe4f0;
+  background: #fff;
+  color: #123c88;
+  cursor: pointer;
+  text-align: left;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease, background .16s ease;
+}
+.payment-method-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 26px rgba(15, 23, 42, 0.08);
+}
+.payment-method-card.active {
+  border-color: #f6c400;
+  background: linear-gradient(180deg, #fffaf0 0%, #fff4cf 100%);
+  box-shadow: 0 14px 24px rgba(246, 196, 0, .16);
+}
+.payment-method-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: #eef4ff;
+  color: #123c88;
+}
+.payment-method-copy {
+  display: grid;
+  gap: 3px;
+}
+.payment-method-copy strong {
+  color: #0f172a;
+  font-size: 15px;
+}
+.payment-method-copy span {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.checkout-promo-group {
+  padding: 16px;
+  border-radius: 20px;
+  background: #f8fafc;
+  border: 1px solid #e7edf7;
+  margin-bottom: 0;
+}
 .checkout-card .form-group {
   margin-bottom: 14px;
 }
@@ -5693,6 +5909,37 @@
   .checkout-card {
     border-radius: 22px;
     padding: 18px;
+  }
+  .checkout-step-head,
+  .checkout-inline-choice {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .checkout-step-head h3 {
+    font-size: 21px;
+  }
+  .checkout-mini-action {
+    justify-content: center;
+  }
+  .checkout-selected-address-card,
+  .payment-method-card {
+    padding: 14px;
+  }
+  .checkout-payment-route {
+    grid-template-columns: 16px 1fr;
+    padding: 14px;
+  }
+  .checkout-payment-route-copy strong {
+    font-size: 14px;
+  }
+  .checkout-payment-route-copy span,
+  .checkout-payment-route-copy small,
+  .payment-method-copy span {
+    font-size: 12px;
+  }
+  .checkout-address-editor,
+  .checkout-promo-group {
+    padding: 14px;
   }
   .checkout-card > h3 {
     font-size: 20px;

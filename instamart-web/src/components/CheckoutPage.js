@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BadgePercent, CheckCircle2, CreditCard, MapPin, Minus, Package, Plus, Receipt, Search, ShieldCheck, Smartphone, Wrench, X, XCircle } from 'lucide-react';
+import { ArrowLeft, BadgePercent, CheckCircle2, ChevronRight, CreditCard, MapPin, Minus, Package, Plus, Receipt, Search, ShieldCheck, Smartphone, Wrench, X, XCircle } from 'lucide-react';
 import { API_URL } from '../api';
 import { captureCustomerLocation, getSavedCustomerLocation } from '../locationLock';
 import { checkServiceability, extractPincode } from '../deliveryZone';
@@ -42,6 +42,8 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
   const [addressSaving, setAddressSaving] = useState(false);
   const [codEnabled, setCodEnabled] = useState(false);
   const [checkoutSuggestions, setCheckoutSuggestions] = useState([]);
+  const [addressEditorOpen, setAddressEditorOpen] = useState(false);
+  const [checkoutStage, setCheckoutStage] = useState('address');
   const navigate = useNavigate();
   const directBuyItem = location.state?.directBuyItem || null;
 
@@ -169,6 +171,15 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
     () => savedAddressChoices.map((entry) => entry.address),
     [savedAddressChoices]
   );
+  const hasSelectedAddress = Boolean(address.trim());
+  const selectedAddressSummary = useMemo(() => {
+    const match = savedAddressChoices.find((entry) => entry.address === address);
+    return {
+      label: match?.label || addressLabel || 'Delivery address',
+      address: address.trim(),
+      meta: match?.meta || pincode || extractPincode(address) || ''
+    };
+  }, [address, addressLabel, pincode, savedAddressChoices]);
 
   const isCameraItem = (item) => {
     const categoryId = Number(item.category_id);
@@ -212,6 +223,12 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
   useEffect(() => {
     if (paymentMethod === 'cod' && !codAvailableForCheckout) setPaymentMethod('upi');
   }, [codAvailableForCheckout, paymentMethod]);
+
+  useEffect(() => {
+    if (!savedAddressChoices.length) {
+      setAddressEditorOpen(true);
+    }
+  }, [savedAddressChoices.length]);
 
   useEffect(() => {
     let active = true;
@@ -416,6 +433,25 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
     } catch (cartError) {
       // Keep checkout responsive even if cart sync is delayed.
     }
+  };
+
+  const proceedToPaymentStage = () => {
+    const safeAddress = address.trim();
+    const safePincode = pincode.trim() || extractPincode(safeAddress);
+    if (!safeAddress) {
+      setError('Choose or enter a delivery address first.');
+      setAddressEditorOpen(true);
+      setCheckoutStage('address');
+      return;
+    }
+    if (!safePincode) {
+      setError('Enter a valid 6-digit pincode before continuing.');
+      setAddressEditorOpen(true);
+      setCheckoutStage('address');
+      return;
+    }
+    setError('');
+    setCheckoutStage('payment');
   };
 
   const handleSuggestionAdd = async (product) => {
@@ -625,127 +661,246 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
 
         {error && <div className="admin-message">{error}</div>}
 
-        <section className="checkout-card">
-          <h3><MapPin size={18} /> Delivery details</h3>
-          {savedAddressChoices.length > 0 && (
-            <div className="saved-address-list">
-              <span>Choose saved address</span>
-              {savedAddressChoices.map((saved) => (
-                <button key={saved.key} type="button" className={address === saved.address ? 'active' : ''} onClick={() => {
-                  setAddress(saved.address);
-                  setPincode(extractPincode(saved.address));
-                }}>
-                  <strong>{saved.label}</strong>
-                  <span>{saved.address}</span>
-                  {saved.meta && <small>{saved.meta}</small>}
-                </button>
-              ))}
+        <section className="checkout-card checkout-stage-card">
+          <div className="checkout-step-head">
+            <div>
+              <span className="checkout-section-tag">Step 1</span>
+              <h3><MapPin size={18} /> Select address</h3>
             </div>
-          )}
-          <div className="checkout-address-save-row">
-            <select value={addressLabel} onChange={(e) => setAddressLabel(e.target.value)}>
-              <option value="Home">Home</option>
-              <option value="Office">Office</option>
-              <option value="Site">Site</option>
-              <option value="Other">Other</option>
-            </select>
-            <button type="button" onClick={saveCurrentAddress} disabled={addressSaving || !address.trim()}>
-              {addressSaving ? 'Saving...' : 'Save to address book'}
-            </button>
-          </div>
-          <div className="form-group"><label>Full Address</label><textarea value={address} onChange={e => setAddress(e.target.value)} rows="3" /></div>
-          <div className="form-group"><label>Phone Number</label><input type="tel" value={phone} readOnly placeholder="Verify mobile at checkout" /></div>
-          {!user?.phone_verified && (
-            <div className="serviceability-status blocked">
-              <strong>Mobile verification required</strong>
-              <span>Verify your mobile here before payment. You can use the Firebase test OTP while real SMS setup is pending.</span>
-              <button type="button" onClick={() => setPhoneVerifyOpen(true)}>Verify mobile</button>
-            </div>
-          )}
-          <div className={`location-lock-card ${coords?.locked ? 'locked' : ''}`}>
-            <strong>{coords?.locked ? 'Delivery GPS point locked' : lockingLocation ? 'Locking delivery GPS point...' : 'Delivery GPS point not locked'}</strong>
-            <span>
-              {coords?.lat && coords?.lng
-                ? `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}${coords.accuracy ? ` • accuracy ${Math.round(coords.accuracy)}m` : ''}`
-                : 'Allow location permission so the delivery partner gets the exact point.'}
-            </span>
-            <button type="button" onClick={async () => {
-              setLockingLocation(true);
-              const location = await captureCustomerLocation({ lock: true, source: 'checkout-manual-lock', timeout: 12000, maximumAge: 0 });
-              if (location) setCoords(location);
-              else setError('Could not lock GPS point. Please allow location permission and try again.');
-              setLockingLocation(false);
-            }} disabled={lockingLocation}>{coords?.locked ? 'Re-lock GPS' : 'Lock GPS now'}</button>
-          </div>
-          <div className="form-group">
-            <label>Pincode / service area</label>
-            <div className="pincode-search-row">
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength="6"
-                placeholder="751024 / 753001"
-                value={pincode}
-                onChange={e => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              />
-              <button type="button" onClick={handleCheckPincode}><Search size={16} /> Check</button>
-            </div>
-          </div>
-          <div className="form-group">
-            <label>Coupons / offers</label>
-            <div className="pincode-search-row">
-              <input
-                type="text"
-                placeholder="Enter promo code"
-                value={promoCode}
-                onChange={e => setPromoCode(e.target.value.toUpperCase())}
-              />
-              <button type="button" onClick={applyPromoCode} disabled={promoBusy}>
-                {promoBusy ? 'Applying...' : 'Apply'}
+            {checkoutStage === 'payment' && hasSelectedAddress && (
+              <button
+                type="button"
+                className="checkout-mini-action"
+                onClick={() => {
+                  setCheckoutStage('address');
+                  setAddressEditorOpen(false);
+                }}
+              >
+                Change
               </button>
-            </div>
-            {promoResult && (
-              <div className="promo-success-row">
-                <strong>{promoResult.code}</strong>
-                <span>Saved Rs {Math.round(Number(promoResult.discount_amount || 0))} on products.</span>
-              </div>
             )}
           </div>
-          <div className={deliveryAvailable ? 'serviceability-status ok' : 'serviceability-status blocked'}>
-            <strong>
-              {deliveryAvailable
-                ? (isLocalDelivery ? 'Same-day local delivery available' : 'Courier delivery available')
-                : 'Delivery area not ready'}
-            </strong>
-            <span>
-              {deliveryAvailable
-                ? (deliveryQuote?.message || `Accepting orders for ${serviceability.detectedPincode || 'your locked GPS area'}.`)
-                : 'Enter a valid 6-digit delivery pincode. Bhubaneswar/Cuttack/Khordha/Jatni use same-day local delivery, while outside-zone orders go by Delhivery courier.'}
-            </span>
-            {quoteLoading && <span>Calculating averaged delivery charge...</span>}
-          </div>
+
+          {checkoutStage === 'payment' && hasSelectedAddress ? (
+            <button type="button" className="checkout-selected-address-card" onClick={() => setCheckoutStage('address')}>
+              <div className="checkout-selected-address-copy">
+                <strong>{selectedAddressSummary.label}</strong>
+                <span>{selectedAddressSummary.address}</span>
+                {selectedAddressSummary.meta && <small>{selectedAddressSummary.meta}</small>}
+              </div>
+              <ChevronRight size={18} />
+            </button>
+          ) : (
+            <>
+              {savedAddressChoices.length > 0 && (
+                <div className="saved-address-list saved-address-list-rich">
+                  <span>Saved address</span>
+                  {savedAddressChoices.map((saved) => (
+                    <button key={saved.key} type="button" className={address === saved.address ? 'active' : ''} onClick={() => {
+                      setAddress(saved.address);
+                      setPincode(extractPincode(saved.address));
+                      setAddressEditorOpen(false);
+                      setCheckoutStage('payment');
+                    }}>
+                      <strong>{saved.label}</strong>
+                      <span>{saved.address}</span>
+                      {saved.meta && <small>{saved.meta}</small>}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="checkout-inline-choice">
+                <strong>{savedAddressChoices.length > 0 ? 'Or add a new address' : 'Add a new address'}</strong>
+                <button type="button" className="checkout-mini-action" onClick={() => setAddressEditorOpen((current) => !current)}>
+                  {addressEditorOpen ? 'Hide form' : 'Add new'}
+                </button>
+              </div>
+
+              {addressEditorOpen && (
+                <div className="checkout-address-editor">
+                  <div className="checkout-address-save-row">
+                    <select value={addressLabel} onChange={(e) => setAddressLabel(e.target.value)}>
+                      <option value="Home">Home</option>
+                      <option value="Office">Office</option>
+                      <option value="Site">Site</option>
+                      <option value="Other">Other</option>
+                    </select>
+                    <button type="button" onClick={saveCurrentAddress} disabled={addressSaving || !address.trim()}>
+                      {addressSaving ? 'Saving...' : 'Save to address book'}
+                    </button>
+                  </div>
+                  <div className="form-group"><label>Full Address</label><textarea value={address} onChange={e => setAddress(e.target.value)} rows="3" /></div>
+                  <div className="form-group"><label>Phone Number</label><input type="tel" value={phone} readOnly placeholder="Verify mobile at checkout" /></div>
+                  {!user?.phone_verified && (
+                    <div className="serviceability-status blocked">
+                      <strong>Mobile verification required</strong>
+                      <span>Verify your mobile here before payment. You can use the Firebase test OTP while real SMS setup is pending.</span>
+                      <button type="button" onClick={() => setPhoneVerifyOpen(true)}>Verify mobile</button>
+                    </div>
+                  )}
+                  <div className={`location-lock-card ${coords?.locked ? 'locked' : ''}`}>
+                    <strong>{coords?.locked ? 'Delivery GPS point locked' : lockingLocation ? 'Locking delivery GPS point...' : 'Delivery GPS point not locked'}</strong>
+                    <span>
+                      {coords?.lat && coords?.lng
+                        ? `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}${coords.accuracy ? ` • accuracy ${Math.round(coords.accuracy)}m` : ''}`
+                        : 'Allow location permission so the delivery partner gets the exact point.'}
+                    </span>
+                    <button type="button" onClick={async () => {
+                      setLockingLocation(true);
+                      const nextLocation = await captureCustomerLocation({ lock: true, source: 'checkout-manual-lock', timeout: 12000, maximumAge: 0 });
+                      if (nextLocation) setCoords(nextLocation);
+                      else setError('Could not lock GPS point. Please allow location permission and try again.');
+                      setLockingLocation(false);
+                    }} disabled={lockingLocation}>{coords?.locked ? 'Re-lock GPS' : 'Lock GPS now'}</button>
+                  </div>
+                  <div className="form-group">
+                    <label>Pincode / service area</label>
+                    <div className="pincode-search-row">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength="6"
+                        placeholder="751024 / 753001"
+                        value={pincode}
+                        onChange={e => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      />
+                      <button type="button" onClick={handleCheckPincode}><Search size={16} /> Check</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className={deliveryAvailable ? 'serviceability-status ok compact' : 'serviceability-status blocked compact'}>
+                <strong>
+                  {deliveryAvailable
+                    ? (isLocalDelivery ? 'Same-day local delivery available' : 'Courier delivery available')
+                    : 'Delivery area not ready'}
+                </strong>
+                <span>
+                  {deliveryAvailable
+                    ? (deliveryQuote?.message || `Accepting orders for ${serviceability.detectedPincode || 'your locked GPS area'}.`)
+                    : 'Enter a valid 6-digit delivery pincode. Bhubaneswar/Cuttack/Khordha/Jatni use same-day local delivery, while outside-zone orders go by Delhivery courier.'}
+                </span>
+                {quoteLoading && <span>Calculating averaged delivery charge...</span>}
+              </div>
+
+              <button
+                type="button"
+                className="checkout-pay-btn checkout-stage-continue"
+                onClick={proceedToPaymentStage}
+                disabled={!address.trim() || !deliveryAvailable || !deliveryQuote || quoteLoading || !user?.phone_verified}
+              >
+                {!user?.phone_verified
+                  ? 'Verify mobile to continue'
+                  : !deliveryAvailable
+                    ? 'Select a serviceable address'
+                    : quoteLoading
+                      ? 'Checking delivery area...'
+                      : 'Proceed to payment'}
+              </button>
+            </>
+          )}
         </section>
 
-        <section className="checkout-card">
-            <h3><CreditCard size={18} /> Payment gateway</h3>
-          <div className={`payment-options ${codEnabled ? '' : 'payment-options-two'}`}>
-            <button type="button" className={paymentMethod === 'upi' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('upi')}><Smartphone size={18} /> UPI</button>
-            <button type="button" className={paymentMethod === 'card' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('card')}><CreditCard size={18} /> Card</button>
-            {codAvailableForCheckout && <button type="button" className={paymentMethod === 'cod' ? 'payment-option active' : 'payment-option'} onClick={() => setPaymentMethod('cod')}><CreditCard size={18} /> COD</button>}
-          </div>
-          <p className="checkout-note">
-            {codAvailableForCheckout
-              ? 'COD is currently active from admin. UPI and card still open Razorpay checkout, while COD places the order directly.'
-              : codEnabled && !cartAllowsCod
-                ? 'Some products in this cart are marked as COD disabled in admin, so only UPI and card are available.'
-                : 'Cash on delivery is disabled. Camigo will now open real Razorpay checkout for the selected payment mode.'}
-          </p>
-          {paymentMethod === 'upi' && (
+        {checkoutStage === 'payment' && (
+          <section className="checkout-card checkout-payment-screen">
+            <div className="checkout-step-head">
+              <div>
+                <span className="checkout-section-tag">Step 2</span>
+                <h3><CreditCard size={18} /> Payment options</h3>
+              </div>
+              <button type="button" className="checkout-mini-action checkout-back-link" onClick={() => setCheckoutStage('address')}>
+                <ArrowLeft size={16} /> Back
+              </button>
+            </div>
+
+            <div className="checkout-payment-route">
+              <div className="checkout-payment-route-dot" />
+              <div className="checkout-payment-route-line" />
+              <div className="checkout-payment-route-dot destination" />
+              <div className="checkout-payment-route-copy">
+                <strong>Camigo dispatch to {selectedAddressSummary.label}</strong>
+                <span>{selectedAddressSummary.address}</span>
+                <small>Delivery in {deliveryEstimate}</small>
+              </div>
+            </div>
+
+            <div className="checkout-payment-groups">
+              <div className="checkout-payment-group">
+                <span className="checkout-payment-group-title">Preferred payment</span>
+                <button type="button" className={paymentMethod === 'upi' ? 'payment-method-card active' : 'payment-method-card'} onClick={() => setPaymentMethod('upi')}>
+                  <div className="payment-method-icon"><Smartphone size={18} /></div>
+                  <div className="payment-method-copy">
+                    <strong>UPI apps</strong>
+                    <span>PhonePe, GPay, Paytm and supported UPI apps</span>
+                  </div>
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+
+              <div className="checkout-payment-group">
+                <span className="checkout-payment-group-title">Cards</span>
+                <button type="button" className={paymentMethod === 'card' ? 'payment-method-card active' : 'payment-method-card'} onClick={() => setPaymentMethod('card')}>
+                  <div className="payment-method-icon"><CreditCard size={18} /></div>
+                  <div className="payment-method-copy">
+                    <strong>Credit & debit cards</strong>
+                    <span>Saved cards and new cards via Razorpay secure checkout</span>
+                  </div>
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+
+              {codAvailableForCheckout && (
+                <div className="checkout-payment-group">
+                  <span className="checkout-payment-group-title">More options</span>
+                  <button type="button" className={paymentMethod === 'cod' ? 'payment-method-card active' : 'payment-method-card'} onClick={() => setPaymentMethod('cod')}>
+                    <div className="payment-method-icon"><Receipt size={18} /></div>
+                    <div className="payment-method-copy">
+                      <strong>Cash on delivery</strong>
+                      <span>Pay when the order reaches you</span>
+                    </div>
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="form-group checkout-promo-group">
+              <label>Coupons / offers</label>
+              <div className="pincode-search-row">
+                <input
+                  type="text"
+                  placeholder="Enter promo code"
+                  value={promoCode}
+                  onChange={e => setPromoCode(e.target.value.toUpperCase())}
+                />
+                <button type="button" onClick={applyPromoCode} disabled={promoBusy}>
+                  {promoBusy ? 'Applying...' : 'Apply'}
+                </button>
+              </div>
+              {promoResult && (
+                <div className="promo-success-row">
+                  <strong>{promoResult.code}</strong>
+                  <span>Saved Rs {Math.round(Number(promoResult.discount_amount || 0))} on products.</span>
+                </div>
+              )}
+            </div>
+
+            <p className="checkout-note">
+              {codAvailableForCheckout
+                ? 'UPI and cards open Razorpay checkout, while COD places the order directly.'
+                : codEnabled && !cartAllowsCod
+                  ? 'Some products in this cart are marked as COD disabled in admin, so only UPI and card are available.'
+                  : 'Cash on delivery is disabled. Camigo will open real Razorpay checkout for the selected payment mode.'}
+            </p>
+            {paymentMethod === 'upi' && (
               <p className="checkout-note upi-app-note">
                 On mobile, Razorpay will show available UPI apps for app-to-app payment when supported by the device.
               </p>
             )}
-        </section>
+          </section>
+        )}
       </div>
 
         <aside className="checkout-summary">
@@ -932,29 +1087,40 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
               </div>
             </div>
           </div>
-          <button className="checkout-pay-btn" onClick={handlePlaceOrder} disabled={payDisabled}>
-            {loading
-              ? 'Opening Razorpay...'
-              : !deliveryAvailable
-                ? 'Enter valid delivery pincode'
-                : quoteLoading
-                  ? 'Calculating delivery charge...'
-                  : !user?.phone_verified
-                      ? 'Verify mobile to pay'
-                      : paymentMethod === 'cod'
-                        ? `Place COD order Rs ${payable}`
-                        : razorpayReady
-                          ? `Pay Rs ${payable}`
-                          : 'Loading payment gateway...'}
-          </button>
+          {checkoutStage === 'payment' && (
+            <button className="checkout-pay-btn" onClick={handlePlaceOrder} disabled={payDisabled}>
+              {loading
+                ? 'Opening Razorpay...'
+                : !deliveryAvailable
+                  ? 'Enter valid delivery pincode'
+                  : quoteLoading
+                    ? 'Calculating delivery charge...'
+                    : !user?.phone_verified
+                        ? 'Verify mobile to pay'
+                        : paymentMethod === 'cod'
+                          ? `Place COD order Rs ${payable}`
+                          : razorpayReady
+                            ? `Pay Rs ${payable}`
+                            : 'Loading payment gateway...'}
+            </button>
+          )}
       </aside>
       <div className="checkout-mobile-bar">
         <div className="checkout-mobile-bar-copy">
           <strong>To pay: Rs {payable}</strong>
-          <span>{deliveryAvailable ? deliveryEstimate : 'Enter serviceable pincode'}</span>
+          <span>{checkoutStage === 'address' ? 'Choose address to continue' : (deliveryAvailable ? deliveryEstimate : 'Enter serviceable pincode')}</span>
         </div>
-        <button type="button" className="checkout-mobile-pay" onClick={handlePlaceOrder} disabled={payDisabled}>
-          {loading ? 'Processing...' : 'Pay now'}
+        <button
+          type="button"
+          className="checkout-mobile-pay"
+          onClick={checkoutStage === 'address' ? proceedToPaymentStage : handlePlaceOrder}
+          disabled={checkoutStage === 'address'
+            ? (!address.trim() || !deliveryAvailable || !deliveryQuote || quoteLoading || !user?.phone_verified)
+            : payDisabled}
+        >
+          {checkoutStage === 'address'
+            ? (!user?.phone_verified ? 'Verify mobile' : 'Continue')
+            : (loading ? 'Processing...' : 'Pay now')}
         </button>
       </div>
       {phoneVerifyOpen && (
