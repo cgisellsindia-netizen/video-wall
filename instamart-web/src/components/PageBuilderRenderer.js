@@ -297,106 +297,115 @@ function ProductHeroBlock({
           </div>
         </div>
 
-        <div className="product-detail-info product-info-column">
-          <div className="product-top-meta">
-            <span className="product-meta-pill">{product.category_name || 'Security device'}</span>
-            <span className="product-meta-pill soft">{product.unit || '1 Unit'}</span>
+        <div className="product-detail-info product-summary-card">
+          <div className="product-summary-top">
+            <div className="product-top-meta">
+              <span className="product-meta-pill">{product.category_name || 'Security device'}</span>
+              <span className="product-meta-pill soft">{product.unit || '1 Unit'}</span>
+            </div>
+            <h1 className="product-detail-name">{product.name}</h1>
+            <div className="product-detail-rating-row">
+              <span><Star size={15} fill="currentColor" /> {ratingAverage}</span>
+              <strong>{ratingCount} customer ratings</strong>
+            </div>
+            <div className="product-feature-chips">
+              {featureList.slice(0, 4).map((feature) => <span key={feature}>{feature}</span>)}
+            </div>
           </div>
-          <h1 className="product-detail-name">{product.name}</h1>
-          <div className="product-detail-rating-row">
-            <span><Star size={15} fill="currentColor" /> {ratingAverage}</span>
-            <strong>{ratingCount} customer ratings</strong>
-          </div>
-          <p className="product-detail-desc">{product.description}</p>
-          <div className="product-feature-chips">
-            {featureList.slice(0, 4).map((feature) => <span key={feature}>{feature}</span>)}
-          </div>
-          <div className="product-detail-copy-card">
-            <span className="eyebrow">{block?.whyTitle || 'Why buyers choose this'}</span>
-            <p>{block?.whyBody || 'Built for homes, shops and office setups where buyers want quick dispatch, clear specs, stable night vision and a simple buying flow.'}</p>
+
+          <aside className="product-buy-panel product-purchase-box product-summary-buy">
+            <div className="product-price-panel">
+              {discount > 0 && <div className="product-offer-line product-detail-offer-line">{discount}% OFF</div>}
+              <div className="product-detail-price modern-price-row">
+                <span className="price-current product-price-main">Rs {sellingPrice}</span>
+                <span className="price-original product-price-cut">Rs {product.mrp}</span>
+              </div>
+              {savings > 0 && <div className="product-savings-note">You save Rs {savings} on this product</div>}
+              {(user?.role === 'dealer' || user?.role === 'distributor') && (
+                <div className="trade-detail-note">Special {user.role} price applied for this account.</div>
+              )}
+            </div>
+
+            <div className="product-detail-badges modern-badges-grid">
+              <div className="detail-badge"><Truck size={16} /> {block?.dispatchBadge || 'Same-day dispatch zone'}</div>
+              <div className="detail-badge"><Clock3 size={16} /> {block?.processBadge || 'Fast order processing'}</div>
+              <div className="detail-badge"><ShieldCheck size={16} /> {block?.supportBadge || 'Verified Camigo support'}</div>
+            </div>
+
+            <div className="product-action-block">
+              <div className="product-action-utility-row">
+                {onToggleSaved && (
+                  <button className={isSaved ? 'product-secondary-action saved-action active' : 'product-secondary-action saved-action'} type="button" onClick={() => onToggleSaved(product)}>
+                    <Heart size={18} fill={isSaved ? 'currentColor' : 'none'} /> {isSaved ? 'Saved for later' : 'Save for later'}
+                  </button>
+                )}
+                <div className="product-share-row">
+                  <button
+                    className="product-secondary-action product-share-icon-btn share-action"
+                    type="button"
+                    onClick={onShare}
+                    aria-label="Share product"
+                    title="Share product"
+                  >
+                    <Share2 size={19} />
+                  </button>
+                  <button
+                    className="product-secondary-action product-share-icon-btn whatsapp-share-action"
+                    type="button"
+                    onClick={onWhatsAppShare}
+                    aria-label="Share on WhatsApp"
+                    title="Share on WhatsApp"
+                  >
+                    <MessageCircle size={19} />
+                  </button>
+                  <button
+                    className="product-secondary-action product-share-icon-btn instagram-share-action"
+                    type="button"
+                    onClick={onInstagramStoryShare}
+                    aria-label="Share to Instagram Story"
+                    title="Share to Instagram Story"
+                  >
+                    <Camera size={19} />
+                  </button>
+                </div>
+              </div>
+              {shareFeedback ? <div className="product-share-feedback">{shareFeedback}</div> : null}
+              <div className="product-action-cta-row">
+                {isOutOfStock ? (
+                  <button className="add-btn-large sold-out-detail-btn" type="button" disabled aria-disabled="true">
+                    <ShoppingCart size={20} /> Sold out
+                  </button>
+                ) : selectedQty > 0 ? (
+                  <div className="detail-qty-stepper">
+                    <button type="button" onPointerDown={handlePointerAction(() => onRemove(product, cartItem))} onClick={stopActionTap}><Minus size={18} /></button>
+                    <strong>{selectedQty}</strong>
+                    <button type="button" onPointerDown={handlePointerAction(handleAdd)} onClick={stopActionTap}><Plus size={18} /></button>
+                  </div>
+                ) : (
+                  <button className="add-btn-large" type="button" onPointerDown={handlePointerAction(handleAdd)} onClick={stopActionTap}>
+                    <ShoppingCart size={20} /> Add to cart
+                  </button>
+                )}
+                <button className="product-secondary-action product-buy-now-action" onClick={handleBuyNow} disabled={isOutOfStock}>
+                  <Zap size={19} /> Buy now
+                </button>
+              </div>
+            </div>
+
+            <div className="product-trust-strip">
+              <div><BadgeCheck size={16} /><span>Trusted CGI lineup</span></div>
+              <div><Package2 size={16} /><span>Careful packed delivery</span></div>
+            </div>
+          </aside>
+
+          <div className="product-summary-copy">
+            <p className="product-detail-desc">{product.description}</p>
+            <div className="product-detail-copy-card">
+              <span className="eyebrow">{block?.whyTitle || 'Why buyers choose this'}</span>
+              <p>{block?.whyBody || 'Built for homes, shops and office setups where buyers want quick dispatch, clear specs, stable night vision and a simple buying flow.'}</p>
+            </div>
           </div>
         </div>
-
-        <aside className="product-detail-info product-buy-panel product-purchase-box">
-          <div className="product-price-panel">
-            {discount > 0 && <div className="product-offer-line product-detail-offer-line">{discount}% OFF</div>}
-            <div className="product-detail-price modern-price-row">
-              <span className="price-current product-price-main">Rs {sellingPrice}</span>
-              <span className="price-original product-price-cut">Rs {product.mrp}</span>
-            </div>
-            {savings > 0 && <div className="product-savings-note">You save Rs {savings} on this product</div>}
-            {(user?.role === 'dealer' || user?.role === 'distributor') && (
-              <div className="trade-detail-note">Special {user.role} price applied for this account.</div>
-            )}
-          </div>
-
-          <div className="product-detail-badges modern-badges-grid">
-            <div className="detail-badge"><Truck size={16} /> {block?.dispatchBadge || 'Same-day dispatch zone'}</div>
-            <div className="detail-badge"><Clock3 size={16} /> {block?.processBadge || 'Fast order processing'}</div>
-            <div className="detail-badge"><ShieldCheck size={16} /> {block?.supportBadge || 'Verified Camigo support'}</div>
-          </div>
-
-          <div className="product-action-block">
-            {onToggleSaved && (
-              <button className={isSaved ? 'product-secondary-action saved-action active' : 'product-secondary-action saved-action'} type="button" onClick={() => onToggleSaved(product)}>
-                <Heart size={18} fill={isSaved ? 'currentColor' : 'none'} /> {isSaved ? 'Saved for later' : 'Save for later'}
-              </button>
-            )}
-            <div className="product-share-row">
-              <button
-                className="product-secondary-action product-share-icon-btn share-action"
-                type="button"
-                onClick={onShare}
-                aria-label="Share product"
-                title="Share product"
-              >
-                <Share2 size={19} />
-              </button>
-              <button
-                className="product-secondary-action product-share-icon-btn whatsapp-share-action"
-                type="button"
-                onClick={onWhatsAppShare}
-                aria-label="Share on WhatsApp"
-                title="Share on WhatsApp"
-              >
-                <MessageCircle size={19} />
-              </button>
-              <button
-                className="product-secondary-action product-share-icon-btn instagram-share-action"
-                type="button"
-                onClick={onInstagramStoryShare}
-                aria-label="Share to Instagram Story"
-                title="Share to Instagram Story"
-              >
-                <Camera size={19} />
-              </button>
-            </div>
-            {shareFeedback ? <div className="product-share-feedback">{shareFeedback}</div> : null}
-            {isOutOfStock ? (
-              <button className="add-btn-large sold-out-detail-btn" type="button" disabled aria-disabled="true">
-                <ShoppingCart size={20} /> Sold out
-              </button>
-            ) : selectedQty > 0 ? (
-              <div className="detail-qty-stepper">
-                <button type="button" onPointerDown={handlePointerAction(() => onRemove(product, cartItem))} onClick={stopActionTap}><Minus size={18} /></button>
-                <strong>{selectedQty}</strong>
-                <button type="button" onPointerDown={handlePointerAction(handleAdd)} onClick={stopActionTap}><Plus size={18} /></button>
-              </div>
-            ) : (
-              <button className="add-btn-large" type="button" onPointerDown={handlePointerAction(handleAdd)} onClick={stopActionTap}>
-                <ShoppingCart size={20} /> Add to cart
-              </button>
-            )}
-            <button className="product-secondary-action" onClick={handleBuyNow} disabled={isOutOfStock}>
-              <Zap size={19} /> Buy now
-            </button>
-          </div>
-
-          <div className="product-trust-strip">
-            <div><BadgeCheck size={16} /><span>Trusted CGI lineup</span></div>
-            <div><Package2 size={16} /><span>Careful packed delivery</span></div>
-          </div>
-        </aside>
       </div>
     </section>
   );
