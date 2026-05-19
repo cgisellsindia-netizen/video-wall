@@ -5215,10 +5215,22 @@ app.get('/share/product/:id/story.png', async (req, res) => {
     if (!sourceBuffer?.length) {
       return res.status(404).json({ error: 'Product image unavailable' });
     }
-    const productImageBuffer = await sharp(sourceBuffer, { failOn: 'none' })
-      .resize(860, 760, { fit: 'contain', background: '#ffffff' })
+    const preparedImage = await sharp(sourceBuffer, { failOn: 'none' })
+      .trim({ threshold: 10 })
+      .resize(760, 620, { fit: 'inside', withoutEnlargement: true, background: '#ffffff' })
       .png()
       .toBuffer();
+    const preparedMeta = await sharp(preparedImage).metadata();
+    const imageWidth = preparedMeta.width || 760;
+    const imageHeight = preparedMeta.height || 620;
+    const imageArea = {
+      left: 158,
+      top: 336,
+      width: 764,
+      height: 612
+    };
+    const imageLeft = imageArea.left + Math.max(0, Math.round((imageArea.width - imageWidth) / 2));
+    const imageTop = imageArea.top + Math.max(0, Math.round((imageArea.height - imageHeight) / 2));
 
     const sellingPrice = Math.round(Number(product.price || 0));
     const mrp = Math.round(Number(product.mrp || 0));
@@ -5255,6 +5267,7 @@ app.get('/share/product/:id/story.png', async (req, res) => {
         <text x="118" y="166" fill="#ffffff" font-size="80" font-weight="900" font-family="Arial, sans-serif">Camigo</text>
         <text x="120" y="214" fill="#f6c400" font-size="32" font-weight="700" font-family="Arial, sans-serif">Fast CCTV Delivery</text>
         <rect x="118" y="274" rx="44" ry="44" width="844" height="790" fill="#ffffff"/>
+        <rect x="158" y="336" rx="28" ry="28" width="764" height="612" fill="#ffffff"/>
         <rect x="118" y="1124" rx="40" ry="40" width="844" height="540" fill="url(#glass)" stroke="rgba(255,255,255,0.16)" stroke-width="2"/>
         ${discount > 0 ? `
           <g transform="translate(842 228)">
@@ -5286,7 +5299,7 @@ app.get('/share/product/:id/story.png', async (req, res) => {
     })
       .composite([
         { input: Buffer.from(svg), top: 0, left: 0 },
-        { input: productImageBuffer, top: 300, left: 110 }
+        { input: preparedImage, top: imageTop, left: imageLeft }
       ])
       .png()
       .toBuffer();
