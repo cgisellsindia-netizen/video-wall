@@ -41,6 +41,7 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
   const [addressLabel, setAddressLabel] = useState('Home');
   const [addressSaving, setAddressSaving] = useState(false);
   const [codEnabled, setCodEnabled] = useState(false);
+  const [checkoutSuggestions, setCheckoutSuggestions] = useState([]);
   const navigate = useNavigate();
   const directBuyItem = location.state?.directBuyItem || null;
 
@@ -199,10 +200,54 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
   const payable = discountedSubtotal + gst + deliveryFee + installationFee;
   const paymentGatewayReady = paymentMethod === 'cod' ? true : razorpayReady;
   const payDisabled = Boolean(loading || !cartItems.length || !deliveryAvailable || !deliveryQuote || quoteLoading || !address.trim() || !paymentGatewayReady);
+  const cartProductIds = useMemo(
+    () => new Set(cartItems.map((item) => Number(item.product_id || item.id)).filter(Boolean)),
+    [cartItems]
+  );
+  const cartCategoryIds = useMemo(
+    () => Array.from(new Set(cartItems.map((item) => Number(item.category_id)).filter(Boolean))),
+    [cartItems]
+  );
 
   useEffect(() => {
     if (paymentMethod === 'cod' && !codAvailableForCheckout) setPaymentMethod('upi');
   }, [codAvailableForCheckout, paymentMethod]);
+
+  useEffect(() => {
+    let active = true;
+    if (!cartItems.length) {
+      setCheckoutSuggestions([]);
+      return undefined;
+    }
+    const loadSuggestions = async () => {
+      try {
+        const res = await fetch(`${API_URL}/products`);
+        const data = await res.json().catch(() => []);
+        if (!active) return;
+        const list = Array.isArray(data) ? data : [];
+        const fromSameCategory = list.filter((product) => (
+          !cartProductIds.has(Number(product.id))
+          && cartCategoryIds.includes(Number(product.category_id))
+          && Number(product.is_hidden || 0) !== 1
+        ));
+        const accessoryFallback = list.filter((product) => (
+          !cartProductIds.has(Number(product.id))
+          && [4, 5, 6, 7, 8].includes(Number(product.category_id))
+          && Number(product.is_hidden || 0) !== 1
+        ));
+        const merged = [...fromSameCategory, ...accessoryFallback].filter((product, index, array) => (
+          array.findIndex((entry) => Number(entry.id) === Number(product.id)) === index
+        ));
+        setCheckoutSuggestions(merged.slice(0, 12));
+      } catch (loadError) {
+        if (active) setCheckoutSuggestions([]);
+      }
+    };
+    loadSuggestions();
+    return () => {
+      active = false;
+    };
+  }, [cartItems.length, cartCategoryIds, cartProductIds]);
 
   useEffect(() => {
     const detectedPincode = pincode.trim() || extractPincode(address);
@@ -370,6 +415,42 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
       }
     } catch (cartError) {
       // Keep checkout responsive even if cart sync is delayed.
+    }
+  };
+
+  const handleSuggestionAdd = async (product) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      onLogin?.();
+      return;
+    }
+    const productId = Number(product.id);
+    const existing = cartItems.find((item) => Number(item.product_id || item.id) === productId);
+    const nextCartItems = existing
+      ? cartItems.map((item) => (
+          Number(item.product_id || item.id) === productId
+            ? { ...item, quantity: Number(item.quantity || 0) + 1 }
+            : item
+        ))
+      : [...cartItems, { ...product, product_id: product.id, quantity: 1 }];
+    setCartItems(nextCartItems);
+    localStorage.setItem('cart_backup', JSON.stringify(nextCartItems));
+    try {
+      if (existing?.id) {
+        await fetch(`${API_URL}/cart/${existing.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ quantity: Number(existing.quantity || 0) + 1 })
+        });
+      } else {
+        await fetch(`${API_URL}/cart`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ product_id: product.id, quantity: 1 })
+        });
+      }
+    } catch (cartError) {
+      // Keep checkout responsive even if cart sync takes a moment.
     }
   };
 
@@ -749,6 +830,40 @@ function CheckoutPage({ user, onLogin, onOrderPlaced, onUserUpdate, liveCartItem
               </div>
             </div>
           </div>
+
+          {checkoutSuggestions.length > 0 && (
+            <div className="checkout-summary-card checkout-suggestion-card">
+              <div className="checkout-summary-head compact">
+                <div>
+                  <span className="checkout-section-tag">Did you forget?</span>
+                  <h3><Package size={18} /> Quick add-ons</h3>
+                </div>
+              </div>
+              <div className="checkout-suggestion-rail">
+                {checkoutSuggestions.map((product) => (
+                  <div key={product.id} className="checkout-suggestion-item">
+                    <button type="button" className="checkout-suggestion-visual" onClick={() => navigate(`/product/${product.id}`)}>
+                      <ProductImage
+                        src={product.image}
+                        alt={product.name}
+                        proxyWidth={180}
+                        proxyQuality={64}
+                        proxyFormat="webp"
+                      />
+                    </button>
+                    <small>{deliveryAvailable ? deliveryEstimate : 'Fast add-on'}</small>
+                    <strong>{product.name}</strong>
+                    <div className="checkout-suggestion-foot">
+                      <span>Rs {Math.round(Number(product.price || 0))}</span>
+                      <button type="button" onClick={() => handleSuggestionAdd(product)} aria-label={`Add ${product.name} to cart`}>
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="checkout-summary-card checkout-bill-card">
             <div className="checkout-summary-head compact">
