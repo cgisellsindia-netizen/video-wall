@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, BadgeCheck, Clock3, Heart, MessageCircle, Minus, Package2, Plus, Share2, ShoppingCart, ShieldCheck, Sparkles, Star, Truck, Zap } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Clock3, Download, Heart, MessageCircle, Minus, Package2, Plus, Share2, ShoppingCart, ShieldCheck, Sparkles, Star, Truck, Zap } from 'lucide-react';
 import HeroBanner from './HeroBanner';
 import CategoryGrid from './CategoryGrid';
 import SetupPackagesSection from './SetupPackagesSection';
@@ -200,6 +200,7 @@ function ProductHeroBlock({
   navigate,
   onShare,
   onWhatsAppShare,
+  onInstagramStoryShare,
   shareFeedback
 }) {
   const featureList = String(product?.description || '').split(',').map((item) => item.trim()).filter(Boolean).slice(0, 6);
@@ -348,6 +349,9 @@ function ProductHeroBlock({
               <button className="product-secondary-action whatsapp-share-action" type="button" onClick={onWhatsAppShare}>
                 <MessageCircle size={18} /> WhatsApp
               </button>
+              <button className="product-secondary-action instagram-share-action" type="button" onClick={onInstagramStoryShare}>
+                <Download size={18} /> Instagram Story
+              </button>
             </div>
             {shareFeedback ? <div className="product-share-feedback">{shareFeedback}</div> : null}
             {isOutOfStock ? (
@@ -397,6 +401,7 @@ export function ProductPageBlocks({
   onToggleSaved,
   onShare,
   onWhatsAppShare,
+  onInstagramStoryShare,
   shareFeedback
 }) {
   const navigate = useNavigate();
@@ -436,6 +441,7 @@ export function ProductPageBlocks({
               navigate={navigate}
               onShare={onShare}
               onWhatsAppShare={onWhatsAppShare}
+              onInstagramStoryShare={onInstagramStoryShare}
               shareFeedback={shareFeedback}
             />
           );

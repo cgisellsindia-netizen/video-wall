@@ -5031,6 +5031,27 @@ const assertShareImageHostAllowed = (imageUrl = '') => {
   return parsed;
 };
 
+const wrapShareTextLines = (value = '', maxChars = 24, maxLines = 3) => {
+  const words = String(value || '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const lines = [];
+  let current = '';
+  words.forEach((word) => {
+    const proposed = current ? `${current} ${word}` : word;
+    if (proposed.length <= maxChars || !current) {
+      current = proposed;
+      return;
+    }
+    lines.push(current);
+    current = word;
+  });
+  if (current) lines.push(current);
+  if (lines.length <= maxLines) return lines;
+  const trimmed = lines.slice(0, maxLines);
+  trimmed[maxLines - 1] = `${trimmed[maxLines - 1].slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
+  return trimmed;
+};
+
 app.get('/share/product/:id', async (req, res) => {
   try {
     const productId = Number(req.params.id);
@@ -5142,6 +5163,125 @@ app.get('/share/product/:id', async (req, res) => {
   } catch (error) {
     console.error('Product share page failed:', error);
     res.status(500).send('Unable to build product share page');
+  }
+});
+
+app.get('/share/product/:id/story.png', async (req, res) => {
+  try {
+    const productId = Number(req.params.id);
+    if (!Number.isFinite(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'Invalid product id' });
+    }
+
+    const product = await dbGetAsync(
+      `SELECT p.*, c.name as category_name
+       FROM products p
+       LEFT JOIN categories c ON p.category_id = c.id
+       WHERE p.id = ?`,
+      [productId]
+    );
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    const imageRows = await dbAllAsync(
+      `SELECT image_url
+       FROM product_images
+       WHERE product_id = ?
+       ORDER BY sort_order ASC, id ASC`,
+      [productId]
+    );
+    const gallery = buildShareProductGallery(product, imageRows);
+    const primarySourceImageUrl = resolveShareSourceImageUrl(gallery[0], product);
+    assertShareImageHostAllowed(primarySourceImageUrl);
+
+    const upstream = await fetch(primarySourceImageUrl, { redirect: 'follow' });
+    if (!upstream.ok) {
+      return res.status(404).json({ error: 'Product image unavailable' });
+    }
+
+    const sourceBuffer = Buffer.from(await upstream.arrayBuffer());
+    const productImageBuffer = await sharp(sourceBuffer, { failOn: 'none' })
+      .resize(860, 760, { fit: 'contain', background: '#ffffff' })
+      .png()
+      .toBuffer();
+
+    const sellingPrice = Math.round(Number(product.price || 0));
+    const mrp = Math.round(Number(product.mrp || 0));
+    const discount = Number(product.discount_percent) > 0
+      ? Math.round(Number(product.discount_percent))
+      : mrp > sellingPrice && mrp > 0
+        ? Math.max(0, Math.round((1 - (sellingPrice / mrp)) * 100))
+        : 0;
+    const productUrl = `${publicStorefrontUrl}/product/${productId}`;
+    const storyLines = wrapShareTextLines(product.name, 22, 3);
+    const storySubline = wrapShareTextLines(product.category_name || 'Camigo CCTV product', 28, 1)[0] || 'Camigo CCTV product';
+    const savings = Math.max(0, mrp - sellingPrice);
+    const svg = `
+      <svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#082a63"/>
+            <stop offset="55%" stop-color="#0b3d91"/>
+            <stop offset="100%" stop-color="#03152f"/>
+          </linearGradient>
+          <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#ffffff"/>
+            <stop offset="100%" stop-color="#edf5ff"/>
+          </linearGradient>
+          <linearGradient id="cta" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#f6c400"/>
+            <stop offset="100%" stop-color="#ffd84f"/>
+          </linearGradient>
+        </defs>
+        <rect width="1080" height="1920" fill="url(#bg)"/>
+        <circle cx="910" cy="250" r="260" fill="rgba(255,255,255,0.08)"/>
+        <circle cx="150" cy="1630" r="220" fill="rgba(246,196,0,0.10)"/>
+        <text x="90" y="140" fill="#ffffff" font-size="82" font-weight="800" font-family="Arial, sans-serif">Camigo</text>
+        <text x="92" y="196" fill="#f6c400" font-size="34" font-weight="700" font-family="Arial, sans-serif">Fast CCTV Delivery</text>
+        <rect x="78" y="248" rx="26" ry="26" width="924" height="820" fill="url(#card)"/>
+        <rect x="118" y="288" rx="34" ry="34" width="844" height="740" fill="#ffffff"/>
+        ${discount > 0 ? `
+          <g transform="translate(820 214)">
+            <circle cx="100" cy="100" r="100" fill="#ef2f24" stroke="#ffffff" stroke-width="16"/>
+            <text x="100" y="86" text-anchor="middle" fill="#ffffff" font-size="62" font-weight="900" font-family="Arial, sans-serif">${escapeHtml(String(discount))}%</text>
+            <text x="100" y="144" text-anchor="middle" fill="#ffffff" font-size="42" font-weight="900" font-family="Arial, sans-serif">OFF</text>
+          </g>` : ''}
+        <text x="90" y="1160" fill="#dbeafe" font-size="24" font-weight="800" font-family="Arial, sans-serif">${escapeHtml(storySubline.toUpperCase())}</text>
+        ${storyLines.map((line, index) => `
+          <text x="90" y="${1248 + (index * 80)}" fill="#ffffff" font-size="68" font-weight="900" font-family="Arial, sans-serif">${escapeHtml(line)}</text>
+        `).join('')}
+        <text x="90" y="1498" fill="#ffffff" font-size="72" font-weight="900" font-family="Arial, sans-serif">Rs ${escapeHtml(String(sellingPrice))}</text>
+        ${mrp > sellingPrice ? `<text x="318" y="1498" fill="#a5b4fc" font-size="38" font-weight="700" text-decoration="line-through" font-family="Arial, sans-serif">Rs ${escapeHtml(String(mrp))}</text>` : ''}
+        ${savings > 0 ? `<text x="90" y="1554" fill="#86efac" font-size="32" font-weight="700" font-family="Arial, sans-serif">Save Rs ${escapeHtml(String(savings))} with Camigo</text>` : ''}
+        <rect x="90" y="1620" rx="36" ry="36" width="560" height="124" fill="url(#cta)"/>
+        <text x="370" y="1698" text-anchor="middle" fill="#082a63" font-size="54" font-weight="900" font-family="Arial, sans-serif">Tap Link Sticker</text>
+        <text x="90" y="1808" fill="#dbeafe" font-size="28" font-weight="600" font-family="Arial, sans-serif">Add this product to your Instagram Story, then paste the Camigo product link sticker.</text>
+        <text x="90" y="1860" fill="#93c5fd" font-size="22" font-weight="600" font-family="Arial, sans-serif">${escapeHtml(productUrl)}</text>
+      </svg>
+    `;
+
+    const poster = await sharp({
+      create: {
+        width: 1080,
+        height: 1920,
+        channels: 4,
+        background: '#082a63'
+      }
+    })
+      .composite([
+        { input: Buffer.from(svg), top: 0, left: 0 },
+        { input: productImageBuffer, top: 300, left: 110 }
+      ])
+      .png()
+      .toBuffer();
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=1800, stale-while-revalidate=86400');
+    res.setHeader('Content-Disposition', `inline; filename=\"camigo-product-${productId}-story.png\"`);
+    res.send(poster);
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Unable to generate story poster' });
   }
 });
 

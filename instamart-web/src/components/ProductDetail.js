@@ -67,6 +67,7 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
     }
   })();
   const shareUrl = product ? `${shareBaseUrl}/share/product/${productId}` : '';
+  const instagramStoryUrl = product ? `${shareBaseUrl}/share/product/${productId}/story.png` : '';
   const sharePrice = Math.round(Number(priceForRole ? priceForRole(product || {}, user) : product?.price || 0));
   const shareText = product
     ? `${product.name} on Camigo for Rs ${sharePrice}. Fast CCTV delivery and support.`
@@ -219,6 +220,26 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
     window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
   };
 
+  const handleInstagramStoryShare = async () => {
+    if (!product || !shareUrl || !instagramStoryUrl) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      }
+    } catch (error) {
+      // Ignore clipboard failures and still open the story poster.
+    }
+    const link = document.createElement('a');
+    link.href = instagramStoryUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.download = `camigo-product-${productId}-story.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setShareFeedback('Instagram Story poster opened. Product link copied for sticker.');
+  };
+
   if (loading) {
     return <div className="container" style={{ padding: '48px 16px' }}><h2 className="section-title">Loading product...</h2></div>;
   }
@@ -266,6 +287,7 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
         onToggleSaved={onToggleSaved}
         onShare={handleShare}
         onWhatsAppShare={handleWhatsAppShare}
+        onInstagramStoryShare={handleInstagramStoryShare}
         shareFeedback={shareFeedback}
       />
     </div>

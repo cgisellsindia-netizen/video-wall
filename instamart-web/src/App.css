@@ -6143,7 +6143,7 @@ body.bottom-nav-hidden .floating-tracker {
 }
 .product-share-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 .add-btn-large {
@@ -6199,6 +6199,15 @@ body.bottom-nav-hidden .floating-tracker {
 }
 .whatsapp-share-action:hover {
   background: #dcfce7;
+}
+.instagram-share-action {
+  background: #fff4fb;
+  color: #be185d;
+  border: 1px solid rgba(190, 24, 93, 0.18);
+  box-shadow: none;
+}
+.instagram-share-action:hover {
+  background: #fce7f3;
 }
 .add-btn-large,
 .product-secondary-action {
