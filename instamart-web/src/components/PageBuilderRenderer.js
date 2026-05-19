@@ -562,7 +562,19 @@ export function ProductPageBlocks({
                       <strong>{item.name}</strong>
                       <div className="related-product-footer">
                         <span>Rs {priceForRole ? priceForRole(item, user) : item.price}</span>
-                        <em>View</em>
+                        <em
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            if (!user) {
+                              onLogin();
+                              return;
+                            }
+                            onAdd(item);
+                          }}
+                        >
+                          ADD
+                        </em>
                       </div>
                     </div>
                   </button>
