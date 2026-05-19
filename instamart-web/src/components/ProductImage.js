@@ -53,6 +53,20 @@ const buildWebpVariant = (value = '') => {
   return `${path.replace(/\.png$/i, '.webp')}${suffix}`;
 };
 
+const buildResolutionCacheKey = (value = '', options = {}) => {
+  const cleanValue = normalizeImageSource(value);
+  if (!cleanValue) return '';
+  const width = Number(options.width || 0) > 0 ? Number(options.width) : 0;
+  const quality = Number(options.quality || 0) > 0 ? Number(options.quality) : 0;
+  const format = String(options.format || '').trim().toLowerCase();
+  return JSON.stringify({
+    src: cleanValue,
+    width,
+    quality,
+    format
+  });
+};
+
 const proxiedMediaSource = (value = '', options = {}) => {
   const cleanValue = normalizeImageSource(value);
   if (!cleanValue || isEmbeddedImage(cleanValue) || !/^https?:\/\//i.test(cleanValue)) return '';
@@ -77,7 +91,10 @@ const buildFallbackSources = (src, extraSources = [], fallbackSrc = '', options 
     const cleanCandidate = normalizeImageSource(candidate);
     if (!cleanCandidate || candidateKeys.includes(cleanCandidate)) return;
     candidateKeys.push(cleanCandidate);
-    if (resolvedSourceCache.has(cleanCandidate)) addSource(resolvedSourceCache.get(cleanCandidate));
+    const resolutionCacheKey = buildResolutionCacheKey(cleanCandidate, options);
+    if (resolutionCacheKey && resolvedSourceCache.has(resolutionCacheKey)) {
+      addSource(resolvedSourceCache.get(resolutionCacheKey));
+    }
     const webpVariant = buildWebpVariant(cleanCandidate);
     const prefersProxy = isRemoteSource(cleanCandidate);
     if (prefersProxy) {
@@ -115,6 +132,14 @@ function ProductImage({
 }) {
   const sourceKey = normalizeImageSource(src);
   const fallbackKey = normalizeImageSource(fallbackSrc);
+  const resolutionCacheKey = useMemo(
+    () => buildResolutionCacheKey(sourceKey, {
+      width: proxyWidth,
+      quality: proxyQuality,
+      format: proxyFormat
+    }),
+    [sourceKey, proxyWidth, proxyQuality, proxyFormat]
+  );
   const sourcePlan = useMemo(
     () => buildFallbackSources(src, sources, fallbackSrc, {
       width: proxyWidth,
@@ -151,6 +176,7 @@ function ProductImage({
       {...imgProps}
       onLoad={(event) => {
         const canCacheResolvedSource = sourceKey
+          && resolutionCacheKey
           && currentSrc
           && currentSrc !== fallbackKey
           && currentSrc !== proxiedMediaSource(fallbackKey, {
@@ -159,7 +185,7 @@ function ProductImage({
             format: proxyFormat
           });
         if (canCacheResolvedSource) {
-          resolvedSourceCache.set(sourceKey, currentSrc);
+          resolvedSourceCache.set(resolutionCacheKey, currentSrc);
         }
         if (typeof onLoad === 'function') onLoad(event);
       }}
