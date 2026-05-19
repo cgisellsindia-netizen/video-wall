@@ -222,22 +222,57 @@ function ProductDetail({ products, onAdd, onRemove, cartItems = [], user, onLogi
 
   const handleInstagramStoryShare = async () => {
     if (!product || !shareUrl || !instagramStoryUrl) return;
+    let copied = false;
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(shareUrl);
+        copied = true;
       }
     } catch (error) {
-      // Ignore clipboard failures and still open the story poster.
+      // Ignore clipboard failures and keep going with the poster share flow.
     }
-    const link = document.createElement('a');
-    link.href = instagramStoryUrl;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.download = `camigo-product-${productId}-story.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setShareFeedback('Instagram Story poster opened. Product link copied for sticker.');
+    try {
+      const posterResponse = await fetch(instagramStoryUrl, { cache: 'no-store' });
+      if (!posterResponse.ok) {
+        throw new Error(`Poster download failed with status ${posterResponse.status}`);
+      }
+      const posterBlob = await posterResponse.blob();
+      const posterFile = new File([posterBlob], `camigo-product-${productId}-story.png`, {
+        type: posterBlob.type || 'image/png'
+      });
+
+      if (navigator.canShare && navigator.canShare({ files: [posterFile] }) && navigator.share) {
+        await navigator.share({
+          files: [posterFile],
+          title: `${product.name} | Camigo`,
+          text: copied
+            ? 'Story poster ready. Paste the copied Camigo product link as your Instagram sticker.'
+            : 'Story poster ready for Instagram.'
+        });
+        setShareFeedback(
+          copied
+            ? 'Instagram share sheet opened. Product link copied for sticker.'
+            : 'Instagram share sheet opened.'
+        );
+        return;
+      }
+
+      const downloadUrl = URL.createObjectURL(posterBlob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `camigo-product-${productId}-story.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1500);
+      setShareFeedback(
+        copied
+          ? 'Story poster downloaded. Product link copied for sticker.'
+          : 'Story poster downloaded.'
+      );
+    } catch (error) {
+      setShareFeedback('Instagram Story poster failed to prepare.');
+    }
   };
 
   if (loading) {

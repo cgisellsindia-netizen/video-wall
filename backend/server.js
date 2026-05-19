@@ -5048,7 +5048,7 @@ const wrapShareTextLines = (value = '', maxChars = 24, maxLines = 3) => {
   if (current) lines.push(current);
   if (lines.length <= maxLines) return lines;
   const trimmed = lines.slice(0, maxLines);
-  trimmed[maxLines - 1] = `${trimmed[maxLines - 1].slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
+  trimmed[maxLines - 1] = `${trimmed[maxLines - 1].slice(0, Math.max(0, maxChars - 3)).trimEnd()}...`;
   return trimmed;
 };
 
@@ -5236,12 +5236,12 @@ app.get('/share/product/:id/story.png', async (req, res) => {
         <defs>
           <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stop-color="#082a63"/>
-            <stop offset="55%" stop-color="#0b3d91"/>
-            <stop offset="100%" stop-color="#03152f"/>
+            <stop offset="50%" stop-color="#0b3d91"/>
+            <stop offset="100%" stop-color="#04142c"/>
           </linearGradient>
-          <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stop-color="#ffffff"/>
-            <stop offset="100%" stop-color="#edf5ff"/>
+          <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgba(255,255,255,0.16)"/>
+            <stop offset="100%" stop-color="rgba(255,255,255,0.05)"/>
           </linearGradient>
           <linearGradient id="cta" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stop-color="#f6c400"/>
@@ -5249,29 +5249,30 @@ app.get('/share/product/:id/story.png', async (req, res) => {
           </linearGradient>
         </defs>
         <rect width="1080" height="1920" fill="url(#bg)"/>
-        <circle cx="910" cy="250" r="260" fill="rgba(255,255,255,0.08)"/>
-        <circle cx="150" cy="1630" r="220" fill="rgba(246,196,0,0.10)"/>
-        <text x="90" y="140" fill="#ffffff" font-size="82" font-weight="800" font-family="Arial, sans-serif">Camigo</text>
-        <text x="92" y="196" fill="#f6c400" font-size="34" font-weight="700" font-family="Arial, sans-serif">Fast CCTV Delivery</text>
-        <rect x="78" y="248" rx="26" ry="26" width="924" height="820" fill="url(#card)"/>
-        <rect x="118" y="288" rx="34" ry="34" width="844" height="740" fill="#ffffff"/>
+        <circle cx="920" cy="210" r="280" fill="rgba(255,255,255,0.08)"/>
+        <circle cx="160" cy="1670" r="220" fill="rgba(246,196,0,0.08)"/>
+        <rect x="82" y="82" rx="36" ry="36" width="916" height="1756" fill="rgba(1,17,39,0.24)" />
+        <text x="118" y="166" fill="#ffffff" font-size="80" font-weight="900" font-family="Arial, sans-serif">Camigo</text>
+        <text x="120" y="214" fill="#f6c400" font-size="32" font-weight="700" font-family="Arial, sans-serif">Fast CCTV Delivery</text>
+        <rect x="118" y="274" rx="44" ry="44" width="844" height="790" fill="#ffffff"/>
+        <rect x="118" y="1124" rx="40" ry="40" width="844" height="540" fill="url(#glass)" stroke="rgba(255,255,255,0.16)" stroke-width="2"/>
         ${discount > 0 ? `
-          <g transform="translate(820 214)">
-            <circle cx="100" cy="100" r="100" fill="#ef2f24" stroke="#ffffff" stroke-width="16"/>
-            <text x="100" y="86" text-anchor="middle" fill="#ffffff" font-size="62" font-weight="900" font-family="Arial, sans-serif">${escapeHtml(String(discount))}%</text>
-            <text x="100" y="144" text-anchor="middle" fill="#ffffff" font-size="42" font-weight="900" font-family="Arial, sans-serif">OFF</text>
+          <g transform="translate(842 228)">
+            <circle cx="92" cy="92" r="92" fill="#ef2f24" stroke="#ffffff" stroke-width="14"/>
+            <text x="92" y="82" text-anchor="middle" fill="#ffffff" font-size="58" font-weight="900" font-family="Arial, sans-serif">${escapeHtml(String(discount))}%</text>
+            <text x="92" y="136" text-anchor="middle" fill="#ffffff" font-size="36" font-weight="900" font-family="Arial, sans-serif">OFF</text>
           </g>` : ''}
-        <text x="90" y="1160" fill="#dbeafe" font-size="24" font-weight="800" font-family="Arial, sans-serif">${escapeHtml(storySubline.toUpperCase())}</text>
+        <text x="146" y="1200" fill="#bfdbfe" font-size="24" font-weight="800" letter-spacing="3" font-family="Arial, sans-serif">${escapeHtml(storySubline.toUpperCase())}</text>
         ${storyLines.map((line, index) => `
-          <text x="90" y="${1248 + (index * 80)}" fill="#ffffff" font-size="68" font-weight="900" font-family="Arial, sans-serif">${escapeHtml(line)}</text>
+          <text x="146" y="${1286 + (index * 76)}" fill="#ffffff" font-size="66" font-weight="900" font-family="Arial, sans-serif">${escapeHtml(line)}</text>
         `).join('')}
-        <text x="90" y="1498" fill="#ffffff" font-size="72" font-weight="900" font-family="Arial, sans-serif">Rs ${escapeHtml(String(sellingPrice))}</text>
-        ${mrp > sellingPrice ? `<text x="318" y="1498" fill="#a5b4fc" font-size="38" font-weight="700" text-decoration="line-through" font-family="Arial, sans-serif">Rs ${escapeHtml(String(mrp))}</text>` : ''}
-        ${savings > 0 ? `<text x="90" y="1554" fill="#86efac" font-size="32" font-weight="700" font-family="Arial, sans-serif">Save Rs ${escapeHtml(String(savings))} with Camigo</text>` : ''}
-        <rect x="90" y="1620" rx="36" ry="36" width="560" height="124" fill="url(#cta)"/>
-        <text x="370" y="1698" text-anchor="middle" fill="#082a63" font-size="54" font-weight="900" font-family="Arial, sans-serif">Tap Link Sticker</text>
-        <text x="90" y="1808" fill="#dbeafe" font-size="28" font-weight="600" font-family="Arial, sans-serif">Add this product to your Instagram Story, then paste the Camigo product link sticker.</text>
-        <text x="90" y="1860" fill="#93c5fd" font-size="22" font-weight="600" font-family="Arial, sans-serif">${escapeHtml(productUrl)}</text>
+        <text x="146" y="1512" fill="#ffffff" font-size="76" font-weight="900" font-family="Arial, sans-serif">Rs ${escapeHtml(String(sellingPrice))}</text>
+        ${mrp > sellingPrice ? `<text x="390" y="1512" fill="#a5b4fc" font-size="38" font-weight="700" text-decoration="line-through" font-family="Arial, sans-serif">Rs ${escapeHtml(String(mrp))}</text>` : ''}
+        ${savings > 0 ? `<text x="146" y="1570" fill="#86efac" font-size="32" font-weight="700" font-family="Arial, sans-serif">Save Rs ${escapeHtml(String(savings))} with Camigo</text>` : ''}
+        <rect x="146" y="1618" rx="32" ry="32" width="430" height="108" fill="url(#cta)"/>
+        <text x="361" y="1686" text-anchor="middle" fill="#082a63" font-size="44" font-weight="900" font-family="Arial, sans-serif">Add Link Sticker</text>
+        <text x="146" y="1768" fill="#dbeafe" font-size="28" font-weight="700" font-family="Arial, sans-serif">Share this poster to your Instagram Story, then add your copied Camigo link.</text>
+        <text x="146" y="1818" fill="#93c5fd" font-size="24" font-weight="600" font-family="Arial, sans-serif">Fast dispatch. Real product. Direct checkout on Camigo.</text>
       </svg>
     `;
 
