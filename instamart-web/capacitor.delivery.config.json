@@ -7,7 +7,7 @@
     "path": "android-delivery"
   },
   "server": {
-    "url": "https://camigo-store.onrender.com/?app=delivery",
+    "url": "https://camigo-web.onrender.com",
     "androidScheme": "https"
   }
 }

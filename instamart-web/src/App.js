@@ -51,6 +51,15 @@ const getRuntimeAppMode = () => {
   if (typeof window === 'undefined') return 'web';
   const mode = new URLSearchParams(window.location.search).get('app');
   if (mode === 'customer' || mode === 'delivery' || mode === 'installer') return mode;
+  try {
+    const capacitorConfig = Capacitor.getConfig?.() || window.Capacitor?.config || {};
+    const appId = String(capacitorConfig.appId || '').toLowerCase();
+    if (appId.includes('delivery')) return 'delivery';
+    if (appId.includes('installer')) return 'installer';
+    if (appId.includes('customer') || Capacitor.isNativePlatform?.()) return 'customer';
+  } catch (error) {
+    if (Capacitor.isNativePlatform?.()) return 'customer';
+  }
   return 'web';
 };
 

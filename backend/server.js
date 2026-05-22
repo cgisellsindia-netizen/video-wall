@@ -144,6 +144,10 @@ const publicStorefrontUrl = (
   process.env.PUBLIC_STOREFRONT_URL ||
   'https://getcamigo.in'
 ).replace(/\/+$/, '');
+const publicWebBaseUrl = (
+  process.env.PUBLIC_WEB_URL ||
+  'https://camigo-web.onrender.com'
+).replace(/\/+$/, '');
 const MEDIA_PROXY_CACHE_DIR = path.join(__dirname, '.cache', 'media-proxy');
 const MEDIA_PROXY_CACHE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 const normalizePublicUrl = (value = '') => String(value || '').trim().replace(/\/+$/, '');
@@ -7889,6 +7893,7 @@ app.get('/ping', sendHealth);
 
 // Serve static files from React build
 const buildPath = path.join(__dirname, '..', 'instamart-web', 'build');
+const hasLocalWebBuild = fs.existsSync(path.join(buildPath, 'index.html'));
 
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api')) {
@@ -7900,20 +7905,26 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.static(buildPath, {
-  etag: false,
-  lastModified: false,
-  setHeaders(res) {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    res.setHeader('Surrogate-Control', 'no-store');
-  }
-}));
+if (hasLocalWebBuild) {
+  app.use(express.static(buildPath, {
+    etag: false,
+    lastModified: false,
+    setHeaders(res) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Surrogate-Control', 'no-store');
+    }
+  }));
+}
 
 // SPA fallback - serve index.html for non-API routes
 app.get('*', (req, res) => {
-  res.sendFile(path.join(buildPath, 'index.html'));
+  if (hasLocalWebBuild) {
+    return res.sendFile(path.join(buildPath, 'index.html'));
+  }
+  const targetUrl = new URL(req.originalUrl || '/', publicWebBaseUrl);
+  return res.redirect(302, targetUrl.toString());
 });
 
 const restoreCatalogOnStartup = async () => {
