@@ -7865,10 +7865,27 @@ app.delete('/api/admin/products/:id', authenticateToken, requireAdmin, (req, res
   });
 });
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+const startupRestoreStatus = {
+  catalog: 'pending',
+  operational: 'pending',
+  started_at: null,
+  finished_at: null,
+  catalog_error: null,
+  operational_error: null
+};
+
+const sendHealth = (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    startup_restore: startupRestoreStatus
+  });
+};
+
+// Health check. Use this URL for uptime pingers so Render wakes the API, not only the static web shell.
+app.get('/api/health', sendHealth);
+app.get('/health', sendHealth);
+app.get('/ping', sendHealth);
 
 // Serve static files from React build
 const buildPath = path.join(__dirname, '..', 'instamart-web', 'build');
@@ -7928,6 +7945,43 @@ const restoreCatalogOnStartup = async () => {
   }
 };
 
+const runStartupRestoresInBackground = async () => {
+  startupRestoreStatus.started_at = new Date().toISOString();
+  startupRestoreStatus.finished_at = null;
+  startupRestoreStatus.catalog_error = null;
+  startupRestoreStatus.operational_error = null;
+
+  try {
+    if (hasCatalogFtpConfig || MEDIA_MANIFEST_URL || MEDIA_MANIFEST_EXPECTED_URL) {
+      startupRestoreStatus.catalog = 'running';
+      await restoreCatalogOnStartup();
+      startupRestoreStatus.catalog = 'done';
+    } else {
+      startupRestoreStatus.catalog = 'skipped';
+    }
+  } catch (error) {
+    startupRestoreStatus.catalog = 'failed';
+    startupRestoreStatus.catalog_error = error.message;
+    console.warn(`Catalog startup restore failed: ${error.message}`);
+  }
+
+  try {
+    if (hasOperationalStateFtpConfig) {
+      startupRestoreStatus.operational = 'running';
+      await restoreOperationalStateOnStartup();
+      startupRestoreStatus.operational = 'done';
+    } else {
+      startupRestoreStatus.operational = 'skipped';
+    }
+  } catch (error) {
+    startupRestoreStatus.operational = 'failed';
+    startupRestoreStatus.operational_error = error.message;
+    console.warn(`Operational state startup restore failed: ${error.message}`);
+  } finally {
+    startupRestoreStatus.finished_at = new Date().toISOString();
+  }
+};
+
 const startServer = async () => {
   try {
     await db.ready;
@@ -7936,25 +7990,13 @@ const startServer = async () => {
     process.exit(1);
   }
 
-  try {
-    if (hasCatalogFtpConfig || MEDIA_MANIFEST_URL || MEDIA_MANIFEST_EXPECTED_URL) {
-      await restoreCatalogOnStartup();
-    }
-  } catch (error) {
-    console.warn(`Catalog startup restore failed: ${error.message}`);
-  }
-
-  try {
-    if (hasOperationalStateFtpConfig) {
-      await restoreOperationalStateOnStartup();
-    }
-  } catch (error) {
-    console.warn(`Operational state startup restore failed: ${error.message}`);
-  }
-
   app.listen(PORT, () => {
     console.log(`Instamart Clone API running on http://localhost:${PORT}`);
     console.log('Security hardening enabled for auth, orders, admin routes, and product search.');
+    runStartupRestoresInBackground().catch((error) => {
+      startupRestoreStatus.finished_at = new Date().toISOString();
+      console.warn(`Startup background restore failed: ${error.message}`);
+    });
     getSeoAutomationSnapshot({ force: true }).catch((error) => {
       console.warn(`SEO automation warmup failed: ${error.message}`);
     });
