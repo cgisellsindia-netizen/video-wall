@@ -31,9 +31,9 @@
     "android:add:customer": "npm run cap:customer && npx cap add android",
     "android:add:delivery": "npm run cap:delivery && npx cap add android",
     "android:add:installer": "npm run cap:installer && npx cap add android",
-    "android:sync:customer": "set REACT_APP_APP_MODE=customer&& set REACT_APP_API_URL=https://camigo-store.onrender.com/api&& react-scripts build && npm run cap:customer && npx cap sync android",
-    "android:sync:delivery": "set REACT_APP_APP_MODE=delivery&& set REACT_APP_API_URL=https://camigo-store.onrender.com/api&& react-scripts build && npm run cap:delivery && npx cap sync android",
-    "android:sync:installer": "set REACT_APP_APP_MODE=installer&& set REACT_APP_API_URL=https://camigo-store.onrender.com/api&& react-scripts build && npm run cap:installer && npx cap sync android",
+    "android:sync:customer": "set REACT_APP_APP_MODE=customer&& set REACT_APP_API_URL=https://getcamigo.in/api&& react-scripts build && npm run cap:customer && npx cap sync android",
+    "android:sync:delivery": "set REACT_APP_APP_MODE=delivery&& set REACT_APP_API_URL=https://getcamigo.in/api&& react-scripts build && npm run cap:delivery && npx cap sync android",
+    "android:sync:installer": "set REACT_APP_APP_MODE=installer&& set REACT_APP_API_URL=https://getcamigo.in/api&& react-scripts build && npm run cap:installer && npx cap sync android",
     "android:open:customer": "npm run cap:customer && npx cap open android",
     "android:open:delivery": "npm run cap:delivery && npx cap open android",
     "android:open:installer": "npm run cap:installer && npx cap open android"
