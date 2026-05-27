@@ -42,6 +42,34 @@ const LIVE_MARKER_TYPES = [
   { id: 'blind', label: 'Blind spot', areaId: null }
 ];
 
+const SCENE_LABELS = [
+  'bedroom',
+  'parking area',
+  'shop interior',
+  'office room',
+  'warehouse interior',
+  'reception area',
+  'staircase',
+  'building entrance',
+  'storage room',
+  'living room'
+];
+
+const OBJECT_LABELS = [
+  'bed',
+  'car',
+  'motorbike',
+  'desk',
+  'cash counter',
+  'door',
+  'gate',
+  'staircase',
+  'sofa',
+  'shelf',
+  'reception desk',
+  'storage rack'
+];
+
 const PACKAGE_LIBRARY = {
   hd4: {
     key: 'hd4',
@@ -103,11 +131,18 @@ const getStorageMultiplier = (recordDays = '15') => {
 };
 
 const markerTypeById = (markerTypeId) => LIVE_MARKER_TYPES.find((item) => item.id === markerTypeId);
+const getMarkerAreaId = (marker = {}) => {
+  const markerType = String(marker?.type || '').trim().toLowerCase();
+  const fromChip = markerTypeById(markerType)?.areaId;
+  if (fromChip) return fromChip;
+  if (PRIORITY_AREAS.some((entry) => entry.id === markerType)) return markerType;
+  return null;
+};
 
 const buildSuggestions = (form, markers = [], packageBias = null) => {
   const placeMeta = PLACE_TYPES.find((entry) => entry.id === form.placeType) || PLACE_TYPES[1];
   const derivedAreas = markers
-    .map((marker) => markerTypeById(marker.type)?.areaId)
+    .map((marker) => getMarkerAreaId(marker))
     .filter(Boolean);
   const mergedAreas = [...new Set([...form.areas, ...derivedAreas])];
   const blindMarkerCount = markers.filter((marker) => marker.type === 'blind').length;
@@ -207,6 +242,7 @@ function SecurityScanPage() {
   const [cameraSupported] = useState(() => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia);
   const [secureContext] = useState(() => typeof window !== 'undefined' ? !!window.isSecureContext : true);
   const hasMeaningfulScan = markers.length > 0;
+  const browserVisionPromiseRef = useRef(null);
 
   const scanResult = useMemo(() => buildSuggestions(form, markers, packageBias), [form, markers, packageBias]);
 
@@ -361,6 +397,139 @@ function SecurityScanPage() {
     return canvas.toDataURL('image/jpeg', 0.82);
   };
 
+  const loadBrowserVision = async () => {
+    if (!browserVisionPromiseRef.current) {
+      browserVisionPromiseRef.current = (async () => {
+        const { pipeline, env } = await import('@huggingface/transformers');
+        env.allowLocalModels = false;
+        const classifier = await pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32');
+        const detector = await pipeline('zero-shot-object-detection', 'Xenova/owlvit-base-patch32');
+        return { classifier, detector };
+      })();
+    }
+    return browserVisionPromiseRef.current;
+  };
+
+  const mapDetectionLabelToMarker = (detection) => {
+    const label = String(detection?.label || '').toLowerCase();
+    const box = detection?.box || {};
+    const centerX = Math.max(6, Math.min(94, Number(((Number(box.xmin || 0) + Number(box.xmax || 0)) / 2).toFixed(1))));
+    const centerY = Math.max(6, Math.min(94, Number(((Number(box.ymin || 0) + Number(box.ymax || 0)) / 2).toFixed(1))));
+
+    if (label.includes('car') || label.includes('motorbike')) {
+      return { type: 'parking', label: 'Parking camera', x: centerX, y: centerY, reason: 'Vehicle movement detected in this view.' };
+    }
+    if (label.includes('cash')) {
+      return { type: 'cash', label: 'Cash counter camera', x: centerX, y: centerY, reason: 'Transaction zone detected in this view.' };
+    }
+    if (label.includes('reception')) {
+      return { type: 'reception', label: 'Reception camera', x: centerX, y: centerY, reason: 'Reception desk detected in this view.' };
+    }
+    if (label.includes('stair')) {
+      return { type: 'staircase', label: 'Passage camera', x: centerX, y: centerY, reason: 'Stair or passage zone detected in this view.' };
+    }
+    if (label.includes('shelf') || label.includes('rack')) {
+      return { type: 'storage', label: 'Storage room camera', x: centerX, y: centerY, reason: 'Storage or inventory rack detected in this view.' };
+    }
+    if (label.includes('bed')) {
+      return { type: 'floor', label: 'Bedroom coverage camera', x: centerX, y: centerY, reason: 'Bedroom furniture detected in this view.' };
+    }
+    if (label.includes('sofa')) {
+      return { type: 'floor', label: 'Room coverage camera', x: centerX, y: centerY, reason: 'Indoor seating area detected in this view.' };
+    }
+    if (label.includes('desk')) {
+      return { type: 'floor', label: 'Desk area camera', x: centerX, y: centerY, reason: 'Desk or workstation detected in this view.' };
+    }
+    if (label.includes('gate') || label.includes('door')) {
+      return { type: 'gate', label: 'Gate camera', x: centerX, y: centerY, reason: 'Entry or doorway detected in this view.' };
+    }
+
+    return null;
+  };
+
+  const buildSceneSummary = ({ sceneLabel, detectedLabels }) => {
+    const sceneText = sceneLabel ? `Camigo recognized this view as ${sceneLabel}.` : 'Camigo reviewed the scene layout.';
+    const objectText = detectedLabels.length
+      ? ` Detected elements: ${detectedLabels.slice(0, 4).join(', ')}.`
+      : '';
+    return `${sceneText}${objectText}`.trim();
+  };
+
+  const runBrowserVisionScan = async (imageDataUrl) => {
+    const { classifier, detector } = await loadBrowserVision();
+    const candidateImage = String(imageDataUrl || '').trim();
+    const sceneResult = await classifier(candidateImage, SCENE_LABELS, {
+      hypothesis_template: 'This is a photo of a {}.'
+    });
+    const detectionResult = await detector(candidateImage, OBJECT_LABELS, {
+      threshold: 0.14,
+      top_k: 8,
+      percentage: true
+    });
+
+    const sceneLabel = Array.isArray(sceneResult) && sceneResult[0]?.score >= 0.24 ? String(sceneResult[0].label || '').trim().toLowerCase() : '';
+    const mappedMarkers = (Array.isArray(detectionResult) ? detectionResult : [])
+      .map((entry) => mapDetectionLabelToMarker(entry))
+      .filter(Boolean)
+      .filter((marker, index, list) => (
+        list.findIndex((entry) => entry.type === marker.type) === index
+      ));
+
+    const fallbackMarkers = [];
+    if (!mappedMarkers.some((marker) => marker.type === 'parking') && sceneLabel.includes('parking')) {
+      fallbackMarkers.push({ type: 'parking', label: 'Parking camera', x: 74, y: 28, reason: 'Scene classified as a parking area.' });
+    }
+    if (!mappedMarkers.some((marker) => marker.type === 'floor') && sceneLabel.includes('bedroom')) {
+      fallbackMarkers.push({ type: 'floor', label: 'Bedroom coverage camera', x: 48, y: 38, reason: 'Scene classified as a bedroom.' });
+    }
+    if (!mappedMarkers.some((marker) => marker.type === 'reception') && sceneLabel.includes('reception')) {
+      fallbackMarkers.push({ type: 'reception', label: 'Reception camera', x: 44, y: 30, reason: 'Scene classified as a reception area.' });
+    }
+    if (!mappedMarkers.some((marker) => marker.type === 'staircase') && sceneLabel.includes('stair')) {
+      fallbackMarkers.push({ type: 'staircase', label: 'Passage camera', x: 34, y: 56, reason: 'Scene classified as a staircase.' });
+    }
+    if (!mappedMarkers.some((marker) => marker.type === 'storage') && (sceneLabel.includes('storage') || sceneLabel.includes('warehouse'))) {
+      fallbackMarkers.push({ type: 'storage', label: 'Storage room camera', x: 70, y: 64, reason: 'Scene classified as a storage-heavy area.' });
+    }
+    if (!mappedMarkers.some((marker) => marker.type === 'gate') && sceneLabel.includes('entrance')) {
+      fallbackMarkers.push({ type: 'gate', label: 'Gate camera', x: 20, y: 18, reason: 'Scene classified as an entrance area.' });
+    }
+
+    const markers = [...mappedMarkers, ...fallbackMarkers];
+    if (!markers.length) {
+      throw new Error('Camigo could not understand the room layout clearly. Try pointing the camera wider at the main area.');
+    }
+
+    const detectedLabels = [...new Set((Array.isArray(detectionResult) ? detectionResult : []).map((entry) => String(entry.label || '').trim().toLowerCase()).filter(Boolean))];
+    const blindSpots = [];
+    if ((sceneLabel.includes('bedroom') || sceneLabel.includes('living room')) && !markers.some((marker) => marker.type === 'gate')) {
+      blindSpots.push('The room is visible, but the entry door is not clearly in frame yet.');
+    }
+    if (sceneLabel.includes('parking') && !markers.some((marker) => marker.type === 'gate')) {
+      blindSpots.push('Vehicle space is visible, but the entry boundary is still not clearly covered.');
+    }
+    if ((sceneLabel.includes('warehouse') || sceneLabel.includes('storage')) && !markers.some((marker) => marker.type === 'storage')) {
+      blindSpots.push('Storage depth is not clear enough yet for full stock-room coverage.');
+    }
+
+    const recommendedPackageBias = (
+      sceneLabel.includes('warehouse')
+        ? 'hybrid'
+        : markers.filter((marker) => marker.type !== 'blind').length >= 5
+          ? 'ip8'
+          : detectedLabels.some((label) => label.includes('car') || label.includes('cash') || label.includes('bed'))
+            ? 'ip4'
+            : null
+    );
+
+    return {
+      summary: buildSceneSummary({ sceneLabel, detectedLabels }),
+      markers,
+      blind_spots: blindSpots,
+      recommended_package_bias: recommendedPackageBias
+    };
+  };
+
   const runCamigoScan = async (imageToAnalyze, options = {}) => {
     const { persistCapture = false, silent = false } = options;
     const sourceImage = String(imageToAnalyze || capturedImage || '').trim();
@@ -374,22 +543,28 @@ function SecurityScanPage() {
       if (!silent) setAnalysisLoading(true);
       if (persistCapture) setCapturedImage(sourceImage);
       setCameraError('');
-      const response = await fetch(`${API_URL}/security-scan/analyze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          image_data_url: sourceImage,
-          place_type: form.placeType,
-          area_size: form.areaSize,
-          areas: form.areas,
-          notes: `${form.watchNight ? 'Night monitoring needed. ' : ''}${form.highValueAssets ? 'High value assets present. ' : ''}${form.sameDayInstall ? 'Same-day install requested.' : ''}`.trim()
-        })
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.error || 'Camigo scan failed.');
+      let data;
+      try {
+        data = await runBrowserVisionScan(sourceImage);
+      } catch (visionError) {
+        const response = await fetch(`${API_URL}/security-scan/analyze`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            image_data_url: sourceImage,
+            place_type: form.placeType,
+            area_size: form.areaSize,
+            areas: form.areas,
+            notes: `${form.watchNight ? 'Night monitoring needed. ' : ''}${form.highValueAssets ? 'High value assets present. ' : ''}${form.sameDayInstall ? 'Same-day install requested.' : ''}`.trim()
+          })
+        });
+        const fallbackData = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(fallbackData.error || visionError.message || 'Camigo scan failed.');
+        }
+        data = fallbackData;
       }
       setMarkers(Array.isArray(data.markers) ? data.markers : []);
       setAnalysisSummary(String(data.summary || '').trim());
