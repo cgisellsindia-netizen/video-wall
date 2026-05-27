@@ -1,4 +1,5 @@
 const normalizeText = (value = '') => String(value || '').toLowerCase();
+const normalizeImagePath = (value = '') => String(value || '').trim().toLowerCase();
 
 const CATEGORY_FALLBACKS = {
   'night color ahd cameras': '/images/cgi-hd3e.jpg',
@@ -96,11 +97,22 @@ export function getProductFallbackImage(product = {}) {
   return '/images/cgi-hd3e.jpg';
 }
 
-export function buildProductImageSources(product = {}) {
+export function isGenericProductVisual(value = '') {
+  const clean = normalizeImagePath(value);
+  if (!clean) return false;
+  return clean.startsWith('/category-real/')
+    || clean.startsWith('/images/cgi-');
+}
+
+export function buildProductImageSources(product = {}, options = {}) {
   const sourceSet = new Set();
+  const sourceList = [];
   const push = (value) => {
     const clean = String(value || '').trim();
-    if (clean) sourceSet.add(clean);
+    if (clean && !sourceSet.has(clean)) {
+      sourceSet.add(clean);
+      sourceList.push(clean);
+    }
   };
 
   push(product.image);
@@ -108,5 +120,10 @@ export function buildProductImageSources(product = {}) {
     product.images.forEach((value) => push(value));
   }
 
-  return Array.from(sourceSet);
+  if (options.excludeGeneric !== true) {
+    return sourceList;
+  }
+
+  const filteredSources = sourceList.filter((value) => !isGenericProductVisual(value));
+  return filteredSources;
 }

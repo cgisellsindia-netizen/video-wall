@@ -303,7 +303,7 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
               <div className="product-img-wrap">
                 <ProductImage
                   src={product.image}
-                  sources={buildProductImageSources(product)}
+                  sources={buildProductImageSources(product, { excludeGeneric: true })}
                   alt={product.name}
                   loading={index < 4 ? 'eager' : 'lazy'}
                   fetchPriority={index < 2 ? 'high' : 'auto'}

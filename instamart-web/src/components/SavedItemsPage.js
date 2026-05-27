@@ -87,7 +87,7 @@ function SavedItemsPage({
               <div className="product-img-wrap">
                 <ProductImage
                   src={product.image}
-                  sources={buildProductImageSources(product)}
+                  sources={buildProductImageSources(product, { excludeGeneric: true })}
                   alt={product.name}
                   loading="lazy"
                   fallbackContent="CCTV"

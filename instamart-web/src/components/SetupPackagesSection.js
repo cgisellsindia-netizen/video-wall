@@ -134,7 +134,7 @@ function SetupPackagesSection({
               <div className="product-img-wrap">
                 <ProductImage
                   src={product.image}
-                  sources={buildProductImageSources(product)}
+                  sources={buildProductImageSources(product, { excludeGeneric: true })}
                   alt={product.name}
                   loading={index < 3 ? 'eager' : 'lazy'}
                   fetchPriority={index < 2 ? 'high' : 'auto'}
