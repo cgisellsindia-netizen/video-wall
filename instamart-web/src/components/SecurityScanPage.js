@@ -359,6 +359,9 @@ function SecurityScanPage() {
   const uploadInputRef = useRef(null);
   const captureCanvasRef = useRef(null);
   const liveScanBusyRef = useRef(false);
+  const guidedCaptureBusyRef = useRef(false);
+  const guidedStableFrameCountRef = useRef(0);
+  const guidedFeedbackStampRef = useRef('');
   const [form, setForm] = useState(DEFAULT_FORM);
   const [markers, setMarkers] = useState([]);
   const [activeMarkerType, setActiveMarkerType] = useState('gate');
@@ -555,6 +558,8 @@ function SecurityScanPage() {
     setGuidedCaptures({});
     setCaptureStepIndex(0);
     setGuidedCaptureFeedback('');
+    guidedStableFrameCountRef.current = 0;
+    guidedFeedbackStampRef.current = '';
   };
 
   const captureVideoFrame = () => {
@@ -883,7 +888,8 @@ function SecurityScanPage() {
     await runCamigoScan(dataUrl, { persistCapture: true });
   };
 
-  const captureGuidedStep = async () => {
+  const captureGuidedStep = async ({ manual = false } = {}) => {
+    if (guidedCaptureBusyRef.current) return;
     const dataUrl = captureVideoFrame();
     if (!dataUrl || !activeCaptureStep) return;
     const canvas = captureCanvasRef.current;
@@ -895,13 +901,36 @@ function SecurityScanPage() {
       previousSignature
     });
     if (!validation.ok) {
-      setCameraError(validation.reason);
-      setGuidedCaptureFeedback(`Retake needed: ${validation.reason}`);
+      guidedStableFrameCountRef.current = 0;
+      const feedbackMessage = `Move camera for ${activeCaptureStep.label}: ${validation.reason}`;
+      if (manual) {
+        setCameraError(validation.reason);
+      } else {
+        setCameraError('');
+      }
+      if (guidedFeedbackStampRef.current !== feedbackMessage) {
+        guidedFeedbackStampRef.current = feedbackMessage;
+        setGuidedCaptureFeedback(feedbackMessage);
+      }
       return;
     }
 
+    guidedStableFrameCountRef.current += 1;
+    if (!manual && guidedStableFrameCountRef.current < 2) {
+      const settlingMessage = `${activeCaptureStep.label} aligned. Hold steady, Camigo is capturing this panel automatically.`;
+      if (guidedFeedbackStampRef.current !== settlingMessage) {
+        guidedFeedbackStampRef.current = settlingMessage;
+        setGuidedCaptureFeedback(settlingMessage);
+      }
+      return;
+    }
+
+    guidedCaptureBusyRef.current = true;
+    guidedStableFrameCountRef.current = 0;
     setCameraError('');
-    setGuidedCaptureFeedback(`${activeCaptureStep.label} accepted. ${captureStepIndex < ROOM_CAPTURE_STEPS.length - 1 ? `Next: ${ROOM_CAPTURE_STEPS[captureStepIndex + 1].label}.` : 'Panorama sweep complete.'}`);
+    const acceptedMessage = `${activeCaptureStep.label} accepted. ${captureStepIndex < ROOM_CAPTURE_STEPS.length - 1 ? `Next: ${ROOM_CAPTURE_STEPS[captureStepIndex + 1].label}.` : 'Panorama sweep complete.'}`;
+    guidedFeedbackStampRef.current = acceptedMessage;
+    setGuidedCaptureFeedback(acceptedMessage);
     setGuidedCaptures((current) => ({
       ...current,
       [activeCaptureStep.id]: {
@@ -916,18 +945,24 @@ function SecurityScanPage() {
     if (!isLastStep) {
       setCaptureStepIndex((current) => current + 1);
     }
-    await runCamigoScan(dataUrl, {
-      persistCapture: true,
-      browserImageInput: canvas || undefined,
-      silent: false
-    });
-    if (isLastStep) {
-      stopCamera();
-      setLiveAutoScanEnabled(false);
-      setGuidedCaptureFeedback('Panorama sweep complete. Camigo closed the camera and opened the 3D room diagram below.');
-      window.setTimeout(() => {
-        document.getElementById('security-scan-builder')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 120);
+    try {
+      await runCamigoScan(dataUrl, {
+        persistCapture: true,
+        browserImageInput: canvas || undefined,
+        silent: false
+      });
+      if (isLastStep) {
+        stopCamera();
+        setLiveAutoScanEnabled(false);
+        const completeMessage = 'Panorama sweep complete. Camigo closed the camera and opened the 3D room diagram below.';
+        guidedFeedbackStampRef.current = completeMessage;
+        setGuidedCaptureFeedback(completeMessage);
+        window.setTimeout(() => {
+          document.getElementById('security-scan-builder')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 120);
+      }
+    } finally {
+      guidedCaptureBusyRef.current = false;
     }
   };
 
@@ -961,6 +996,38 @@ function SecurityScanPage() {
       if (timerId) window.clearTimeout(timerId);
     };
   }, [cameraReady, liveAutoScanEnabled, form.placeType, form.areaSize, form.watchNight, form.highValueAssets, form.sameDayInstall, form.recordDays, form.areas]);
+
+  useEffect(() => {
+    if (!cameraReady || !activeCaptureStep || guidedCaptures[activeCaptureStep.id]) {
+      guidedStableFrameCountRef.current = 0;
+      return undefined;
+    }
+
+    let active = true;
+    let timerId = null;
+
+    const tick = async () => {
+      if (!active) return;
+      if (!guidedCaptureBusyRef.current && !analysisLoading) {
+        await captureGuidedStep({ manual: false });
+      }
+      if (active) {
+        timerId = window.setTimeout(tick, 950);
+      }
+    };
+
+    const introMessage = `Move camera to ${activeCaptureStep.label}. Camigo will capture automatically when the frame is correct.`;
+    if (guidedFeedbackStampRef.current !== introMessage) {
+      guidedFeedbackStampRef.current = introMessage;
+      setGuidedCaptureFeedback(introMessage);
+    }
+
+    timerId = window.setTimeout(tick, 800);
+    return () => {
+      active = false;
+      if (timerId) window.clearTimeout(timerId);
+    };
+  }, [cameraReady, activeCaptureStep, guidedCaptures, analysisLoading]);
 
   return (
     <main className="container security-scan-page">
@@ -1091,14 +1158,14 @@ function SecurityScanPage() {
             </div>
             {guidedCaptureFeedback ? (
               <div className="security-guided-feedback">
-                <strong>{guidedCaptureFeedback.startsWith('Retake') ? 'Retake guide' : 'Capture guide'}</strong>
+                <strong>{guidedCaptureFeedback.startsWith('Move camera') ? 'Auto-capture guide' : 'Capture guide'}</strong>
                 <span>{guidedCaptureFeedback}</span>
               </div>
             ) : null}
             <div className="security-package-actions">
-              <button type="button" className="btn btn-primary" onClick={captureGuidedStep} disabled={!cameraReady}>
-                {guidedCaptures[activeCaptureStep.id] ? `Retake ${activeCaptureStep.label}` : `Capture ${activeCaptureStep.label}`}
-              </button>
+              <div className="security-auto-capture-pill">
+                {cameraReady ? `Auto-capture ready for ${activeCaptureStep.label}` : 'Open camera to start auto-capture'}
+              </div>
               <button type="button" className="btn btn-outline" onClick={resetGuidedCaptures}>
                 Reset guide
               </button>

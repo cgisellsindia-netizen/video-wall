@@ -2251,6 +2251,18 @@
   line-height: 1.55;
 }
 
+.security-auto-capture-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 11px 14px;
+  background: linear-gradient(135deg, rgba(8,42,99,.96), rgba(11,61,145,.92));
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 12px 22px rgba(8,42,99,.14);
+}
+
 .security-ai-summary {
   margin-top: 16px;
   border: 1px solid rgba(8,42,99,.1);
