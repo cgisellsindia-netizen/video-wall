@@ -1,3 +1,13 @@
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+Allow: /images/
+Allow: /category-images/
+Allow: /category-real/
+Allow: /camigo-logo.svg
+
 User-agent: *
 Allow: /
 
