@@ -23,9 +23,9 @@ function Footer() {
             <a key={page.slug} href={`/${page.slug}`}>{page.label}</a>
           ))}
         </div>
-        <div className="footer-col"><h4>Contact</h4><p>cgisellsindia@gmail.com</p><p>+91 9114 555 044</p><p>Swarnapuri Rd, Bajrang Vihar, Patia, Bhubaneswar, Odisha 751024</p></div>
+        <div className="footer-col"><h4>Contact</h4><p>cgisellsindia@gmail.com</p><p>+91 9114 555 044</p><p>Swarnapuri Rd, Bajrang Vihar, Patia, Bhubaneswar, Odisha 751024, India</p><p>Mon-Sat: 9:00 AM - 8:00 PM</p></div>
       </div>
-      <div className="footer-bottom"><div className="footer-logo">Cam<span style={{color:"#f6c400"}}>igo</span></div><div className="footer-copy">&copy; 2025 CGI CCTV Cameras. Odisha&apos;s Only CCTV Manufacturer. For authorized pentesting only.</div></div>
+      <div className="footer-bottom"><div className="footer-logo">Cam<span style={{color:"#f6c400"}}>igo</span></div><div className="footer-copy">&copy; 2026 Camigo / CGI CCTV Cameras. CCTV products, setup packages, delivery, and installation support in Bhubaneswar, Odisha.</div></div>
     </footer>
   );
 }

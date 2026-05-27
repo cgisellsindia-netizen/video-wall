@@ -25,7 +25,7 @@ function ContactPage({ user }) {
     },
     {
       question: 'How fast does Camigo respond to enquiries?',
-      answer: 'Camigo aims to respond to contact requests within 24 hours, depending on the type of request and business hours.'
+      answer: 'Camigo aims to respond to contact requests within 24 business hours, depending on the type of request and business hours.'
     }
   ]), []);
 
@@ -67,6 +67,24 @@ function ContactPage({ user }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const subjectLabelMap = {
+      'bulk-order': 'Bulk Order / Project Quote',
+      installation: 'Installation Service',
+      dealer: 'Become a Dealer',
+      support: 'Technical Support',
+      other: 'Other'
+    };
+    const emailSubject = `Camigo enquiry: ${subjectLabelMap[form.subject] || 'Website enquiry'}`;
+    const emailBody = [
+      `Name: ${form.name}`,
+      `Email: ${form.email}`,
+      `Phone: ${form.phone}`,
+      `Subject: ${subjectLabelMap[form.subject] || form.subject}`,
+      '',
+      'Message:',
+      form.message
+    ].join('\n');
+    window.location.href = `mailto:cgisellsindia@gmail.com?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
     setSubmitted(true);
   };
 
@@ -76,7 +94,9 @@ function ContactPage({ user }) {
         <div className="card" style={{ padding: '40px' }}>
           <CheckCircle size={64} style={{ color: '#1ba672', marginBottom: '16px' }} />
           <h2 style={{ marginBottom: '8px' }}>Message Sent!</h2>
-          <p style={{ color: '#64748b', marginBottom: '24px' }}>Our team will contact you within 24 hours.</p>
+          <p style={{ color: '#64748b', marginBottom: '24px' }}>
+            Your email app should open with your enquiry ready to send. You can also call or WhatsApp us directly at +91 9114 555 044.
+          </p>
           <button className="btn btn-primary" onClick={() => navigate('/shop')}>Back to Shop</button>
         </div>
       </div>
@@ -112,8 +132,11 @@ function ContactPage({ user }) {
             </div>
             <div className="form-group" style={{ marginTop: '12px' }}><label>Message</label><textarea value={form.message} onChange={e => setForm({...form, message: e.target.value})} rows="4" placeholder="Tell us about your requirements..." required style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #dbe3ef' }} /></div>
             <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '16px', padding: '14px' }}>
-              <Send size={16} style={{ marginRight: '8px' }} /> Send Message
+              <Send size={16} style={{ marginRight: '8px' }} /> Send via Email App
             </button>
+            <p style={{ margin: '12px 0 0', fontSize: '12px', color: '#64748b' }}>
+              This opens your email app with the enquiry filled in so you can send it directly to Camigo.
+            </p>
           </div>
         </form>
 
