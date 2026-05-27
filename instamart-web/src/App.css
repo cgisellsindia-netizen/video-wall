@@ -2010,6 +2010,87 @@
   margin-top: 16px;
 }
 
+.security-guided-capture-card {
+  margin-bottom: 18px;
+  border: 1px solid rgba(8,42,99,.1);
+  border-radius: 18px;
+  padding: 16px;
+  background: linear-gradient(180deg, #f8fbff, #eef5ff);
+}
+
+.security-guided-capture-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.security-guided-capture-head strong {
+  display: block;
+  margin-top: 4px;
+  color: #082a63;
+  font-size: 20px;
+}
+
+.security-guided-capture-head span:last-child {
+  color: #0b49b5;
+  font-weight: 900;
+}
+
+.security-guided-capture-card p {
+  margin: 0 0 14px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.security-guided-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.security-guided-step {
+  border: 1px solid rgba(8,42,99,.1);
+  border-radius: 14px;
+  padding: 12px;
+  background: #fff;
+  text-align: left;
+  color: #082a63;
+  cursor: pointer;
+}
+
+.security-guided-step strong,
+.security-guided-step span {
+  display: block;
+}
+
+.security-guided-step strong {
+  font-size: 13px;
+  margin-bottom: 5px;
+}
+
+.security-guided-step span {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 800;
+}
+
+.security-guided-step.active {
+  border-color: #0b49b5;
+  box-shadow: 0 10px 24px rgba(11,73,181,.12);
+}
+
+.security-guided-step.done {
+  background: linear-gradient(135deg, rgba(8,42,99,.96), rgba(11,61,145,.92));
+  border-color: transparent;
+  color: #fff;
+}
+
+.security-guided-step.done span {
+  color: rgba(255,255,255,.84);
+}
+
 .security-ai-summary {
   margin-top: 16px;
   border: 1px solid rgba(8,42,99,.1);
@@ -2295,6 +2376,61 @@
   color: #082a63;
 }
 
+.security-room-model-card {
+  overflow: hidden;
+}
+
+.security-room-model-shell {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.security-room-middle {
+  display: grid;
+  grid-template-columns: .85fr 1.3fr .85fr;
+  gap: 10px;
+}
+
+.security-room-plane {
+  min-height: 82px;
+  border: 1px dashed rgba(8,42,99,.18);
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(180deg, #f8fbff, #edf4fb);
+  color: #475569;
+  font-weight: 800;
+}
+
+.security-room-plane.ready {
+  border-style: solid;
+  border-color: rgba(8,42,99,.08);
+  background: linear-gradient(135deg, rgba(8,42,99,.96), rgba(11,61,145,.92));
+  color: #fff;
+  box-shadow: 0 14px 28px rgba(8,42,99,.16);
+}
+
+.security-room-plane.ceiling,
+.security-room-plane.floor {
+  min-height: 56px;
+}
+
+.security-room-model-stats {
+  display: grid;
+  gap: 6px;
+}
+
+.security-room-model-stats span {
+  color: #475569;
+  line-height: 1.5;
+}
+
+.security-room-model-stats strong {
+  color: #082a63;
+  font-size: 18px;
+}
+
 @media (max-width: 960px) {
   .security-scan-promo-card {
     flex-direction: column;
@@ -2312,6 +2448,10 @@
 
   .security-live-hint-grid {
     grid-template-columns: 1fr;
+  }
+
+  .security-guided-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -2333,6 +2473,11 @@
 
   .security-scan-toggle-grid,
   .security-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .security-guided-steps,
+  .security-room-middle {
     grid-template-columns: 1fr;
   }
 

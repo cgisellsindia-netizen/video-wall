@@ -70,6 +70,14 @@ const OBJECT_LABELS = [
   'storage rack'
 ];
 
+const ROOM_CAPTURE_STEPS = [
+  { id: 'front', label: 'Front wall', hint: 'Stand back and aim straight at the main wall or bed side.' },
+  { id: 'left', label: 'Left wall', hint: 'Turn left so Camigo can measure the side wall and corner depth.' },
+  { id: 'right', label: 'Right wall', hint: 'Turn right and keep the ceiling corner visible if possible.' },
+  { id: 'up', label: 'Ceiling', hint: 'Tilt the phone up to show ceiling corners and beam lines.' },
+  { id: 'down', label: 'Floor', hint: 'Tilt down so Camigo can understand walk paths and furniture spread.' }
+];
+
 const PACKAGE_LIBRARY = {
   hd4: {
     key: 'hd4',
@@ -241,12 +249,32 @@ function SecurityScanPage() {
   const [liveScanActive, setLiveScanActive] = useState(false);
   const [visionReady, setVisionReady] = useState(false);
   const [visionLoading, setVisionLoading] = useState(false);
+  const [guidedCaptures, setGuidedCaptures] = useState({});
+  const [captureStepIndex, setCaptureStepIndex] = useState(0);
   const [cameraSupported] = useState(() => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia);
   const [secureContext] = useState(() => typeof window !== 'undefined' ? !!window.isSecureContext : true);
   const hasMeaningfulScan = markers.length > 0;
   const browserVisionPromiseRef = useRef(null);
+  const activeCaptureStep = ROOM_CAPTURE_STEPS[captureStepIndex] || ROOM_CAPTURE_STEPS[ROOM_CAPTURE_STEPS.length - 1];
+  const capturedStepCount = ROOM_CAPTURE_STEPS.filter((step) => guidedCaptures[step.id]).length;
+  const roomGuideReady = capturedStepCount >= 4;
 
   const scanResult = useMemo(() => buildSuggestions(form, markers, packageBias), [form, markers, packageBias]);
+  const roomModel = useMemo(() => {
+    const dimensions = form.areaSize === 'large'
+      ? { width: 74, depth: 68, height: 84 }
+      : form.areaSize === 'small'
+        ? { width: 58, depth: 54, height: 70 }
+        : { width: 66, depth: 61, height: 77 };
+    return {
+      dimensions,
+      frontReady: Boolean(guidedCaptures.front),
+      leftReady: Boolean(guidedCaptures.left),
+      rightReady: Boolean(guidedCaptures.right),
+      ceilingReady: Boolean(guidedCaptures.up),
+      floorReady: Boolean(guidedCaptures.down)
+    };
+  }, [form.areaSize, guidedCaptures]);
 
   usePageSeo({
     title: 'Camigo Security Scan | Live CCTV Placement, Package, and Installation Estimate',
@@ -384,6 +412,11 @@ function SecurityScanPage() {
     setAnalysisSummary('');
     setAnalysisBlindSpots([]);
     setPackageBias(null);
+  };
+
+  const resetGuidedCaptures = () => {
+    setGuidedCaptures({});
+    setCaptureStepIndex(0);
   };
 
   const captureVideoFrame = () => {
@@ -690,6 +723,7 @@ function SecurityScanPage() {
       stopCamera();
       setLiveScanActive(false);
       clearAnalysis();
+      resetGuidedCaptures();
       await runCamigoScan(nextImage, { persistCapture: true });
     };
     reader.onerror = () => {
@@ -705,7 +739,27 @@ function SecurityScanPage() {
     clearAnalysis();
     stopCamera();
     setLiveScanActive(false);
+    resetGuidedCaptures();
     await runCamigoScan(dataUrl, { persistCapture: true });
+  };
+
+  const captureGuidedStep = async () => {
+    const dataUrl = captureVideoFrame();
+    if (!dataUrl || !activeCaptureStep) return;
+    const canvas = captureCanvasRef.current;
+    setGuidedCaptures((current) => ({
+      ...current,
+      [activeCaptureStep.id]: dataUrl
+    }));
+    setCapturedImage(dataUrl);
+    if (captureStepIndex < ROOM_CAPTURE_STEPS.length - 1) {
+      setCaptureStepIndex((current) => current + 1);
+    }
+    await runCamigoScan(dataUrl, {
+      persistCapture: true,
+      browserImageInput: canvas || undefined,
+      silent: false
+    });
   };
 
   useEffect(() => {
@@ -840,6 +894,38 @@ function SecurityScanPage() {
             </div>
           </div>
 
+          <div className="security-guided-capture-card">
+            <div className="security-guided-capture-head">
+              <div>
+                <span className="eyebrow">Guided Room Capture</span>
+                <strong>{activeCaptureStep.label}</strong>
+              </div>
+              <span>{capturedStepCount}/{ROOM_CAPTURE_STEPS.length} saved</span>
+            </div>
+            <p>{activeCaptureStep.hint}</p>
+            <div className="security-guided-steps">
+              {ROOM_CAPTURE_STEPS.map((step, index) => (
+                <button
+                  key={step.id}
+                  type="button"
+                  className={captureStepIndex === index ? 'security-guided-step active' : guidedCaptures[step.id] ? 'security-guided-step done' : 'security-guided-step'}
+                  onClick={() => setCaptureStepIndex(index)}
+                >
+                  <strong>{step.label}</strong>
+                  <span>{guidedCaptures[step.id] ? 'Captured' : 'Pending'}</span>
+                </button>
+              ))}
+            </div>
+            <div className="security-package-actions">
+              <button type="button" className="btn btn-primary" onClick={captureGuidedStep} disabled={!cameraReady}>
+                Capture {activeCaptureStep.label}
+              </button>
+              <button type="button" className="btn btn-outline" onClick={resetGuidedCaptures}>
+                Reset guide
+              </button>
+            </div>
+          </div>
+
           <div className="security-live-scan-stage">
             <button
               type="button"
@@ -889,10 +975,10 @@ function SecurityScanPage() {
               <span>{cameraReady && liveAutoScanEnabled ? (visionLoading ? 'Loading live vision engine' : liveScanActive ? 'Live scan is updating markers' : 'Live scan is warming up') : `${markers.length} scan markers added`}</span>
             </div>
             <div className="security-preview-tile">
-              <span>{(analysisBlindSpots.length || markers.filter((marker) => marker.type === 'blind').length)} blind spots flagged</span>
+              <span>{capturedStepCount > 0 ? `${capturedStepCount} guided room views captured` : `${(analysisBlindSpots.length || markers.filter((marker) => marker.type === 'blind').length)} blind spots flagged`}</span>
             </div>
             <div className="security-preview-tile">
-              <span>{analysisLoading ? 'Camigo is scanning this room now' : cameraReady && liveAutoScanEnabled ? (visionReady ? 'Layout recognition refreshes every few seconds' : 'Preparing room recognition model') : hasMeaningfulScan ? `${scanResult.adjustedCameras} total camera points suggested` : 'Capture a frame to auto-scan this room'}</span>
+              <span>{analysisLoading ? 'Camigo is scanning this room now' : roomGuideReady ? '3D room guide has enough views to estimate room shape' : cameraReady && liveAutoScanEnabled ? (visionReady ? 'Layout recognition refreshes every few seconds' : 'Preparing room recognition model') : hasMeaningfulScan ? `${scanResult.adjustedCameras} total camera points suggested` : 'Capture a frame to auto-scan this room'}</span>
             </div>
           </div>
           {analysisSummary ? (
@@ -1048,6 +1134,38 @@ function SecurityScanPage() {
         </div>
 
         <aside className="security-scan-results">
+          <div className="security-scan-card security-room-model-card">
+            <div className="security-scan-card-head compact">
+              <div>
+                <span className="checkout-section-tag">Room model</span>
+                <h3><Sparkles size={18} /> Guided 3D room preview</h3>
+              </div>
+            </div>
+            <div className="security-room-model-shell">
+              <div className={roomModel.ceilingReady ? 'security-room-plane ceiling ready' : 'security-room-plane ceiling'}>
+                <span>Ceiling</span>
+              </div>
+              <div className="security-room-middle">
+                <div className={roomModel.leftReady ? 'security-room-plane side ready' : 'security-room-plane side'}>
+                  <span>Left wall</span>
+                </div>
+                <div className={roomModel.frontReady ? 'security-room-plane back ready' : 'security-room-plane back'}>
+                  <span>Front wall</span>
+                </div>
+                <div className={roomModel.rightReady ? 'security-room-plane side ready' : 'security-room-plane side'}>
+                  <span>Right wall</span>
+                </div>
+              </div>
+              <div className={roomModel.floorReady ? 'security-room-plane floor ready' : 'security-room-plane floor'}>
+                <span>Floor</span>
+              </div>
+            </div>
+            <div className="security-room-model-stats">
+              <span>{roomGuideReady ? 'Enough guided views captured for rough 3D layout' : 'Capture at least 4 guided views for rough 3D layout'}</span>
+              <strong>{roomModel.dimensions.width} x {roomModel.dimensions.depth} x {roomModel.dimensions.height}</strong>
+            </div>
+          </div>
+
           {!hasMeaningfulScan ? (
             <div className="security-scan-card security-awaiting-scan-card">
               <div className="security-scan-card-head">
