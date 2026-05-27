@@ -267,6 +267,36 @@ const getProductSearchText = (product = {}) => [
   product.category_name
 ].filter(Boolean).join(' ');
 
+const getProductDiscountMeta = (product = {}) => {
+  const price = Number(product?.price || 0);
+  const mrp = Number(product?.mrp || 0);
+  const explicitDiscount = Number(product?.discount_percent || 0);
+  const savings = mrp > price && price > 0 ? Math.max(0, mrp - price) : 0;
+  const discountPercent = explicitDiscount > 0
+    ? explicitDiscount
+    : (mrp > price && mrp > 0 ? ((mrp - price) / mrp) * 100 : 0);
+
+  return {
+    price,
+    mrp,
+    savings,
+    discountPercent: Number.isFinite(discountPercent) ? discountPercent : 0,
+    isDiscounted: savings > 0 || discountPercent > 0
+  };
+};
+
+const isCameraProduct = (product = {}) => {
+  const category = String(product?.category_name || '').toLowerCase();
+  const text = getProductSearchText(product).toLowerCase();
+  return category.includes('camera')
+    || text.includes(' camera')
+    || text.includes('dome')
+    || text.includes('bullet')
+    || text.includes('ptz')
+    || text.includes('ahd')
+    || text.includes('ip camera');
+};
+
 function MainPage({
   user,
   cartCount,
@@ -321,6 +351,67 @@ function MainPage({
     ...cat,
     products: filteredProducts.filter(p => p.category_id === cat.id)
   })).filter(c => c.products.length > 0);
+  const smartDealSections = useMemo(() => {
+    const discountedProducts = regularProducts
+      .map((product) => ({ product, discount: getProductDiscountMeta(product) }))
+      .filter(({ discount, product }) => discount.isDiscounted && Number(product.stock || 0) > 0);
+
+    if (!discountedProducts.length) return [];
+
+    const buildSection = ({ key, title, items, tone }) => {
+      const uniqueItems = items
+        .filter(Boolean)
+        .filter((product, index, list) => list.findIndex((entry) => Number(entry.id) === Number(product.id)) === index)
+        .slice(0, 10);
+      if (uniqueItems.length < 2) return null;
+      return { key, title, products: uniqueItems, tone };
+    };
+
+    const byDiscountPercent = [...discountedProducts]
+      .sort((left, right) => {
+        if (right.discount.discountPercent !== left.discount.discountPercent) {
+          return right.discount.discountPercent - left.discount.discountPercent;
+        }
+        return right.discount.savings - left.discount.savings;
+      })
+      .map(({ product }) => product);
+
+    const bySavingsValue = [...discountedProducts]
+      .sort((left, right) => {
+        if (right.discount.savings !== left.discount.savings) {
+          return right.discount.savings - left.discount.savings;
+        }
+        return right.discount.discountPercent - left.discount.discountPercent;
+      })
+      .map(({ product }) => product);
+
+    const underBudgetDeals = discountedProducts
+      .filter(({ product }) => Number(product.price || 0) > 0 && Number(product.price || 0) <= 1999)
+      .sort((left, right) => {
+        if (right.discount.discountPercent !== left.discount.discountPercent) {
+          return right.discount.discountPercent - left.discount.discountPercent;
+        }
+        return Number(left.product.price || 0) - Number(right.product.price || 0);
+      })
+      .map(({ product }) => product);
+
+    const cameraDeals = discountedProducts
+      .filter(({ product }) => isCameraProduct(product))
+      .sort((left, right) => {
+        if (right.discount.discountPercent !== left.discount.discountPercent) {
+          return right.discount.discountPercent - left.discount.discountPercent;
+        }
+        return Number(right.product.rating_average || 0) - Number(left.product.rating_average || 0);
+      })
+      .map(({ product }) => product);
+
+    return [
+      buildSection({ key: 'best-offers', title: 'Best Offers', items: byDiscountPercent, tone: 'warm' }),
+      buildSection({ key: 'biggest-savings', title: 'Biggest Savings', items: bySavingsValue, tone: 'contrast' }),
+      buildSection({ key: 'under-budget-deals', title: 'Under Rs 1999 Deals', items: underBudgetDeals, tone: 'sky' }),
+      buildSection({ key: 'top-camera-deals', title: 'Top Discounted Cameras', items: cameraDeals, tone: 'soft' })
+    ].filter(Boolean);
+  }, [regularProducts]);
   const homepageHasCategoryFeeds = Boolean(
     pageContent?.homepage?.blocks?.some((block) => block?.visible !== false && block?.type === 'category_feeds')
   );
@@ -492,9 +583,27 @@ function MainPage({
             </section>
           )
         ) : (
-          homepageHasCategoryFeeds ? null : productsByCategory.map(cat => (
-            <ProductSection key={cat.id} title={cat.name} categoryId={cat.id} products={cat.products} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={onToggleSaved} sectionTone="neutral" deliveryEtaLabel={deliveryEtaLabel} />
-          ))
+          <>
+            {smartDealSections.map((section) => (
+              <ProductSection
+                key={section.key}
+                title={section.title}
+                products={section.products}
+                onAdd={addToCart}
+                onRemove={removeFromCart}
+                user={user}
+                cartItems={cartItems}
+                savedProductIds={savedProductIds}
+                onToggleSaved={onToggleSaved}
+                sectionTone={section.tone}
+                deliveryEtaLabel={deliveryEtaLabel}
+                prioritizeImages
+              />
+            ))}
+            {homepageHasCategoryFeeds ? null : productsByCategory.map(cat => (
+              <ProductSection key={cat.id} title={cat.name} categoryId={cat.id} products={cat.products} onAdd={addToCart} onRemove={removeFromCart} user={user} cartItems={cartItems} savedProductIds={savedProductIds} onToggleSaved={onToggleSaved} sectionTone="neutral" deliveryEtaLabel={deliveryEtaLabel} />
+            ))}
+          </>
         )}
         {!searchQuery && (
           <section className="category-section">
