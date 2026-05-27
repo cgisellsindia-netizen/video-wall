@@ -8,6 +8,15 @@ Allow: /category-images/
 Allow: /category-real/
 Allow: /camigo-logo.svg
 
+User-agent: Google-InspectionTool
+Allow: /
+
+User-agent: AdsBot-Google
+Allow: /
+
+User-agent: Storebot-Google
+Allow: /
+
 User-agent: *
 Allow: /
 

@@ -5073,6 +5073,233 @@ const wrapShareTextLines = (value = '', maxChars = 24, maxLines = 3) => {
   return trimmed;
 };
 
+const merchantCrawlerPattern = /googlebot|googlebot-image|google-inspectiontool|adsbot-google|storebot-google|mediapartners-google/i;
+
+const isMerchantCrawlerRequest = (req = {}) => merchantCrawlerPattern.test(String(req.get?.('user-agent') || ''));
+
+const buildMerchantProductFeatureList = (product = {}) => {
+  const raw = String(product?.description || '').trim();
+  if (!raw) return [];
+  return raw
+    .split(/[\n,.;|]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((value, index, list) => list.indexOf(value) === index)
+    .slice(0, 8);
+};
+
+const renderMerchantProductPageHtml = ({
+  product = {},
+  productUrl = '',
+  imageUrl = '',
+  title = '',
+  metaDescription = '',
+  sellingPrice = 0,
+  mrp = 0,
+  discount = 0,
+  features = []
+} = {}) => {
+  const displayImage = imageUrl || `${publicStorefrontUrl}/camigo-logo.svg`;
+  const shippingUrl = `${publicStorefrontUrl}/shipping-policy`;
+  const returnsUrl = `${publicStorefrontUrl}/returns-policy`;
+  const installationUrl = `${publicStorefrontUrl}/installation-policy`;
+  const contactUrl = `${publicStorefrontUrl}/contact`;
+  const stock = Number(product.stock || 0);
+  const categoryName = String(product.category_name || 'CCTV Product').trim();
+  const schema = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'Product',
+        name: product.name,
+        description: metaDescription,
+        image: [displayImage],
+        sku: String(product.id),
+        mpn: String(product.id),
+        brand: {
+          '@type': 'Brand',
+          name: 'Camigo'
+        },
+        category: categoryName,
+        offers: {
+          '@type': 'Offer',
+          url: productUrl,
+          priceCurrency: 'INR',
+          price: Number(sellingPrice || 0).toFixed(2),
+          availability: stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+          itemCondition: 'https://schema.org/NewCondition',
+          seller: {
+            '@type': 'Organization',
+            name: 'Camigo'
+          }
+        }
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Home',
+            item: publicStorefrontUrl
+          },
+          {
+            '@type': 'ListItem',
+            position: 2,
+            name: 'Shop',
+            item: `${publicStorefrontUrl}/shop`
+          },
+          {
+            '@type': 'ListItem',
+            position: 3,
+            name: product.name,
+            item: productUrl
+          }
+        ]
+      },
+      {
+        '@type': 'Store',
+        name: 'Camigo',
+        url: publicStorefrontUrl,
+        telephone: '+91 9114555044',
+        email: 'cgisellsindia@gmail.com',
+        address: {
+          '@type': 'PostalAddress',
+          streetAddress: 'Swarnapuri Rd, Bajrang Vihar, Patia',
+          addressLocality: 'Bhubaneswar',
+          addressRegion: 'Odisha',
+          postalCode: '751024',
+          addressCountry: 'IN'
+        }
+      }
+    ]
+  };
+  const schemaJson = JSON.stringify(schema).replace(/</g, '\\u003c');
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(metaDescription)}" />
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+  <link rel="canonical" href="${escapeHtml(productUrl)}" />
+  <meta property="og:type" content="product" />
+  <meta property="og:site_name" content="Camigo" />
+  <meta property="og:title" content="${escapeHtml(title)}" />
+  <meta property="og:description" content="${escapeHtml(metaDescription)}" />
+  <meta property="og:url" content="${escapeHtml(productUrl)}" />
+  <meta property="og:image" content="${escapeHtml(displayImage)}" />
+  <meta property="og:image:alt" content="${escapeHtml(product.name)}" />
+  <meta property="product:price:amount" content="${escapeHtml(String(sellingPrice))}" />
+  <meta property="product:price:currency" content="INR" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${escapeHtml(title)}" />
+  <meta name="twitter:description" content="${escapeHtml(metaDescription)}" />
+  <meta name="twitter:image" content="${escapeHtml(displayImage)}" />
+  <script type="application/ld+json">${schemaJson}</script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; background: #f4f7fb; color: #10233f; }
+    a { color: #163a7a; }
+    .merchant-shell { max-width: 1120px; margin: 0 auto; padding: 26px 16px 40px; }
+    .merchant-topbar { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; color: #49617f; font-size: 13px; }
+    .merchant-badge { display: inline-flex; align-items: center; padding: 8px 12px; border-radius: 999px; background: #e9f1ff; color: #163a7a; font-weight: 700; }
+    .merchant-stage { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 420px); gap: 22px; background: #fff; border-radius: 28px; padding: 22px; box-shadow: 0 16px 44px rgba(16, 35, 63, 0.08); }
+    .merchant-image-wrap { display: grid; place-items: center; border-radius: 22px; background: linear-gradient(180deg, #f7fbff, #eef5ff); min-height: 380px; padding: 18px; }
+    .merchant-image-wrap img { width: 100%; max-width: 520px; max-height: 420px; object-fit: contain; }
+    .merchant-copy h1 { margin: 12px 0 10px; font-size: 36px; line-height: 1.08; }
+    .merchant-copy p { margin: 0 0 16px; color: #516982; line-height: 1.7; }
+    .merchant-price-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 18px; }
+    .merchant-price-row strong { font-size: 32px; color: #082a63; }
+    .merchant-price-row s { color: #8ea0b7; font-weight: 700; }
+    .merchant-stock { display: inline-flex; align-items: center; padding: 8px 12px; border-radius: 999px; background: ${stock > 0 ? '#e7f8ef' : '#f3f4f6'}; color: ${stock > 0 ? '#0f8a55' : '#6b7280'}; font-weight: 800; font-size: 13px; }
+    .merchant-cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin: 18px 0 0; }
+    .merchant-btn { display: inline-flex; justify-content: center; align-items: center; text-decoration: none; border-radius: 16px; padding: 14px 18px; font-weight: 800; }
+    .merchant-btn.primary { background: #f6c400; color: #082a63; }
+    .merchant-btn.secondary { background: #163a7a; color: #fff; }
+    .merchant-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 18px; }
+    .merchant-card { background: #fff; border-radius: 24px; padding: 22px; box-shadow: 0 12px 34px rgba(16, 35, 63, 0.06); }
+    .merchant-card h2 { margin: 0 0 12px; font-size: 22px; }
+    .merchant-list { margin: 0; padding-left: 18px; color: #4d647f; line-height: 1.7; }
+    .merchant-policy-list { display: grid; gap: 12px; }
+    .merchant-policy-item { border: 1px solid rgba(22, 58, 122, 0.1); border-radius: 18px; padding: 16px; background: #f9fbff; }
+    .merchant-policy-item strong { display: block; margin-bottom: 6px; color: #163a7a; }
+    .merchant-contact { display: grid; gap: 8px; color: #4d647f; line-height: 1.7; }
+    .merchant-contact strong { color: #10233f; }
+    @media (max-width: 900px) {
+      .merchant-stage, .merchant-grid { grid-template-columns: 1fr; }
+      .merchant-copy h1 { font-size: 30px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="merchant-shell">
+    <div class="merchant-topbar">
+      <span>Camigo CCTV product page</span>
+      <span class="merchant-badge">${escapeHtml(categoryName)}</span>
+    </div>
+    <section class="merchant-stage">
+      <div class="merchant-image-wrap">
+        <img src="${escapeHtml(displayImage)}" alt="${escapeHtml(product.name)}" />
+      </div>
+      <div class="merchant-copy">
+        <span class="merchant-badge">${discount > 0 ? `${escapeHtml(String(discount))}% OFF` : 'Camigo CCTV Product'}</span>
+        <h1>${escapeHtml(product.name)}</h1>
+        <p>${escapeHtml(metaDescription)}</p>
+        <div class="merchant-price-row">
+          <strong>Rs ${escapeHtml(String(sellingPrice))}</strong>
+          ${mrp > sellingPrice ? `<s>Rs ${escapeHtml(String(mrp))}</s>` : ''}
+          <span class="merchant-stock">${stock > 0 ? 'In stock for order' : 'Currently out of stock'}</span>
+        </div>
+        <div class="merchant-cta-row">
+          <a class="merchant-btn primary" href="${escapeHtml(productUrl)}">Open product on Camigo</a>
+          <a class="merchant-btn secondary" href="${escapeHtml(contactUrl)}">Talk to support</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="merchant-grid">
+      <article class="merchant-card">
+        <h2>Product highlights</h2>
+        <ul class="merchant-list">
+          ${(features.length ? features : ['Fast local dispatch support', 'Compatible CCTV buying and installation support', 'Camigo order assistance for homes, shops, and offices']).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}
+        </ul>
+      </article>
+      <article class="merchant-card">
+        <h2>Shipping, returns, and installation</h2>
+        <div class="merchant-policy-list">
+          <div class="merchant-policy-item">
+            <strong>Shipping policy</strong>
+            <span>Delivery availability, service area, and dispatch expectations are listed on the <a href="${escapeHtml(shippingUrl)}">shipping policy page</a>.</span>
+          </div>
+          <div class="merchant-policy-item">
+            <strong>Returns policy</strong>
+            <span>Eligibility, damaged-item reporting, and return support are listed on the <a href="${escapeHtml(returnsUrl)}">returns policy page</a>.</span>
+          </div>
+          <div class="merchant-policy-item">
+            <strong>Installation policy</strong>
+            <span>Service scope and installer expectations are listed on the <a href="${escapeHtml(installationUrl)}">installation policy page</a>.</span>
+          </div>
+        </div>
+      </article>
+      <article class="merchant-card">
+        <h2>Business contact</h2>
+        <div class="merchant-contact">
+          <div><strong>Camigo</strong></div>
+          <div>Swarnapuri Rd, Bajrang Vihar, Patia, Bhubaneswar, Odisha 751024, India</div>
+          <div>Phone: <a href="tel:+919114555044">+91 9114 555 044</a></div>
+          <div>Email: <a href="mailto:cgisellsindia@gmail.com">cgisellsindia@gmail.com</a></div>
+          <div>Support hours: Mon-Sat, 9:00 AM - 8:00 PM</div>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>`;
+};
+
 app.get('/share/product/:id', async (req, res) => {
   try {
     const productId = Number(req.params.id);
@@ -7934,6 +8161,81 @@ if (hasLocalWebBuild) {
     }
   }));
 }
+
+app.get('/product/:id', async (req, res, next) => {
+  const productId = Number(req.params.id);
+  if (!Number.isFinite(productId) || productId <= 0) {
+    return next();
+  }
+
+  if (!isMerchantCrawlerRequest(req)) {
+    if (hasLocalWebBuild) {
+      return res.sendFile(path.join(buildPath, 'index.html'));
+    }
+    const targetUrl = new URL(req.originalUrl || `/product/${productId}`, publicWebBaseUrl);
+    return res.redirect(302, targetUrl.toString());
+  }
+
+  try {
+    const product = await dbGetAsync(
+      `SELECT p.*, c.name as category_name
+       FROM products p
+       LEFT JOIN categories c ON p.category_id = c.id
+       WHERE p.id = ?`,
+      [productId]
+    );
+    if (!product) {
+      return res.status(404).send('Product not found');
+    }
+
+    const imageRows = await dbAllAsync(
+      `SELECT image_url
+       FROM product_images
+       WHERE product_id = ?
+       ORDER BY sort_order ASC, id ASC`,
+      [productId]
+    );
+
+    const gallery = buildShareProductGallery(product, imageRows);
+    const imageUrl = buildShareMetaImageUrl(gallery[0], product);
+    const sellingPrice = Math.round(Number(product.price || 0));
+    const mrp = Math.round(Number(product.mrp || 0));
+    const discount = Number(product.discount_percent) > 0
+      ? Math.round(Number(product.discount_percent))
+      : mrp > sellingPrice && mrp > 0
+        ? Math.max(0, Math.round((1 - (sellingPrice / mrp)) * 100))
+        : 0;
+    const productUrl = `${publicStorefrontUrl}/product/${productId}`;
+    const metaDescription = [
+      `Buy ${product.name} from Camigo for Rs ${sellingPrice}.`,
+      product.category_name ? `${product.category_name}.` : '',
+      Number(product.stock || 0) > 0 ? 'In stock for ordering.' : 'Currently out of stock.',
+      'Shipping, returns, and installation details are available on the store policies pages.'
+    ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim().slice(0, 220);
+    const title = `${product.name} | Camigo`;
+    const features = buildMerchantProductFeatureList(product);
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
+    return res.send(renderMerchantProductPageHtml({
+      product,
+      productUrl,
+      imageUrl,
+      title,
+      metaDescription,
+      sellingPrice,
+      mrp,
+      discount,
+      features
+    }));
+  } catch (error) {
+    console.error('Merchant crawler product page render failed:', error);
+    if (hasLocalWebBuild) {
+      return res.sendFile(path.join(buildPath, 'index.html'));
+    }
+    return res.status(500).send('Unable to load product page');
+  }
+});
 
 // SPA fallback - serve index.html for non-API routes
 app.get('*', (req, res) => {
