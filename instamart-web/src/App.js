@@ -412,6 +412,8 @@ function MainPage({
       buildSection({ key: 'top-camera-deals', title: 'Top Discounted Cameras', items: cameraDeals, tone: 'soft' })
     ].filter(Boolean);
   }, [regularProducts]);
+  const categoryFeedsBlock = pageContent?.homepage?.blocks?.find((block) => block?.type === 'category_feeds') || null;
+  const smartDealsEnabled = categoryFeedsBlock ? categoryFeedsBlock.smart_deals_enabled !== false : true;
   const homepageHasCategoryFeeds = Boolean(
     pageContent?.homepage?.blocks?.some((block) => block?.visible !== false && block?.type === 'category_feeds')
   );
@@ -562,6 +564,7 @@ function MainPage({
             savedProductIds={savedProductIds}
             onToggleSaved={onToggleSaved}
             deliveryEtaLabel={deliveryEtaLabel}
+            smartDealSections={smartDealSections}
           />
         )}
         {searchQuery ? (
@@ -584,7 +587,7 @@ function MainPage({
           )
         ) : (
           <>
-            {smartDealSections.map((section) => (
+            {smartDealsEnabled && smartDealSections.map((section) => (
               <ProductSection
                 key={section.key}
                 title={section.title}

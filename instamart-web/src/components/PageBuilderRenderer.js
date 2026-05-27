@@ -76,7 +76,8 @@ export function HomepageBlocks({
   user,
   savedProductIds,
   onToggleSaved,
-  deliveryEtaLabel = '16 mins'
+  deliveryEtaLabel = '16 mins',
+  smartDealSections = []
 }) {
   const productsByCategory = categories.map((cat) => ({
     ...cat,
@@ -152,9 +153,31 @@ export function HomepageBlocks({
       );
     }
     if (block.type === 'category_feeds') {
+      const smartSections = block.smart_deals_enabled === false
+        ? []
+        : smartDealSections.map((section, sectionIndex) => {
+          feedRenderIndex += 1;
+          const prioritizeImages = feedRenderIndex === 1 && sectionIndex === 0;
+          return (
+            <ProductSection
+              key={`${block.id}-${section.key}`}
+              title={section.title}
+              products={section.products}
+              onAdd={addToCart}
+              onRemove={removeFromCart}
+              user={user}
+              cartItems={cartItems}
+              savedProductIds={savedProductIds}
+              onToggleSaved={onToggleSaved}
+              sectionTone={section.tone || 'warm'}
+              deliveryEtaLabel={deliveryEtaLabel}
+              prioritizeImages={prioritizeImages}
+            />
+          );
+        });
       const sections = productsByCategory.map((cat, categoryIndex) => {
         feedRenderIndex += 1;
-        const prioritizeImages = feedRenderIndex === 1 && categoryIndex === 0;
+        const prioritizeImages = feedRenderIndex === 1 && categoryIndex === 0 && !smartSections.length;
         return (
           <ProductSection
             key={`${block.id}-${cat.id}`}
@@ -175,6 +198,7 @@ export function HomepageBlocks({
       });
       return (
         <DeferredBlock key={block.id} minHeight={520}>
+          {smartSections}
           {sections}
         </DeferredBlock>
       );

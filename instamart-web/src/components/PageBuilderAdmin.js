@@ -107,6 +107,29 @@ function BlockEditorFields({ block, categories, products, onChange }) {
 
       {block.type === 'category_grid' && <div className="form-group"><label>Section title</label><input value={block.title || ''} onChange={(e) => update('title', e.target.value)} /></div>}
       {block.type === 'setup_packages' && <div className="form-group"><label>Section title</label><input value={block.title || ''} onChange={(e) => update('title', e.target.value)} /></div>}
+      {block.type === 'category_feeds' && (
+        <>
+          <div className="form-group">
+            <label>Automatic discount sections</label>
+            <select value={block.smart_deals_enabled === false ? '0' : '1'} onChange={(e) => update('smart_deals_enabled', e.target.value === '1')}>
+              <option value="1">Show smart deal sections above categories</option>
+              <option value="0">Hide smart deal sections</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Admin label</label>
+            <input value={block.smart_deals_label || ''} onChange={(e) => update('smart_deals_label', e.target.value)} />
+          </div>
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label>How it works</label>
+            <textarea
+              rows="3"
+              value={`This block automatically builds top discount collections from live product pricing. Current status: ${block.smart_deals_enabled === false ? 'disabled' : 'enabled'}.`}
+              readOnly
+            />
+          </div>
+        </>
+      )}
 
       {block.type === 'product_feed' && (
         <>

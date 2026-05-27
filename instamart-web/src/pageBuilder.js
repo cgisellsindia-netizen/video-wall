@@ -10,7 +10,7 @@ export const DEFAULT_PAGE_CONTENT = {
       { id: createId('home-saved'), type: 'product_feed', visible: true, source: 'saved', title: 'Saved for Later', tone: 'soft' },
       { id: createId('home-recommended'), type: 'product_feed', visible: true, source: 'recommended', title: 'Recommended for You', tone: 'sky' },
       { id: createId('home-bestselling'), type: 'product_feed', visible: true, source: 'bestselling', title: 'Most Loved CCTV Picks', tone: 'contrast' },
-      { id: createId('home-category-feeds'), type: 'category_feeds', visible: true }
+      { id: createId('home-category-feeds'), type: 'category_feeds', visible: true, smart_deals_enabled: true, smart_deals_label: 'Automatic deal sections' }
     ]
   },
   productPage: {
@@ -34,7 +34,7 @@ const normalizeBlock = (block = {}, pageKey = 'homepage') => {
     if (type === 'spacer') return { height: 24, ...base };
     if (type === 'category_grid') return { title: 'Shop by Category', ...base };
     if (type === 'setup_packages') return { title: 'Full Setup Packages', ...base };
-    if (type === 'category_feeds') return base;
+    if (type === 'category_feeds') return { smart_deals_enabled: true, smart_deals_label: 'Automatic deal sections', ...base };
     if (type === 'hero') {
       const fallback = DEFAULT_PAGE_CONTENT.homepage.blocks.find((entry) => entry.type === 'hero');
       return { ...fallback, ...base };
