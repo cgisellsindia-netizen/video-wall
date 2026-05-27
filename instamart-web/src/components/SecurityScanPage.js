@@ -78,6 +78,34 @@ const ROOM_CAPTURE_STEPS = [
   { id: 'down', label: 'Floor', hint: 'Tilt down so Camigo can understand walk paths and furniture spread.' }
 ];
 
+const ROOM_CAPTURE_OVERLAY = {
+  front: {
+    direction: 'Hold center',
+    target: 'Keep the main wall centered',
+    alignment: 'Show both top corners if possible'
+  },
+  left: {
+    direction: 'Pan left',
+    target: 'Bring the left wall into frame',
+    alignment: 'Keep the ceiling line visible'
+  },
+  right: {
+    direction: 'Pan right',
+    target: 'Bring the right wall into frame',
+    alignment: 'Keep the far corner visible'
+  },
+  up: {
+    direction: 'Tilt up',
+    target: 'Aim at the ceiling corner',
+    alignment: 'Catch beams or upper wall joints'
+  },
+  down: {
+    direction: 'Tilt down',
+    target: 'Aim at floor spread',
+    alignment: 'Show bed, path, or furniture footprint'
+  }
+};
+
 const PACKAGE_LIBRARY = {
   hd4: {
     key: 'hd4',
@@ -258,6 +286,7 @@ function SecurityScanPage() {
   const activeCaptureStep = ROOM_CAPTURE_STEPS[captureStepIndex] || ROOM_CAPTURE_STEPS[ROOM_CAPTURE_STEPS.length - 1];
   const capturedStepCount = ROOM_CAPTURE_STEPS.filter((step) => guidedCaptures[step.id]).length;
   const roomGuideReady = capturedStepCount >= 4;
+  const activeOverlay = ROOM_CAPTURE_OVERLAY[activeCaptureStep?.id] || ROOM_CAPTURE_OVERLAY.front;
 
   const scanResult = useMemo(() => buildSuggestions(form, markers, packageBias), [form, markers, packageBias]);
   const roomModel = useMemo(() => {
@@ -936,6 +965,22 @@ function SecurityScanPage() {
               {!cameraReady && capturedImage ? (
                 <img src={capturedImage} alt="Security scan capture" className="security-live-capture" />
               ) : null}
+              {cameraReady && (
+                <div className="security-live-guide-overlay">
+                  <div className="security-live-guide-banner">
+                    <span>Step {captureStepIndex + 1} of {ROOM_CAPTURE_STEPS.length}</span>
+                    <strong>{activeCaptureStep.label}</strong>
+                    <small>{activeOverlay.direction}</small>
+                  </div>
+                  <div className={activeCaptureStep.id === 'up' ? 'security-live-target ceiling' : activeCaptureStep.id === 'down' ? 'security-live-target floor' : 'security-live-target'}>
+                    <span>{activeOverlay.target}</span>
+                  </div>
+                  <div className="security-live-alignment-note">
+                    <strong>Alignment cue</strong>
+                    <span>{activeOverlay.alignment}</span>
+                  </div>
+                </div>
+              )}
               {!cameraReady && !capturedImage && (
                 <div className="security-live-placeholder">
                   <Camera size={34} />
