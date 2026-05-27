@@ -341,44 +341,13 @@ function SecurityScanPage() {
     setPackageBias(null);
   };
 
-  const handleFallbackCapture = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setCapturedImage(String(reader.result || ''));
-      setCameraError('');
-      stopCamera();
-      clearAnalysis();
-    };
-    reader.onerror = () => {
-      setCameraError('The photo could not be read for Camigo scan.');
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const captureFrameFromVideo = () => {
-    if (!videoRef.current || !captureCanvasRef.current) return;
-    const video = videoRef.current;
-    const canvas = captureCanvasRef.current;
-    const width = video.videoWidth || 1280;
-    const height = video.videoHeight || 720;
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext('2d');
-    if (!context) return;
-    context.drawImage(video, 0, 0, width, height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.86);
-    setCapturedImage(dataUrl);
-    clearAnalysis();
-    stopCamera();
-  };
-
-  const analyzeWithCamigoEngine = async () => {
-    if (!capturedImage) {
+  const runCamigoScan = async (imageToAnalyze) => {
+    const sourceImage = String(imageToAnalyze || capturedImage || '').trim();
+    if (!sourceImage) {
       setCameraError('Capture or upload an image first so Camigo scan can review the place.');
       return;
     }
+
     try {
       setAnalysisLoading(true);
       setCameraError('');
@@ -388,7 +357,7 @@ function SecurityScanPage() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          image_data_url: capturedImage,
+          image_data_url: sourceImage,
           place_type: form.placeType,
           area_size: form.areaSize,
           areas: form.areas,
@@ -410,6 +379,42 @@ function SecurityScanPage() {
     }
   };
 
+  const handleFallbackCapture = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const nextImage = String(reader.result || '');
+      setCapturedImage(nextImage);
+      setCameraError('');
+      stopCamera();
+      clearAnalysis();
+      await runCamigoScan(nextImage);
+    };
+    reader.onerror = () => {
+      setCameraError('The photo could not be read for Camigo scan.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const captureFrameFromVideo = async () => {
+    if (!videoRef.current || !captureCanvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = captureCanvasRef.current;
+    const width = video.videoWidth || 1280;
+    const height = video.videoHeight || 720;
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.drawImage(video, 0, 0, width, height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.86);
+    setCapturedImage(dataUrl);
+    clearAnalysis();
+    stopCamera();
+    await runCamigoScan(dataUrl);
+  };
+
   return (
     <main className="container security-scan-page">
       <nav className="seo-breadcrumbs" aria-label="Breadcrumb">
@@ -421,9 +426,9 @@ function SecurityScanPage() {
       <section className="security-scan-hero">
         <div className="security-scan-hero-copy">
           <span className="eyebrow">Camigo Security Scan</span>
-          <h1>Open the camera, mark blind spots, and get the right CCTV package instantly.</h1>
+          <h1>Open the camera, scan the room, and get the right CCTV package instantly.</h1>
           <p>
-            This live scan MVP lets the customer open the phone camera, mark camera-needed areas, and generate a coverage plan.
+            Capture a room or storefront view and Camigo will auto-scan the image, place recommended camera points, and build a coverage plan.
             Installer will still confirm final placement on site.
           </p>
           <div className="security-scan-hero-actions">
@@ -449,7 +454,7 @@ function SecurityScanPage() {
                 <span>Counter camera</span>
               </div>
             </div>
-            <small>Tap directly on the live view to mark where a camera is needed or where a blind spot exists.</small>
+            <small>Capture a frame or upload a photo and Camigo will place the first recommended points automatically.</small>
           </div>
         </div>
       </section>
@@ -495,8 +500,8 @@ function SecurityScanPage() {
               <button type="button" className="btn btn-outline" onClick={() => uploadInputRef.current?.click()}>
                 Use photo
               </button>
-              <button type="button" className="btn btn-primary" onClick={analyzeWithCamigoEngine} disabled={!capturedImage || analysisLoading}>
-                {analysisLoading ? 'Analyzing...' : 'Run Camigo scan'}
+              <button type="button" className="btn btn-primary" onClick={() => runCamigoScan()} disabled={!capturedImage || analysisLoading}>
+                {analysisLoading ? 'Analyzing...' : 'Re-scan image'}
               </button>
               <button type="button" className="btn btn-outline" onClick={resetLiveMarkers}>
                 Clear markers
@@ -556,7 +561,7 @@ function SecurityScanPage() {
               <span>{(analysisBlindSpots.length || markers.filter((marker) => marker.type === 'blind').length)} blind spots flagged</span>
             </div>
             <div className="security-preview-tile">
-              <span>{hasMeaningfulScan ? `${scanResult.adjustedCameras} total camera points suggested` : 'Scan first to unlock recommendation'}</span>
+              <span>{analysisLoading ? 'Camigo is scanning this room now' : hasMeaningfulScan ? `${scanResult.adjustedCameras} total camera points suggested` : 'Capture a frame to auto-scan this room'}</span>
             </div>
           </div>
           {analysisSummary ? (
