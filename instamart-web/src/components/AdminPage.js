@@ -5,6 +5,7 @@ import { API_URL } from '../api';
 import PageBuilderAdmin from './PageBuilderAdmin';
 import ProductImage from './ProductImage';
 import SeoAutomationAdmin from './SeoAutomationAdmin';
+import { normalizePageContent } from '../pageBuilder';
 
 function AdminPage({ user, authReady, pageContent, onPageContentSaved }) {
   const [users, setUsers] = useState([]);
@@ -36,6 +37,8 @@ function AdminPage({ user, authReady, pageContent, onPageContentSaved }) {
   const [priceDrafts, setPriceDrafts] = useState({});
   const [priceBusy, setPriceBusy] = useState({});
   const [notificationForm, setNotificationForm] = useState({ title: '', message: '', target: 'customer', personalize: true, product_id: '', image_url: '' });
+  const [smartDealsConfig, setSmartDealsConfig] = useState({ enabled: true, label: 'Automatic deal sections' });
+  const [smartDealsSaving, setSmartDealsSaving] = useState(false);
   const navigate = useNavigate();
 
   const emptyProduct = { name: '', description: '', price: '', mrp: '', discount_percent: '', dealer_price: '', distributor_price: '', warranty_years: '5', cod_enabled: true, image: '/images/cgi-new.jpg', images: ['/images/cgi-new.jpg'], category_id: '1', stock: '50', unit: '1 Unit' };
@@ -69,6 +72,15 @@ function AdminPage({ user, authReady, pageContent, onPageContentSaved }) {
     }
     fetchData();
   }, [authReady, user, navigate]);
+
+  useEffect(() => {
+    const normalized = normalizePageContent(pageContent || {});
+    const categoryFeedsBlock = normalized?.homepage?.blocks?.find((block) => block?.type === 'category_feeds');
+    setSmartDealsConfig({
+      enabled: categoryFeedsBlock ? categoryFeedsBlock.smart_deals_enabled !== false : true,
+      label: categoryFeedsBlock?.smart_deals_label || 'Automatic deal sections'
+    });
+  }, [pageContent]);
 
   const handleToggleCod = async (enabled) => {
     const token = localStorage.getItem('token');
@@ -362,6 +374,48 @@ function AdminPage({ user, authReady, pageContent, onPageContentSaved }) {
       setSystemStatus(sRes.ok ? sData : null);
       setLoading(false);
     } catch (e) { setMessage('Could not load admin data. Check backend/login and try again.'); setLoading(false); }
+  };
+
+  const handleSaveSmartDealsConfig = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setMessage('Please login as admin before saving smart deal settings.');
+      return;
+    }
+    setSmartDealsSaving(true);
+    try {
+      const normalized = normalizePageContent(pageContent || {});
+      const nextHomepageBlocks = (normalized.homepage?.blocks || []).map((block) => (
+        block.type === 'category_feeds'
+          ? {
+            ...block,
+            smart_deals_enabled: Boolean(smartDealsConfig.enabled),
+            smart_deals_label: String(smartDealsConfig.label || 'Automatic deal sections').trim() || 'Automatic deal sections'
+          }
+          : block
+      ));
+      const nextPayload = {
+        ...normalized,
+        homepage: {
+          ...normalized.homepage,
+          blocks: nextHomepageBlocks
+        }
+      };
+      const res = await fetch(`${API_URL}/admin/page-content`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(nextPayload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not save smart deal settings');
+      const savedContent = normalizePageContent(data);
+      onPageContentSaved?.(savedContent);
+      setMessage(data.message || 'Smart deal settings saved.');
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSmartDealsSaving(false);
+    }
   };
 
   const handleSaveHub = async (e) => {
@@ -1300,6 +1354,7 @@ function AdminPage({ user, authReady, pageContent, onPageContentSaved }) {
         <button className={`btn btn-sm ${activeTab === 'delivery' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('delivery')}><Truck size={16} /> Delivery Partners ({deliveryPartners.length})</button>
         <button className={`btn btn-sm ${activeTab === 'hubs' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('hubs')}><MapPin size={16} /> Hubs ({hubs.length})</button>
         <button className={`btn btn-sm ${activeTab === 'banners' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('banners')}><Package size={16} /> Category Banners ({categoryBanners.length})</button>
+        <button className={`btn btn-sm ${activeTab === 'smart-deals' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('smart-deals')}><Sparkles size={16} /> Smart Deals</button>
         <button className={`btn btn-sm ${activeTab === 'seo-automation' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('seo-automation')}><Sparkles size={16} /> SEO Intelligence</button>
         <button className={`btn btn-sm ${activeTab === 'page-builder' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('page-builder')}><Sparkles size={16} /> Live Page Editor</button>
         <button className={`btn btn-sm ${activeTab === 'notifications' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('notifications')}><Bell size={16} /> Notifications</button>
@@ -2307,6 +2362,67 @@ function AdminPage({ user, authReady, pageContent, onPageContentSaved }) {
                 </section>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'smart-deals' && (
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <div style={{ maxWidth: 760 }}>
+              <span className="phone-verify-eyebrow">Automatic homepage collections</span>
+              <h3 style={{ margin: '6px 0 8px' }}>Smart Deals Control Panel</h3>
+              <p className="checkout-note" style={{ margin: 0 }}>
+                This section controls the automatic discount-based homepage collections that appear above your normal product categories.
+                Camigo builds these from live product pricing, MRP, discount percentage, and stock availability.
+              </p>
+            </div>
+            <div className={`inline-stock-pill ${smartDealsConfig.enabled ? 'ok' : 'low'}`}>
+              {smartDealsConfig.enabled ? 'Smart deals enabled' : 'Smart deals disabled'}
+            </div>
+          </div>
+
+          <div className="page-builder-fields" style={{ marginTop: 18 }}>
+            <div className="form-group">
+              <label>Homepage smart deals</label>
+              <select
+                value={smartDealsConfig.enabled ? '1' : '0'}
+                onChange={(e) => setSmartDealsConfig((current) => ({ ...current, enabled: e.target.value === '1' }))}
+              >
+                <option value="1">Show automatic smart deal sections</option>
+                <option value="0">Hide automatic smart deal sections</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Admin label</label>
+              <input
+                value={smartDealsConfig.label}
+                onChange={(e) => setSmartDealsConfig((current) => ({ ...current, label: e.target.value }))}
+                placeholder="Automatic deal sections"
+              />
+            </div>
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label>Current automatic collections</label>
+              <textarea
+                rows="5"
+                readOnly
+                value={[
+                  '1. Best Offers - highest discount percentage',
+                  '2. Biggest Savings - highest rupee savings',
+                  '3. Under Rs 1999 Deals - discounted low-budget products',
+                  '4. Top Discounted Cameras - discounted camera-focused products'
+                ].join('\n')}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 18 }}>
+            <button type="button" className="btn btn-primary" onClick={handleSaveSmartDealsConfig} disabled={smartDealsSaving}>
+              {smartDealsSaving ? 'Saving...' : 'Save smart deal settings'}
+            </button>
+            <button type="button" className="btn btn-outline" onClick={() => setActiveTab('page-builder')}>
+              Open page builder
+            </button>
           </div>
         </div>
       )}
