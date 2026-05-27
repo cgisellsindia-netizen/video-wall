@@ -456,6 +456,90 @@ function SecurityScanPage() {
     return null;
   };
 
+  const getDetectionCenter = (detection = {}) => {
+    const box = detection?.box || {};
+    return {
+      x: Number(((Number(box.xmin || 0) + Number(box.xmax || 0)) / 2).toFixed(1)),
+      y: Number(((Number(box.ymin || 0) + Number(box.ymax || 0)) / 2).toFixed(1))
+    };
+  };
+
+  const chooseBestCorner = (detections = [], preferTop = true) => {
+    const corners = [
+      { id: 'top-left', x: 12, y: 12, weight: preferTop ? 1.2 : 1 },
+      { id: 'top-right', x: 88, y: 12, weight: preferTop ? 1.2 : 1 },
+      { id: 'bottom-left', x: 12, y: 88, weight: 0.9 },
+      { id: 'bottom-right', x: 88, y: 88, weight: 0.9 }
+    ];
+    const centers = detections.map((entry) => getDetectionCenter(entry)).filter((entry) => Number.isFinite(entry.x) && Number.isFinite(entry.y));
+    if (!centers.length) return corners[0];
+
+    return corners
+      .map((corner) => {
+        const score = centers.reduce((sum, center) => {
+          const dx = corner.x - center.x;
+          const dy = corner.y - center.y;
+          return sum + Math.sqrt((dx * dx) + (dy * dy));
+        }, 0) * corner.weight;
+        return { ...corner, score };
+      })
+      .sort((a, b) => b.score - a.score)[0];
+  };
+
+  const buildCornerPlacementMarker = ({ sceneLabel, detections = [] }) => {
+    const normalizedScene = String(sceneLabel || '').toLowerCase();
+    const preferTop = true;
+    const corner = chooseBestCorner(detections, preferTop);
+
+    if (normalizedScene.includes('bedroom')) {
+      return {
+        type: 'floor',
+        label: 'Bedroom corner camera',
+        x: corner.x,
+        y: corner.y,
+        reason: 'Bedroom coverage works best from a ceiling corner with a wide room overview.'
+      };
+    }
+    if (normalizedScene.includes('living room')) {
+      return {
+        type: 'floor',
+        label: 'Room corner camera',
+        x: corner.x,
+        y: corner.y,
+        reason: 'Living room coverage works best from a high room corner for a full overview.'
+      };
+    }
+    if (normalizedScene.includes('office room')) {
+      return {
+        type: 'floor',
+        label: 'Office corner camera',
+        x: corner.x,
+        y: corner.y,
+        reason: 'Office coverage is stronger from a corner that sees both desks and entry movement.'
+      };
+    }
+    if (normalizedScene.includes('reception')) {
+      return {
+        type: 'reception',
+        label: 'Reception corner camera',
+        x: corner.x,
+        y: corner.y,
+        reason: 'Reception areas are best covered from a high corner that sees the desk and visitors together.'
+      };
+    }
+    if (normalizedScene.includes('shop interior')) {
+      return {
+        type: 'floor',
+        label: 'Shop overview camera',
+        x: corner.x,
+        y: corner.y,
+        reason: 'Shops usually need an overview camera from a corner to reduce blind aisles and interior gaps.'
+      };
+    }
+
+    return null;
+  };
+
   const buildSceneSummary = ({ sceneLabel, detectedLabels }) => {
     const sceneText = sceneLabel ? `Camigo recognized this view as ${sceneLabel}.` : 'Camigo reviewed the scene layout.';
     const objectText = detectedLabels.length
@@ -477,12 +561,19 @@ function SecurityScanPage() {
     });
 
     const sceneLabel = Array.isArray(sceneResult) && sceneResult[0]?.score >= 0.24 ? String(sceneResult[0].label || '').trim().toLowerCase() : '';
-    const mappedMarkers = (Array.isArray(detectionResult) ? detectionResult : [])
+    const rawDetections = Array.isArray(detectionResult) ? detectionResult : [];
+    let mappedMarkers = rawDetections
       .map((entry) => mapDetectionLabelToMarker(entry))
       .filter(Boolean)
       .filter((marker, index, list) => (
         list.findIndex((entry) => entry.type === marker.type) === index
       ));
+
+    const cornerMarker = buildCornerPlacementMarker({ sceneLabel, detections: rawDetections });
+    if (cornerMarker) {
+      mappedMarkers = mappedMarkers.filter((marker) => !['floor', 'reception'].includes(String(marker.type || '').toLowerCase()));
+      mappedMarkers.unshift(cornerMarker);
+    }
 
     const fallbackMarkers = [];
     if (!mappedMarkers.some((marker) => marker.type === 'parking') && sceneLabel.includes('parking')) {
