@@ -3947,7 +3947,7 @@ const sanitizeScanMarkers = (markers = []) => (
       const x = Math.max(4, Math.min(96, Number(marker?.x)));
       const y = Math.max(4, Math.min(96, Number(marker?.y)));
       const label = String(marker?.label || '').trim().slice(0, 80);
-      const type = ['gate', 'cash', 'parking', 'blind'].includes(String(marker?.type || '').trim().toLowerCase())
+      const type = ['gate', 'cash', 'parking', 'blind', 'staircase', 'backside', 'floor', 'storage', 'reception'].includes(String(marker?.type || '').trim().toLowerCase())
         ? String(marker.type).trim().toLowerCase()
         : 'blind';
       const reason = String(marker?.reason || '').trim().slice(0, 180);
@@ -3965,12 +3965,204 @@ const sanitizeScanMarkers = (markers = []) => (
     .slice(0, 8)
 );
 
+const SECURITY_SCAN_AREA_LIBRARY = {
+  gate: {
+    label: 'Gate camera',
+    reason: 'Primary entry coverage helps verify arrivals and captures front-facing movement.',
+    positions: {
+      landscape: { x: 18, y: 20 },
+      portrait: { x: 50, y: 14 },
+      square: { x: 22, y: 18 }
+    }
+  },
+  cash: {
+    label: 'Cash counter camera',
+    reason: 'Billing and face-level coverage reduces dispute risk around transactions.',
+    positions: {
+      landscape: { x: 54, y: 38 },
+      portrait: { x: 58, y: 36 },
+      square: { x: 56, y: 38 }
+    }
+  },
+  parking: {
+    label: 'Parking camera',
+    reason: 'Vehicle and driveway coverage improves incident tracing outside the property.',
+    positions: {
+      landscape: { x: 78, y: 24 },
+      portrait: { x: 72, y: 22 },
+      square: { x: 76, y: 26 }
+    }
+  },
+  staircase: {
+    label: 'Passage camera',
+    reason: 'A passage view helps track movement between floors and internal zones.',
+    positions: {
+      landscape: { x: 32, y: 56 },
+      portrait: { x: 32, y: 52 },
+      square: { x: 34, y: 58 }
+    }
+  },
+  backside: {
+    label: 'Backside camera',
+    reason: 'Rear access stays vulnerable without a dedicated view of service or escape routes.',
+    positions: {
+      landscape: { x: 86, y: 54 },
+      portrait: { x: 70, y: 62 },
+      square: { x: 82, y: 60 }
+    }
+  },
+  floor: {
+    label: 'Wide floor camera',
+    reason: 'A wide-angle camera reduces blind coverage across the main operating area.',
+    positions: {
+      landscape: { x: 46, y: 58 },
+      portrait: { x: 46, y: 60 },
+      square: { x: 48, y: 62 }
+    }
+  },
+  storage: {
+    label: 'Storage room camera',
+    reason: 'Inventory visibility helps trace stock handling and after-hours access.',
+    positions: {
+      landscape: { x: 72, y: 66 },
+      portrait: { x: 66, y: 70 },
+      square: { x: 70, y: 68 }
+    }
+  },
+  reception: {
+    label: 'Reception camera',
+    reason: 'Visitor logging is strongest when the front desk stays within a clear field of view.',
+    positions: {
+      landscape: { x: 40, y: 30 },
+      portrait: { x: 42, y: 26 },
+      square: { x: 42, y: 28 }
+    }
+  }
+};
+
+const SECURITY_SCAN_PRIORITY_BY_PLACE = {
+  home: ['gate', 'parking', 'backside', 'floor', 'staircase'],
+  shop: ['gate', 'cash', 'parking', 'floor', 'storage', 'backside'],
+  office: ['reception', 'gate', 'parking', 'floor', 'staircase', 'storage'],
+  warehouse: ['gate', 'parking', 'storage', 'backside', 'floor', 'reception'],
+  resort: ['gate', 'parking', 'reception', 'backside', 'floor', 'staircase']
+};
+
+const decodeSecurityScanImage = (imageDataUrl = '') => {
+  const match = String(imageDataUrl || '').trim().match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/i);
+  if (!match) throw new Error('A valid captured image is required for scan.');
+  return {
+    mimeType: match[1].toLowerCase(),
+    buffer: Buffer.from(match[2], 'base64')
+  };
+};
+
+const summarizeSecurityBrightness = (brightness) => {
+  if (!Number.isFinite(brightness)) return 'balanced';
+  if (brightness < 78) return 'low-light';
+  if (brightness > 180) return 'bright';
+  return 'balanced';
+};
+
+const buildLocalSecurityScan = async ({ imageDataUrl, placeType, areaSize, selectedAreas, notes }) => {
+  const { buffer } = decodeSecurityScanImage(imageDataUrl);
+  const metadata = await sharp(buffer, { failOn: 'none' }).metadata();
+  const width = Math.max(1, Number(metadata?.width || 0));
+  const height = Math.max(1, Number(metadata?.height || 0));
+  if (!width || !height) {
+    throw new Error('Captured image could not be read for scan.');
+  }
+
+  let brightness = NaN;
+  try {
+    const stats = await sharp(buffer, { failOn: 'none' })
+      .resize(48, 48, { fit: 'inside', withoutEnlargement: true })
+      .removeAlpha()
+      .stats();
+    const means = Array.isArray(stats?.channels) ? stats.channels.map((channel) => Number(channel?.mean || 0)) : [];
+    brightness = means.length ? means.reduce((sum, value) => sum + value, 0) / means.length : NaN;
+  } catch (error) {}
+
+  const orientation = width >= height * 1.18 ? 'landscape' : height >= width * 1.18 ? 'portrait' : 'square';
+  const normalizedPlaceType = SECURITY_SCAN_PRIORITY_BY_PLACE[placeType] ? placeType : 'shop';
+  const normalizedAreaSize = ['small', 'medium', 'large'].includes(areaSize) ? areaSize : 'medium';
+  const requestedAreas = [...new Set((Array.isArray(selectedAreas) ? selectedAreas : []).filter((areaId) => SECURITY_SCAN_AREA_LIBRARY[areaId]))];
+  const placeDefaults = SECURITY_SCAN_PRIORITY_BY_PLACE[normalizedPlaceType] || SECURITY_SCAN_PRIORITY_BY_PLACE.shop;
+  const targetMarkerCount = normalizedAreaSize === 'large' ? 5 : normalizedAreaSize === 'small' ? 3 : 4;
+  const mergedAreas = [...requestedAreas];
+
+  for (const areaId of placeDefaults) {
+    if (mergedAreas.length >= targetMarkerCount) break;
+    if (!mergedAreas.includes(areaId)) mergedAreas.push(areaId);
+  }
+
+  const markers = mergedAreas
+    .map((areaId) => {
+      const config = SECURITY_SCAN_AREA_LIBRARY[areaId];
+      const position = config?.positions?.[orientation] || config?.positions?.square;
+      if (!config || !position) return null;
+      return {
+        label: config.label,
+        type: areaId,
+        x: position.x,
+        y: position.y,
+        reason: config.reason
+      };
+    })
+    .filter(Boolean);
+
+  const blindSpots = [];
+  const notesText = String(notes || '').toLowerCase();
+  const brightnessLabel = summarizeSecurityBrightness(brightness);
+  if (brightnessLabel === 'low-light') {
+    blindSpots.push('The captured scene looks low-light, so night coverage and clear entry lighting should be part of the plan.');
+  }
+  if (!mergedAreas.includes('backside')) {
+    blindSpots.push('Rear or side access is not clearly covered yet, which often becomes the first blind spot after installation.');
+  }
+  if (!mergedAreas.includes('parking') && (normalizedPlaceType === 'shop' || normalizedPlaceType === 'warehouse' || normalizedPlaceType === 'resort')) {
+    blindSpots.push('Outer vehicle or driveway movement is not covered in the current plan.');
+  }
+  if (!mergedAreas.includes('cash') && (normalizedPlaceType === 'shop' || notesText.includes('cash') || notesText.includes('high value'))) {
+    blindSpots.push('A face-level billing or valuables view is still missing from the current placement.');
+  }
+
+  const blindMarkers = [];
+  if (blindSpots.length) {
+    const blindPositions = orientation === 'portrait'
+      ? [{ x: 78, y: 78 }, { x: 26, y: 72 }]
+      : [{ x: 88, y: 74 }, { x: 14, y: 68 }];
+    blindSpots.slice(0, 2).forEach((spot, index) => {
+      blindMarkers.push({
+        label: 'Blind spot',
+        type: 'blind',
+        x: blindPositions[index]?.x || 82,
+        y: blindPositions[index]?.y || 72,
+        reason: spot
+      });
+    });
+  }
+
+  const packageBias = (
+    normalizedPlaceType === 'warehouse' || normalizedPlaceType === 'resort'
+      ? 'hybrid'
+      : markers.length >= 5
+        ? 'ip8'
+        : brightnessLabel === 'low-light' || notesText.includes('high value')
+          ? 'ip4'
+          : 'hd4'
+  );
+
+  return {
+    summary: `Camigo scan engine reviewed a ${orientation} ${normalizedPlaceType} image and mapped ${markers.length} priority coverage point${markers.length === 1 ? '' : 's'} with a ${brightnessLabel} scene profile.`,
+    markers: sanitizeScanMarkers([...markers, ...blindMarkers]),
+    blind_spots: blindSpots.slice(0, 4),
+    recommended_package_bias: packageBias
+  };
+};
+
 app.post('/api/security-scan/analyze', async (req, res) => {
   try {
-    if (!OPENAI_API_KEY) {
-      return res.status(503).json({ error: 'AI scan is not configured on the server yet.' });
-    }
-
     const imageDataUrl = String(req.body?.image_data_url || '').trim();
     const placeType = String(req.body?.place_type || 'shop').trim();
     const areaSize = String(req.body?.area_size || 'medium').trim();
@@ -3978,96 +4170,33 @@ app.post('/api/security-scan/analyze', async (req, res) => {
     const notes = String(req.body?.notes || '').trim().slice(0, 500);
 
     if (!/^data:image\/(png|jpeg|jpg|webp);base64,/i.test(imageDataUrl)) {
-      return res.status(400).json({ error: 'A valid captured image is required for AI scan.' });
+      return res.status(400).json({ error: 'A valid captured image is required for Camigo scan.' });
     }
 
-    const system = [
-      'You are an expert CCTV site planning assistant for Camigo.',
-      'Analyze one property image and suggest camera positions.',
-      'Return strict JSON only.',
-      'Markers must use x and y percentage coordinates between 0 and 100 over the visible image.',
-      'Allowed marker types: gate, cash, parking, blind.',
-      'If the image is indoor and no gate or parking exists, use blind where needed.',
-      'Return concise, practical recommendations only.'
-    ].join(' ');
-
-    const userPayload = {
-      task: 'Analyze this property image for CCTV placement.',
-      place_type: placeType,
-      area_size: areaSize,
-      selected_areas: selectedAreas,
-      notes,
-      response_shape: {
-        summary: 'short string',
-        markers: [
-          {
-            label: 'Gate camera',
-            type: 'gate',
-            x: 24,
-            y: 18,
-            reason: 'Entry point should be covered'
-          }
-        ],
-        blind_spots: ['short string'],
-        recommended_package_bias: 'hd4 | ip4 | ip8 | hybrid'
-      }
-    };
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: OPENAI_SECURITY_SCAN_MODEL,
-        temperature: 0.2,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: system },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(userPayload)
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: imageDataUrl,
-                  detail: 'low'
-                }
-              }
-            ]
-          }
-        ]
-      })
+    const localScan = await buildLocalSecurityScan({
+      imageDataUrl,
+      placeType,
+      areaSize,
+      selectedAreas,
+      notes
     });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'AI security scan failed');
-    }
-
-    const parsed = extractJsonObject(data.choices?.[0]?.message?.content || '{}');
-    const markers = sanitizeScanMarkers(parsed?.markers);
+    const markers = sanitizeScanMarkers(localScan?.markers);
 
     if (!markers.length) {
-      return res.status(422).json({ error: 'AI scan could not detect useful camera points from this image. Try a clearer room or outdoor photo.' });
+      return res.status(422).json({ error: 'Camigo scan could not suggest useful camera points from this image. Try a clearer room or outdoor photo.' });
     }
 
     res.json({
-      summary: String(parsed?.summary || 'AI analyzed the image and suggested CCTV positions.').trim(),
+      summary: String(localScan?.summary || 'Camigo scan engine suggested CCTV coverage positions.').trim(),
       markers,
-      blind_spots: Array.isArray(parsed?.blind_spots) ? parsed.blind_spots.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 4) : [],
-      recommended_package_bias: ['hd4', 'ip4', 'ip8', 'hybrid'].includes(String(parsed?.recommended_package_bias || '').trim())
-        ? String(parsed.recommended_package_bias).trim()
+      blind_spots: Array.isArray(localScan?.blind_spots) ? localScan.blind_spots.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 4) : [],
+      recommended_package_bias: ['hd4', 'ip4', 'ip8', 'hybrid'].includes(String(localScan?.recommended_package_bias || '').trim())
+        ? String(localScan.recommended_package_bias).trim()
         : null
     });
   } catch (error) {
-    console.error('Security scan AI analysis failed:', error);
-    res.status(500).json({ error: error.message || 'Security scan AI analysis failed.' });
+    console.error('Security scan engine analysis failed:', error);
+    res.status(500).json({ error: error.message || 'Security scan engine analysis failed.' });
   }
 });
 

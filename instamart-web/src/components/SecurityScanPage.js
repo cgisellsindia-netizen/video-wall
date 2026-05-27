@@ -219,12 +219,12 @@ function SecurityScanPage() {
           '@type': 'WebPage',
           name: 'Camigo Security Scan',
           url: 'https://getcamigo.in/security-scan',
-          description: 'Live camera-assisted security scan for CCTV package recommendations and installation estimates.'
+          description: 'Live camera-guided security scan for CCTV package recommendations and installation estimates.'
         },
         {
           '@type': 'Service',
           name: 'Camigo Security Scan',
-          serviceType: 'AI-assisted CCTV recommendation and live camera scan estimate',
+          serviceType: 'Camigo scan engine for CCTV recommendation and live camera scan estimate',
           provider: {
             '@type': 'Organization',
             name: 'Camigo',
@@ -352,7 +352,7 @@ function SecurityScanPage() {
       clearAnalysis();
     };
     reader.onerror = () => {
-      setCameraError('The photo could not be read for AI scan.');
+      setCameraError('The photo could not be read for Camigo scan.');
     };
     reader.readAsDataURL(file);
   };
@@ -374,9 +374,9 @@ function SecurityScanPage() {
     stopCamera();
   };
 
-  const analyzeWithAi = async () => {
+  const analyzeWithCamigoEngine = async () => {
     if (!capturedImage) {
-      setCameraError('Capture or upload an image first so AI can scan the place.');
+      setCameraError('Capture or upload an image first so Camigo scan can review the place.');
       return;
     }
     try {
@@ -397,14 +397,14 @@ function SecurityScanPage() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.error || 'AI scan failed.');
+        throw new Error(data.error || 'Camigo scan failed.');
       }
       setMarkers(Array.isArray(data.markers) ? data.markers : []);
       setAnalysisSummary(String(data.summary || '').trim());
       setAnalysisBlindSpots(Array.isArray(data.blind_spots) ? data.blind_spots : []);
       setPackageBias(data.recommended_package_bias || null);
     } catch (error) {
-      setCameraError(error.message || 'AI scan failed.');
+      setCameraError(error.message || 'Camigo scan failed.');
     } finally {
       setAnalysisLoading(false);
     }
@@ -495,8 +495,8 @@ function SecurityScanPage() {
               <button type="button" className="btn btn-outline" onClick={() => uploadInputRef.current?.click()}>
                 Use photo
               </button>
-              <button type="button" className="btn btn-primary" onClick={analyzeWithAi} disabled={!capturedImage || analysisLoading}>
-                {analysisLoading ? 'Analyzing...' : 'AI scan'}
+              <button type="button" className="btn btn-primary" onClick={analyzeWithCamigoEngine} disabled={!capturedImage || analysisLoading}>
+                {analysisLoading ? 'Analyzing...' : 'Run Camigo scan'}
               </button>
               <button type="button" className="btn btn-outline" onClick={resetLiveMarkers}>
                 Clear markers
@@ -561,7 +561,7 @@ function SecurityScanPage() {
           </div>
           {analysisSummary ? (
             <div className="security-ai-summary">
-              <strong>AI scan summary</strong>
+              <strong>Camigo scan summary</strong>
               <p>{analysisSummary}</p>
             </div>
           ) : null}

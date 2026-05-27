@@ -6,7 +6,7 @@ Camigo Security Scan is a guided pre-purchase experience that helps a customer u
 
 This MVP is intentionally framed as an estimate:
 
-- AI-assisted estimate
+- Camigo scan engine estimate
 - suggested coverage plan
 - installer confirms final placement on site
 
@@ -292,7 +292,7 @@ Track:
 
 Use wording like:
 
-- AI-assisted estimate
+- Camigo scan engine estimate
 - recommended coverage plan
 - blind spot check
 - installer confirms final placement
