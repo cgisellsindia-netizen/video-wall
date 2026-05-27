@@ -301,7 +301,7 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
           const imageSources = buildProductImageSources(product, { excludeGeneric: true });
           const primaryImage = pickPrimaryProductImage(product, { excludeGeneric: true });
           return (
-            <div key={product.id} className="product-card" onClick={() => navigate(`/product/${product.id}`)}>
+            <div key={product.id} className={isOutOfStock ? 'product-card out-of-stock-card' : 'product-card'} onClick={() => navigate(`/product/${product.id}`)}>
               <div className="product-img-wrap">
                 <ProductImage
                   src={primaryImage}

@@ -77,7 +77,7 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
           return (
             <div
               key={product.id}
-              className={`product-card motion-card ${isAnimating ? 'cart-bump' : ''}`}
+              className={`product-card motion-card ${isOutOfStock ? 'out-of-stock-card' : ''} ${isAnimating ? 'cart-bump' : ''}`}
               style={{ '--card-stagger': index }}
               onClick={() => navigate(`/product/${product.id}`)}
             >
