@@ -1901,6 +1901,103 @@
   gap: 22px;
 }
 
+.security-scan-live-section {
+  margin-bottom: 22px;
+}
+
+.security-scan-live-toolbar {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.security-live-scan-stage {
+  display: grid;
+}
+
+.security-live-surface {
+  position: relative;
+  width: 100%;
+  min-height: 360px;
+  border: 1px solid rgba(8,42,99,.1);
+  border-radius: 22px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(8,42,99,.08), rgba(8,42,99,.02)),
+    radial-gradient(circle at top right, rgba(246,196,0,.2), transparent 34%),
+    #e8f0f9;
+  cursor: crosshair;
+}
+
+.security-live-surface.active {
+  background: #08111f;
+}
+
+.security-live-video {
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  object-fit: cover;
+  display: block;
+}
+
+.security-live-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 26px;
+  color: #082a63;
+}
+
+.security-live-placeholder strong {
+  font-size: 20px;
+}
+
+.security-live-placeholder span {
+  max-width: 420px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.security-live-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.96);
+  color: #082a63;
+  border: 1px solid rgba(8,42,99,.08);
+  box-shadow: 0 10px 26px rgba(8,42,99,.16);
+  font-size: 12px;
+  font-weight: 800;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.security-live-marker.blind {
+  background: rgba(153, 27, 27, 0.94);
+  color: #fff;
+  border-color: rgba(255,255,255,.2);
+}
+
+.security-camera-error {
+  margin: 14px 0 0;
+  color: #991b1b;
+  font-weight: 700;
+}
+
+.security-live-hint-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
 .security-scan-builder,
 .security-scan-results {
   display: grid;
@@ -2167,6 +2264,10 @@
   .security-scan-hero-panel {
     padding: 18px;
   }
+
+  .security-live-hint-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -2194,9 +2295,22 @@
     min-height: 240px;
   }
 
+  .security-live-surface,
+  .security-live-video {
+    min-height: 280px;
+  }
+
   .security-scan-camera-dots span {
     font-size: 11px;
     padding: 7px 9px;
+  }
+
+  .security-live-marker {
+    font-size: 11px;
+    padding: 6px 8px;
+    max-width: 140px;
+    white-space: normal;
+    text-align: center;
   }
 
   .security-package-price-row strong,

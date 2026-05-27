@@ -172,6 +172,8 @@ Add:
 - short video upload
 - guided room / exterior photo capture
 - heuristic overlay suggestions
+- live browser camera preview
+- tap-to-place markers for gate camera, cash counter camera, parking camera, and blind spots
 
 ### Phase 3: Live camera analysis
 
@@ -181,6 +183,15 @@ Add:
 - blind spot markers in live preview
 - wall / gate / counter suggestions
 - confidence scoring per area
+
+### Phase 4: VR placement mode
+
+Add:
+
+- walk-through style camera placement preview
+- virtual field-of-view overlay
+- before / after secure coverage visualization
+- technician validation using the same scan session
 
 ### Phase 4: Full service pipeline
 
@@ -196,7 +207,7 @@ Add:
 
 ### Current implementation
 
-The current MVP is frontend-driven.
+The current MVP is frontend-driven and includes both guided form input and browser-based live camera scan support.
 
 Files:
 
@@ -222,6 +233,9 @@ State is held locally in the page:
 - selected areas
 - boolean preferences
 - recording days
+- live scan markers
+- selected live marker type
+- camera ready / error state
 
 ### Suggested backend additions later
 
