@@ -188,12 +188,16 @@ function SecurityScanPage() {
   const navigate = useNavigate();
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const uploadInputRef = useRef(null);
   const [form, setForm] = useState(DEFAULT_FORM);
   const [markers, setMarkers] = useState([]);
   const [activeMarkerType, setActiveMarkerType] = useState('gate');
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState('');
+  const [capturedImage, setCapturedImage] = useState('');
   const [cameraSupported] = useState(() => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia);
+  const [secureContext] = useState(() => typeof window !== 'undefined' ? !!window.isSecureContext : true);
+  const hasMeaningfulScan = markers.length > 0 || Boolean(capturedImage);
 
   const scanResult = useMemo(() => buildSuggestions(form, markers), [form, markers]);
 
@@ -245,6 +249,10 @@ function SecurityScanPage() {
   useEffect(() => () => stopCamera(), []);
 
   const startCamera = async () => {
+    if (!secureContext) {
+      setCameraError('Live camera scan needs a secure HTTPS page.');
+      return;
+    }
     if (!cameraSupported) {
       setCameraError('This device or browser does not support live camera scan.');
       return;
@@ -252,20 +260,32 @@ function SecurityScanPage() {
     try {
       setCameraError('');
       stopCamera();
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' }
-        },
-        audio: false
-      });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+      } catch (primaryError) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+      }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.muted = true;
         await videoRef.current.play();
       }
       setCameraReady(true);
     } catch (error) {
-      setCameraError('Camera permission was blocked or the live scan could not start.');
+      setCameraError('Camera permission was blocked or the live scan could not start. You can still use photo scan below.');
       setCameraReady(false);
     }
   };
@@ -307,6 +327,26 @@ function SecurityScanPage() {
   };
 
   const resetLiveMarkers = () => setMarkers([]);
+
+  const handleFallbackCapture = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const objectUrl = URL.createObjectURL(file);
+    setCapturedImage((current) => {
+      if (current && current.startsWith('blob:')) {
+        URL.revokeObjectURL(current);
+      }
+      return objectUrl;
+    });
+    setCameraError('');
+    stopCamera();
+  };
+
+  useEffect(() => () => {
+    if (capturedImage && capturedImage.startsWith('blob:')) {
+      URL.revokeObjectURL(capturedImage);
+    }
+  }, [capturedImage]);
 
   return (
     <main className="container security-scan-page">
@@ -385,6 +425,9 @@ function SecurityScanPage() {
                   Stop camera
                 </button>
               )}
+              <button type="button" className="btn btn-outline" onClick={() => uploadInputRef.current?.click()}>
+                Use photo
+              </button>
               <button type="button" className="btn btn-outline" onClick={resetLiveMarkers}>
                 Clear markers
               </button>
@@ -398,7 +441,10 @@ function SecurityScanPage() {
               onClick={cameraReady ? handleLiveTap : undefined}
             >
               <video ref={videoRef} className="security-live-video" muted playsInline />
-              {!cameraReady && (
+              {!cameraReady && capturedImage ? (
+                <img src={capturedImage} alt="Security scan capture" className="security-live-capture" />
+              ) : null}
+              {!cameraReady && !capturedImage && (
                 <div className="security-live-placeholder">
                   <Camera size={34} />
                   <strong>Live camera preview</strong>
@@ -422,6 +468,14 @@ function SecurityScanPage() {
 
           {cameraError ? <p className="security-camera-error">{cameraError}</p> : null}
           {!cameraSupported ? <p className="security-camera-error">Live camera scan needs a browser with camera access support.</p> : null}
+          <input
+            ref={uploadInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="security-hidden-input"
+            onChange={handleFallbackCapture}
+          />
 
           <div className="security-live-hint-grid">
             <div className="security-preview-tile">
@@ -431,7 +485,7 @@ function SecurityScanPage() {
               <span>{markers.filter((marker) => marker.type === 'blind').length} blind spots flagged</span>
             </div>
             <div className="security-preview-tile">
-              <span>{scanResult.adjustedCameras} total camera points suggested</span>
+              <span>{hasMeaningfulScan ? `${scanResult.adjustedCameras} total camera points suggested` : 'Scan first to unlock recommendation'}</span>
             </div>
           </div>
         </div>
@@ -581,6 +635,27 @@ function SecurityScanPage() {
         </div>
 
         <aside className="security-scan-results">
+          {!hasMeaningfulScan ? (
+            <div className="security-scan-card security-awaiting-scan-card">
+              <div className="security-scan-card-head">
+                <div>
+                  <span className="eyebrow">Live scan required</span>
+                  <h2>Scan or upload a photo first</h2>
+                </div>
+                <ScanLine size={20} />
+              </div>
+              <p className="security-technician-copy">
+                Camigo should not show a confident package before the customer gives actual scan input. Open the camera and place markers,
+                or use a photo capture fallback, then the package and score will unlock from that scan.
+              </p>
+              <ul className="security-package-list">
+                <li>Mark gate, parking, counter, or blind spots on the scene</li>
+                <li>At least one scan marker is needed to unlock live recommendation</li>
+                <li>Installer will still confirm the final placement on site</li>
+              </ul>
+            </div>
+          ) : null}
+
           <div className="security-scan-card security-score-card">
             <div className="security-scan-card-head">
               <div>
@@ -592,12 +667,12 @@ function SecurityScanPage() {
             <div className="security-score-rows">
               <div className="security-score-row danger">
                 <span>Before setup</span>
-                <strong>{scanResult.beforeScore}/100</strong>
+                <strong>{hasMeaningfulScan ? `${scanResult.beforeScore}/100` : '--/100'}</strong>
                 <small>{scanResult.beforeScore <= 50 ? 'Unsafe' : 'Partially covered'}</small>
               </div>
               <div className="security-score-row success">
                 <span>After Camigo plan</span>
-                <strong>{scanResult.afterScore}/100</strong>
+                <strong>{hasMeaningfulScan ? `${scanResult.afterScore}/100` : '--/100'}</strong>
                 <small>{scanResult.afterScore >= 85 ? 'Secure' : 'Improved'}</small>
               </div>
             </div>
@@ -607,19 +682,22 @@ function SecurityScanPage() {
             <div className="security-scan-card-head">
               <div>
                 <span className="eyebrow">Suggested placement</span>
-                <h2>{scanResult.adjustedCameras} camera points recommended</h2>
+                <h2>{hasMeaningfulScan ? `${scanResult.adjustedCameras} camera points recommended` : 'Waiting for live scan markers'}</h2>
               </div>
               <MapPin size={20} />
             </div>
             <div className="security-placement-list">
-              {scanResult.selectedAreaRecommendations.map((item) => (
+              {(hasMeaningfulScan ? scanResult.selectedAreaRecommendations : []).map((item) => (
                 <div key={item.title} className="security-placement-item">
                   <strong>{item.title}</strong>
                   <p>{item.note}</p>
                 </div>
               ))}
             </div>
-            {scanResult.blindSpots.length > 0 && (
+            {!hasMeaningfulScan ? (
+              <p className="security-technician-copy">No placement recommendation yet. Add live scan markers to generate this section.</p>
+            ) : null}
+            {hasMeaningfulScan && scanResult.blindSpots.length > 0 && (
               <div className="security-blind-spot-box">
                 <strong>Uncovered areas detected</strong>
                 <ul>
@@ -633,19 +711,23 @@ function SecurityScanPage() {
             <div className="security-scan-card-head">
               <div>
                 <span className="eyebrow">Instant package generator</span>
-                <h2>{scanResult.packagePlan.title}</h2>
+                <h2>{hasMeaningfulScan ? scanResult.packagePlan.title : 'Recommendation locked until scan starts'}</h2>
               </div>
               <Sparkles size={20} />
             </div>
             <div className="security-package-price-row">
-              <strong>Rs {scanResult.packagePlan.price.toLocaleString('en-IN')}</strong>
-              <span>{scanResult.packagePlan.deliveryWindow}</span>
+              <strong>{hasMeaningfulScan ? `Rs ${scanResult.packagePlan.price.toLocaleString('en-IN')}` : 'Awaiting scan input'}</strong>
+              <span>{hasMeaningfulScan ? scanResult.packagePlan.deliveryWindow : 'Open the camera or use a photo to unlock package estimate'}</span>
             </div>
             <ul className="security-package-list">
-              {scanResult.packagePlan.components.map((item) => <li key={item}>{item}</li>)}
+              {(hasMeaningfulScan ? scanResult.packagePlan.components : [
+                'Live scan must capture at least one placement marker',
+                'Package is generated from the real scan plus your monitoring preferences',
+                'Installer confirms final layout after booking'
+              ]).map((item) => <li key={item}>{item}</li>)}
             </ul>
             <div className="security-package-actions">
-              <button type="button" className="btn btn-primary" onClick={() => navigate('/install')}>
+              <button type="button" className="btn btn-primary" onClick={() => navigate('/install')} disabled={!hasMeaningfulScan}>
                 Book today <ArrowRight size={16} />
               </button>
               <button type="button" className="btn btn-outline" onClick={() => navigate('/shop')}>
@@ -663,7 +745,7 @@ function SecurityScanPage() {
               <ShieldCheck size={20} />
             </div>
             <div className="security-preview-grid">
-              {scanResult.afterPreview.map((label) => (
+              {(hasMeaningfulScan ? scanResult.afterPreview : ['Gate view', 'Parking view', 'Counter view', 'Blind-spot fix view']).map((label) => (
                 <div key={label} className="security-preview-tile">
                   <span>{label}</span>
                 </div>

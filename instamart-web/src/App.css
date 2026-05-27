@@ -1941,6 +1941,14 @@
   display: block;
 }
 
+.security-live-capture {
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  object-fit: cover;
+  display: block;
+}
+
 .security-live-placeholder {
   position: absolute;
   inset: 0;
@@ -1991,11 +1999,28 @@
   font-weight: 700;
 }
 
+.security-hidden-input {
+  display: none;
+}
+
 .security-live-hint-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-top: 16px;
+}
+
+.security-awaiting-scan-card {
+  border-style: dashed;
+  border-color: rgba(8,42,99,.18);
+  background: linear-gradient(180deg, #f8fbff, #f1f7ff);
+}
+
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.56;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .security-scan-builder,
@@ -2296,7 +2321,8 @@
   }
 
   .security-live-surface,
-  .security-live-video {
+  .security-live-video,
+  .security-live-capture {
     min-height: 280px;
   }
 
