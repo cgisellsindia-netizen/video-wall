@@ -71,39 +71,135 @@ const OBJECT_LABELS = [
 ];
 
 const ROOM_CAPTURE_STEPS = [
-  { id: 'front', label: 'Front wall', hint: 'Stand back and aim straight at the main wall or bed side.' },
-  { id: 'left', label: 'Left wall', hint: 'Turn left so Camigo can measure the side wall and corner depth.' },
-  { id: 'right', label: 'Right wall', hint: 'Turn right and keep the ceiling corner visible if possible.' },
-  { id: 'up', label: 'Ceiling', hint: 'Tilt the phone up to show ceiling corners and beam lines.' },
-  { id: 'down', label: 'Floor', hint: 'Tilt down so Camigo can understand walk paths and furniture spread.' }
+  { id: 'top-left', label: 'Top left', hint: 'Start from the top-left view and include the ceiling edge plus left corner.', direction: 'Tilt up and pan left', target: 'Frame the top-left wall corner', alignment: 'Show the ceiling line meeting the side wall', zone: 'top-left' },
+  { id: 'top-center', label: 'Top center', hint: 'Slide the phone to the top-center so Camigo can read the full upper wall span.', direction: 'Pan right a little', target: 'Keep the upper wall centered', alignment: 'Show both upper corners or beam lines', zone: 'top-center' },
+  { id: 'top-right', label: 'Top right', hint: 'Move further right while keeping the top-right ceiling corner in view.', direction: 'Pan right', target: 'Frame the top-right wall corner', alignment: 'Keep the far ceiling joint visible', zone: 'top-right' },
+  { id: 'mid-left', label: 'Middle left', hint: 'Bring the left wall to eye level so Camigo can measure side depth from where you stand.', direction: 'Tilt level and pan left', target: 'Center the left wall area', alignment: 'Keep furniture edge and wall line visible', zone: 'mid-left' },
+  { id: 'mid-center', label: 'Middle center', hint: 'Hold the phone straight in front of you to capture the main room viewpoint.', direction: 'Hold center', target: 'Keep the main wall centered', alignment: 'Show the widest room view from your standing point', zone: 'mid-center' },
+  { id: 'mid-right', label: 'Middle right', hint: 'Move the phone right at eye level to capture the opposite wall and corner depth.', direction: 'Pan right', target: 'Center the right wall area', alignment: 'Keep doorway or furniture edge visible', zone: 'mid-right' },
+  { id: 'bottom-left', label: 'Bottom left', hint: 'Tilt slightly down and cover the bottom-left floor path or furniture footprint.', direction: 'Tilt down and pan left', target: 'Frame the bottom-left floor area', alignment: 'Show the walking path near the left side', zone: 'bottom-left' },
+  { id: 'bottom-center', label: 'Bottom center', hint: 'Move to the lower center view so Camigo can read the main floor spread.', direction: 'Tilt down', target: 'Center the floor spread', alignment: 'Keep the open path and furniture base visible', zone: 'bottom-center' },
+  { id: 'bottom-right', label: 'Bottom right', hint: 'Finish on the lower right so the room sweep covers the full floor and right-side path.', direction: 'Tilt down and pan right', target: 'Frame the bottom-right floor area', alignment: 'Show the right walking path or furniture footprint', zone: 'bottom-right' }
 ];
 
-const ROOM_CAPTURE_OVERLAY = {
-  front: {
-    direction: 'Hold center',
-    target: 'Keep the main wall centered',
-    alignment: 'Show both top corners if possible'
-  },
-  left: {
-    direction: 'Pan left',
-    target: 'Bring the left wall into frame',
-    alignment: 'Keep the ceiling line visible'
-  },
-  right: {
-    direction: 'Pan right',
-    target: 'Bring the right wall into frame',
-    alignment: 'Keep the far corner visible'
-  },
-  up: {
-    direction: 'Tilt up',
-    target: 'Aim at the ceiling corner',
-    alignment: 'Catch beams or upper wall joints'
-  },
-  down: {
-    direction: 'Tilt down',
-    target: 'Aim at floor spread',
-    alignment: 'Show bed, path, or furniture footprint'
+const ROOM_CAPTURE_ROW_ORDER = ['top', 'mid', 'bottom'];
+const ROOM_CAPTURE_COLUMN_ORDER = ['left', 'center', 'right'];
+
+const getCaptureZoneClassName = (zone = '') => {
+  const normalized = String(zone || '').trim().toLowerCase();
+  if (!normalized) return 'security-live-target';
+  return `security-live-target zone-${normalized.replace(/\s+/g, '-')}`;
+};
+
+const buildFrameSignature = (canvas) => {
+  const context = canvas?.getContext?.('2d');
+  if (!context) return null;
+  const { width, height } = canvas;
+  if (!width || !height) return null;
+
+  const rows = 6;
+  const cols = 6;
+  const signature = [];
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      const x = Math.floor((col / cols) * width);
+      const y = Math.floor((row / rows) * height);
+      const sliceWidth = Math.max(1, Math.floor(width / cols));
+      const sliceHeight = Math.max(1, Math.floor(height / rows));
+      const imageData = context.getImageData(x, y, Math.min(sliceWidth, width - x), Math.min(sliceHeight, height - y)).data;
+      let luminanceTotal = 0;
+      let samples = 0;
+      for (let index = 0; index < imageData.length; index += 16) {
+        const red = imageData[index];
+        const green = imageData[index + 1];
+        const blue = imageData[index + 2];
+        luminanceTotal += (0.2126 * red) + (0.7152 * green) + (0.0722 * blue);
+        samples += 1;
+      }
+      signature.push(samples ? Number((luminanceTotal / samples).toFixed(2)) : 0);
+    }
   }
+  return signature;
+};
+
+const compareFrameSignatures = (signatureA = [], signatureB = []) => {
+  if (!Array.isArray(signatureA) || !Array.isArray(signatureB) || signatureA.length !== signatureB.length || !signatureA.length) {
+    return 999;
+  }
+  const difference = signatureA.reduce((sum, value, index) => sum + Math.abs(value - Number(signatureB[index] || 0)), 0);
+  return Number((difference / signatureA.length).toFixed(2));
+};
+
+const validateGuidedFrame = ({ canvas, step, previousSignature }) => {
+  const context = canvas?.getContext?.('2d');
+  if (!context) {
+    return { ok: false, reason: 'Camigo could not read this frame yet. Hold still and try again.' };
+  }
+  const width = Number(canvas.width || 0);
+  const height = Number(canvas.height || 0);
+  if (!width || !height) {
+    return { ok: false, reason: 'Camera frame is still warming up. Wait a second and capture again.' };
+  }
+
+  const pixels = context.getImageData(0, 0, width, height).data;
+  let luminanceSum = 0;
+  let luminanceSquaredSum = 0;
+  let edgeScore = 0;
+  let samples = 0;
+
+  for (let y = 1; y < height; y += 8) {
+    for (let x = 1; x < width; x += 8) {
+      const index = ((y * width) + x) * 4;
+      const leftIndex = ((y * width) + (x - 1)) * 4;
+      const upIndex = (((y - 1) * width) + x) * 4;
+      const red = pixels[index];
+      const green = pixels[index + 1];
+      const blue = pixels[index + 2];
+      const luminance = (0.2126 * red) + (0.7152 * green) + (0.0722 * blue);
+      const leftLuminance = (0.2126 * pixels[leftIndex]) + (0.7152 * pixels[leftIndex + 1]) + (0.0722 * pixels[leftIndex + 2]);
+      const upLuminance = (0.2126 * pixels[upIndex]) + (0.7152 * pixels[upIndex + 1]) + (0.0722 * pixels[upIndex + 2]);
+      luminanceSum += luminance;
+      luminanceSquaredSum += luminance * luminance;
+      edgeScore += Math.abs(luminance - leftLuminance) + Math.abs(luminance - upLuminance);
+      samples += 1;
+    }
+  }
+
+  if (!samples) {
+    return { ok: false, reason: 'Camigo needs a clearer frame. Hold the phone steady and recapture.' };
+  }
+
+  const averageBrightness = luminanceSum / samples;
+  const variance = Math.max(0, (luminanceSquaredSum / samples) - (averageBrightness * averageBrightness));
+  const averageEdges = edgeScore / samples;
+  const signature = buildFrameSignature(canvas);
+  const similarity = previousSignature ? compareFrameSignatures(signature, previousSignature) : null;
+
+  if (averageBrightness < 42) {
+    return { ok: false, reason: `${step.label} is too dark. Turn on more light or aim where the wall and corner are brighter.` };
+  }
+  if (averageBrightness > 228) {
+    return { ok: false, reason: `${step.label} is too bright. Reduce glare and keep the guide box on the room instead of a light source.` };
+  }
+  if (variance < 520) {
+    return { ok: false, reason: `${step.label} looks too flat. Step back a little so Camigo can see wall edges, furniture, and depth.` };
+  }
+  if (averageEdges < 22) {
+    return { ok: false, reason: `${step.label} looks blurry. Hold still for a moment and retake this panel.` };
+  }
+  if (similarity !== null && similarity < 9.5) {
+    return { ok: false, reason: `${step.label} is too similar to the previous panel. Move ${step.direction.toLowerCase()} before capturing again.` };
+  }
+
+  return {
+    ok: true,
+    quality: {
+      averageBrightness: Number(averageBrightness.toFixed(1)),
+      variance: Number(variance.toFixed(1)),
+      averageEdges: Number(averageEdges.toFixed(1))
+    },
+    signature
+  };
 };
 
 const PACKAGE_LIBRARY = {
@@ -279,14 +375,15 @@ function SecurityScanPage() {
   const [visionLoading, setVisionLoading] = useState(false);
   const [guidedCaptures, setGuidedCaptures] = useState({});
   const [captureStepIndex, setCaptureStepIndex] = useState(0);
+  const [guidedCaptureFeedback, setGuidedCaptureFeedback] = useState('');
   const [cameraSupported] = useState(() => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia);
   const [secureContext] = useState(() => typeof window !== 'undefined' ? !!window.isSecureContext : true);
   const hasMeaningfulScan = markers.length > 0;
   const browserVisionPromiseRef = useRef(null);
   const activeCaptureStep = ROOM_CAPTURE_STEPS[captureStepIndex] || ROOM_CAPTURE_STEPS[ROOM_CAPTURE_STEPS.length - 1];
   const capturedStepCount = ROOM_CAPTURE_STEPS.filter((step) => guidedCaptures[step.id]).length;
-  const roomGuideReady = capturedStepCount >= 4;
-  const activeOverlay = ROOM_CAPTURE_OVERLAY[activeCaptureStep?.id] || ROOM_CAPTURE_OVERLAY.front;
+  const roomGuideReady = capturedStepCount >= 6;
+  const activeOverlay = activeCaptureStep || ROOM_CAPTURE_STEPS[0];
 
   const scanResult = useMemo(() => buildSuggestions(form, markers, packageBias), [form, markers, packageBias]);
   const roomModel = useMemo(() => {
@@ -297,13 +394,23 @@ function SecurityScanPage() {
         : { width: 66, depth: 61, height: 77 };
     return {
       dimensions,
-      frontReady: Boolean(guidedCaptures.front),
-      leftReady: Boolean(guidedCaptures.left),
-      rightReady: Boolean(guidedCaptures.right),
-      ceilingReady: Boolean(guidedCaptures.up),
-      floorReady: Boolean(guidedCaptures.down)
+      rows: ROOM_CAPTURE_ROW_ORDER.map((row) => ({
+        id: row,
+        label: row === 'top' ? 'Ceiling band' : row === 'mid' ? 'Eye-level band' : 'Floor band',
+        readyCount: ROOM_CAPTURE_STEPS.filter((step) => step.zone.startsWith(row) && guidedCaptures[step.id]).length
+      })),
+      panels: ROOM_CAPTURE_STEPS.map((step) => ({
+        ...step,
+        captured: Boolean(guidedCaptures[step.id])
+      })),
+      leftSweepReady: Boolean(guidedCaptures['top-left'] && guidedCaptures['mid-left'] && guidedCaptures['bottom-left']),
+      rightSweepReady: Boolean(guidedCaptures['top-right'] && guidedCaptures['mid-right'] && guidedCaptures['bottom-right']),
+      ceilingBandReady: Boolean(guidedCaptures['top-left'] && guidedCaptures['top-center'] && guidedCaptures['top-right']),
+      floorBandReady: Boolean(guidedCaptures['bottom-left'] && guidedCaptures['bottom-center'] && guidedCaptures['bottom-right']),
+      viewpointLocked: Boolean(guidedCaptures['mid-center']),
+      surfaceCoverage: Math.round((capturedStepCount / ROOM_CAPTURE_STEPS.length) * 100)
     };
-  }, [form.areaSize, guidedCaptures]);
+  }, [form.areaSize, guidedCaptures, capturedStepCount]);
 
   usePageSeo({
     title: 'Camigo Security Scan | Live CCTV Placement, Package, and Installation Estimate',
@@ -364,6 +471,7 @@ function SecurityScanPage() {
     }
     try {
       setCameraError('');
+      setGuidedCaptureFeedback('');
       stopCamera();
       let stream;
       try {
@@ -446,6 +554,7 @@ function SecurityScanPage() {
   const resetGuidedCaptures = () => {
     setGuidedCaptures({});
     setCaptureStepIndex(0);
+    setGuidedCaptureFeedback('');
   };
 
   const captureVideoFrame = () => {
@@ -749,6 +858,7 @@ function SecurityScanPage() {
       const nextImage = String(reader.result || '');
       setCapturedImage(nextImage);
       setCameraError('');
+      setGuidedCaptureFeedback('');
       stopCamera();
       setLiveScanActive(false);
       clearAnalysis();
@@ -765,6 +875,7 @@ function SecurityScanPage() {
     const dataUrl = captureVideoFrame();
     if (!dataUrl) return;
     setCapturedImage(dataUrl);
+    setGuidedCaptureFeedback('');
     clearAnalysis();
     stopCamera();
     setLiveScanActive(false);
@@ -776,12 +887,33 @@ function SecurityScanPage() {
     const dataUrl = captureVideoFrame();
     if (!dataUrl || !activeCaptureStep) return;
     const canvas = captureCanvasRef.current;
+    const previousStep = ROOM_CAPTURE_STEPS[captureStepIndex - 1];
+    const previousSignature = previousStep ? guidedCaptures[previousStep.id]?.signature : null;
+    const validation = validateGuidedFrame({
+      canvas,
+      step: activeCaptureStep,
+      previousSignature
+    });
+    if (!validation.ok) {
+      setCameraError(validation.reason);
+      setGuidedCaptureFeedback(`Retake needed: ${validation.reason}`);
+      return;
+    }
+
+    setCameraError('');
+    setGuidedCaptureFeedback(`${activeCaptureStep.label} accepted. ${captureStepIndex < ROOM_CAPTURE_STEPS.length - 1 ? `Next: ${ROOM_CAPTURE_STEPS[captureStepIndex + 1].label}.` : 'Panorama sweep complete.'}`);
     setGuidedCaptures((current) => ({
       ...current,
-      [activeCaptureStep.id]: dataUrl
+      [activeCaptureStep.id]: {
+        image: dataUrl,
+        signature: validation.signature,
+        quality: validation.quality,
+        capturedAt: Date.now()
+      }
     }));
     setCapturedImage(dataUrl);
-    if (captureStepIndex < ROOM_CAPTURE_STEPS.length - 1) {
+    const isLastStep = captureStepIndex >= ROOM_CAPTURE_STEPS.length - 1;
+    if (!isLastStep) {
       setCaptureStepIndex((current) => current + 1);
     }
     await runCamigoScan(dataUrl, {
@@ -789,6 +921,14 @@ function SecurityScanPage() {
       browserImageInput: canvas || undefined,
       silent: false
     });
+    if (isLastStep) {
+      stopCamera();
+      setLiveAutoScanEnabled(false);
+      setGuidedCaptureFeedback('Panorama sweep complete. Camigo closed the camera and opened the 3D room diagram below.');
+      window.setTimeout(() => {
+        document.getElementById('security-scan-builder')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 120);
+    }
   };
 
   useEffect(() => {
@@ -926,12 +1066,16 @@ function SecurityScanPage() {
           <div className="security-guided-capture-card">
             <div className="security-guided-capture-head">
               <div>
-                <span className="eyebrow">Guided Room Capture</span>
+                <span className="eyebrow">Guided Panorama Capture</span>
                 <strong>{activeCaptureStep.label}</strong>
               </div>
               <span>{capturedStepCount}/{ROOM_CAPTURE_STEPS.length} saved</span>
             </div>
             <p>{activeCaptureStep.hint}</p>
+            <div className="security-guided-meta">
+              <span>Order: top to bottom, left to right</span>
+              <span>Viewpoint: standing position locked from center view</span>
+            </div>
             <div className="security-guided-steps">
               {ROOM_CAPTURE_STEPS.map((step, index) => (
                 <button
@@ -945,9 +1089,15 @@ function SecurityScanPage() {
                 </button>
               ))}
             </div>
+            {guidedCaptureFeedback ? (
+              <div className="security-guided-feedback">
+                <strong>{guidedCaptureFeedback.startsWith('Retake') ? 'Retake guide' : 'Capture guide'}</strong>
+                <span>{guidedCaptureFeedback}</span>
+              </div>
+            ) : null}
             <div className="security-package-actions">
               <button type="button" className="btn btn-primary" onClick={captureGuidedStep} disabled={!cameraReady}>
-                Capture {activeCaptureStep.label}
+                {guidedCaptures[activeCaptureStep.id] ? `Retake ${activeCaptureStep.label}` : `Capture ${activeCaptureStep.label}`}
               </button>
               <button type="button" className="btn btn-outline" onClick={resetGuidedCaptures}>
                 Reset guide
@@ -972,7 +1122,7 @@ function SecurityScanPage() {
                     <strong>{activeCaptureStep.label}</strong>
                     <small>{activeOverlay.direction}</small>
                   </div>
-                  <div className={activeCaptureStep.id === 'up' ? 'security-live-target ceiling' : activeCaptureStep.id === 'down' ? 'security-live-target floor' : 'security-live-target'}>
+                  <div className={getCaptureZoneClassName(activeOverlay.zone)}>
                     <span>{activeOverlay.target}</span>
                   </div>
                   <div className="security-live-alignment-note">
@@ -1186,27 +1336,43 @@ function SecurityScanPage() {
                 <h3><Sparkles size={18} /> Guided 3D room preview</h3>
               </div>
             </div>
+            <div className="security-room-panorama-grid" aria-label="Captured panorama panels">
+              {ROOM_CAPTURE_ROW_ORDER.map((row) => (
+                ROOM_CAPTURE_COLUMN_ORDER.map((column) => {
+                  const step = roomModel.panels.find((panel) => panel.zone === `${row}-${column}`);
+                  if (!step) return null;
+                  return (
+                    <div key={step.id} className={step.captured ? 'security-room-panorama-cell ready' : 'security-room-panorama-cell'}>
+                      <strong>{step.label}</strong>
+                      <span>{step.captured ? 'Captured' : 'Pending'}</span>
+                    </div>
+                  );
+                })
+              ))}
+            </div>
             <div className="security-room-model-shell">
-              <div className={roomModel.ceilingReady ? 'security-room-plane ceiling ready' : 'security-room-plane ceiling'}>
-                <span>Ceiling</span>
+              <div className={roomModel.ceilingBandReady ? 'security-room-plane ceiling ready' : 'security-room-plane ceiling'}>
+                <span>Ceiling band</span>
               </div>
               <div className="security-room-middle">
-                <div className={roomModel.leftReady ? 'security-room-plane side ready' : 'security-room-plane side'}>
-                  <span>Left wall</span>
+                <div className={roomModel.leftSweepReady ? 'security-room-plane side ready' : 'security-room-plane side'}>
+                  <span>Left sweep</span>
                 </div>
-                <div className={roomModel.frontReady ? 'security-room-plane back ready' : 'security-room-plane back'}>
-                  <span>Front wall</span>
+                <div className={roomModel.viewpointLocked ? 'security-room-plane back ready' : 'security-room-plane back'}>
+                  <span>Standing viewpoint</span>
                 </div>
-                <div className={roomModel.rightReady ? 'security-room-plane side ready' : 'security-room-plane side'}>
-                  <span>Right wall</span>
+                <div className={roomModel.rightSweepReady ? 'security-room-plane side ready' : 'security-room-plane side'}>
+                  <span>Right sweep</span>
                 </div>
               </div>
-              <div className={roomModel.floorReady ? 'security-room-plane floor ready' : 'security-room-plane floor'}>
-                <span>Floor</span>
+              <div className={roomModel.floorBandReady ? 'security-room-plane floor ready' : 'security-room-plane floor'}>
+                <span>Floor band</span>
               </div>
             </div>
             <div className="security-room-model-stats">
-              <span>{roomGuideReady ? 'Enough guided views captured for rough 3D layout' : 'Capture at least 4 guided views for rough 3D layout'}</span>
+              <span>{roomGuideReady ? 'Panorama coverage is strong enough for rough 3D layout and placement suggestions' : 'Capture at least 6 guided panels for a dependable 3D layout'}</span>
+              <span>{roomModel.viewpointLocked ? 'Center viewpoint captured from where the customer is standing' : 'Capture the middle center panel to lock the customer viewpoint'}</span>
+              <span>{roomModel.surfaceCoverage}% of panorama sweep captured</span>
               <strong>{roomModel.dimensions.width} x {roomModel.dimensions.depth} x {roomModel.dimensions.height}</strong>
             </div>
           </div>
