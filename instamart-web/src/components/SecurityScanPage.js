@@ -191,6 +191,7 @@ function SecurityScanPage() {
   const streamRef = useRef(null);
   const uploadInputRef = useRef(null);
   const captureCanvasRef = useRef(null);
+  const liveScanBusyRef = useRef(false);
   const [form, setForm] = useState(DEFAULT_FORM);
   const [markers, setMarkers] = useState([]);
   const [activeMarkerType, setActiveMarkerType] = useState('gate');
@@ -201,6 +202,8 @@ function SecurityScanPage() {
   const [analysisBlindSpots, setAnalysisBlindSpots] = useState([]);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [packageBias, setPackageBias] = useState(null);
+  const [liveAutoScanEnabled, setLiveAutoScanEnabled] = useState(true);
+  const [liveScanActive, setLiveScanActive] = useState(false);
   const [cameraSupported] = useState(() => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia);
   const [secureContext] = useState(() => typeof window !== 'undefined' ? !!window.isSecureContext : true);
   const hasMeaningfulScan = markers.length > 0;
@@ -249,6 +252,7 @@ function SecurityScanPage() {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    setLiveScanActive(false);
     setCameraReady(false);
   };
 
@@ -289,6 +293,8 @@ function SecurityScanPage() {
         videoRef.current.muted = true;
         await videoRef.current.play();
       }
+      setLiveAutoScanEnabled(true);
+      setLiveScanActive(false);
       setCameraReady(true);
     } catch (error) {
       setCameraError('Camera permission was blocked or the live scan could not start. You can still use photo scan below.');
@@ -341,15 +347,32 @@ function SecurityScanPage() {
     setPackageBias(null);
   };
 
-  const runCamigoScan = async (imageToAnalyze) => {
+  const captureVideoFrame = () => {
+    if (!videoRef.current || !captureCanvasRef.current) return '';
+    const video = videoRef.current;
+    const canvas = captureCanvasRef.current;
+    const width = video.videoWidth || 1280;
+    const height = video.videoHeight || 720;
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) return '';
+    context.drawImage(video, 0, 0, width, height);
+    return canvas.toDataURL('image/jpeg', 0.82);
+  };
+
+  const runCamigoScan = async (imageToAnalyze, options = {}) => {
+    const { persistCapture = false, silent = false } = options;
     const sourceImage = String(imageToAnalyze || capturedImage || '').trim();
     if (!sourceImage) {
-      setCameraError('Capture or upload an image first so Camigo scan can review the place.');
+      if (!silent) setCameraError('Capture or upload an image first so Camigo scan can review the place.');
       return;
     }
 
     try {
-      setAnalysisLoading(true);
+      liveScanBusyRef.current = true;
+      if (!silent) setAnalysisLoading(true);
+      if (persistCapture) setCapturedImage(sourceImage);
       setCameraError('');
       const response = await fetch(`${API_URL}/security-scan/analyze`, {
         method: 'POST',
@@ -372,10 +395,12 @@ function SecurityScanPage() {
       setAnalysisSummary(String(data.summary || '').trim());
       setAnalysisBlindSpots(Array.isArray(data.blind_spots) ? data.blind_spots : []);
       setPackageBias(data.recommended_package_bias || null);
+      if (cameraReady && liveAutoScanEnabled) setLiveScanActive(true);
     } catch (error) {
-      setCameraError(error.message || 'Camigo scan failed.');
+      if (!silent) setCameraError(error.message || 'Camigo scan failed.');
     } finally {
-      setAnalysisLoading(false);
+      liveScanBusyRef.current = false;
+      if (!silent) setAnalysisLoading(false);
     }
   };
 
@@ -388,8 +413,9 @@ function SecurityScanPage() {
       setCapturedImage(nextImage);
       setCameraError('');
       stopCamera();
+      setLiveScanActive(false);
       clearAnalysis();
-      await runCamigoScan(nextImage);
+      await runCamigoScan(nextImage, { persistCapture: true });
     };
     reader.onerror = () => {
       setCameraError('The photo could not be read for Camigo scan.');
@@ -398,22 +424,44 @@ function SecurityScanPage() {
   };
 
   const captureFrameFromVideo = async () => {
-    if (!videoRef.current || !captureCanvasRef.current) return;
-    const video = videoRef.current;
-    const canvas = captureCanvasRef.current;
-    const width = video.videoWidth || 1280;
-    const height = video.videoHeight || 720;
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext('2d');
-    if (!context) return;
-    context.drawImage(video, 0, 0, width, height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.86);
+    const dataUrl = captureVideoFrame();
+    if (!dataUrl) return;
     setCapturedImage(dataUrl);
     clearAnalysis();
     stopCamera();
-    await runCamigoScan(dataUrl);
+    setLiveScanActive(false);
+    await runCamigoScan(dataUrl, { persistCapture: true });
   };
+
+  useEffect(() => {
+    if (!cameraReady || !liveAutoScanEnabled) {
+      setLiveScanActive(false);
+      return undefined;
+    }
+
+    let active = true;
+    let timerId = null;
+
+    const tick = async () => {
+      if (!active) return;
+      if (!liveScanBusyRef.current) {
+        const frame = captureVideoFrame();
+        if (frame) {
+          setLiveScanActive(true);
+          await runCamigoScan(frame, { silent: true });
+        }
+      }
+      if (active) {
+        timerId = window.setTimeout(tick, 2600);
+      }
+    };
+
+    timerId = window.setTimeout(tick, 500);
+    return () => {
+      active = false;
+      if (timerId) window.clearTimeout(timerId);
+    };
+  }, [cameraReady, liveAutoScanEnabled, form.placeType, form.areaSize, form.watchNight, form.highValueAssets, form.sameDayInstall, form.recordDays, form.areas]);
 
   return (
     <main className="container security-scan-page">
@@ -426,9 +474,9 @@ function SecurityScanPage() {
       <section className="security-scan-hero">
         <div className="security-scan-hero-copy">
           <span className="eyebrow">Camigo Security Scan</span>
-          <h1>Open the camera, scan the room, and get the right CCTV package instantly.</h1>
+          <h1>Open the camera, scan the room live, and get the right CCTV package instantly.</h1>
           <p>
-            Capture a room or storefront view and Camigo will auto-scan the image, place recommended camera points, and build a coverage plan.
+            Camigo can keep sampling the live camera preview, place recommended camera points on the scene, and build a coverage plan in near real time.
             Installer will still confirm final placement on site.
           </p>
           <div className="security-scan-hero-actions">
@@ -454,7 +502,7 @@ function SecurityScanPage() {
                 <span>Counter camera</span>
               </div>
             </div>
-            <small>Capture a frame or upload a photo and Camigo will place the first recommended points automatically.</small>
+            <small>With live scan on, Camigo keeps sampling the camera preview and refreshes recommended points automatically.</small>
           </div>
         </div>
       </section>
@@ -481,6 +529,13 @@ function SecurityScanPage() {
                   {markerType.label}
                 </button>
               ))}
+              <button
+                type="button"
+                className={liveAutoScanEnabled ? 'security-chip active' : 'security-chip'}
+                onClick={() => setLiveAutoScanEnabled((current) => !current)}
+              >
+                {liveAutoScanEnabled ? 'Live scan on' : 'Live scan off'}
+              </button>
             </div>
             <div className="security-package-actions">
               {!cameraReady ? (
@@ -555,13 +610,13 @@ function SecurityScanPage() {
 
           <div className="security-live-hint-grid">
             <div className="security-preview-tile">
-              <span>{markers.length} live markers added</span>
+              <span>{cameraReady && liveAutoScanEnabled ? (liveScanActive ? 'Live scan is updating markers' : 'Live scan is warming up') : `${markers.length} scan markers added`}</span>
             </div>
             <div className="security-preview-tile">
               <span>{(analysisBlindSpots.length || markers.filter((marker) => marker.type === 'blind').length)} blind spots flagged</span>
             </div>
             <div className="security-preview-tile">
-              <span>{analysisLoading ? 'Camigo is scanning this room now' : hasMeaningfulScan ? `${scanResult.adjustedCameras} total camera points suggested` : 'Capture a frame to auto-scan this room'}</span>
+              <span>{analysisLoading ? 'Camigo is scanning this room now' : cameraReady && liveAutoScanEnabled ? 'Recommended camera points refresh every few seconds' : hasMeaningfulScan ? `${scanResult.adjustedCameras} total camera points suggested` : 'Capture a frame to auto-scan this room'}</span>
             </div>
           </div>
           {analysisSummary ? (
