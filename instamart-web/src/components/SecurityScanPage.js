@@ -13,6 +13,7 @@ import {
   Sparkles,
   Wrench
 } from 'lucide-react';
+import { API_URL } from '../api';
 import usePageSeo from '../usePageSeo';
 
 const PLACE_TYPES = [
@@ -103,7 +104,7 @@ const getStorageMultiplier = (recordDays = '15') => {
 
 const markerTypeById = (markerTypeId) => LIVE_MARKER_TYPES.find((item) => item.id === markerTypeId);
 
-const buildSuggestions = (form, markers = []) => {
+const buildSuggestions = (form, markers = [], packageBias = null) => {
   const placeMeta = PLACE_TYPES.find((entry) => entry.id === form.placeType) || PLACE_TYPES[1];
   const derivedAreas = markers
     .map((marker) => markerTypeById(marker.type)?.areaId)
@@ -136,13 +137,13 @@ const buildSuggestions = (form, markers = []) => {
   const afterBoost = Math.min(58, adjustedCameras * 5 + (form.highValueAssets ? 6 : 0) + (form.watchNight ? 5 : 0) + (livePlacementCount * 3));
   const afterScore = Math.max(beforeScore + 18, Math.min(96, beforeScore + afterBoost));
 
-  const packageKey = adjustedCameras >= 7
+  const packageKey = packageBias || (adjustedCameras >= 7
     ? 'ip8'
     : form.placeType === 'warehouse' || form.placeType === 'resort'
       ? 'hybrid'
       : form.watchNight || form.highValueAssets || livePlacementCount >= 2
         ? 'ip4'
-        : 'hd4';
+        : 'hd4');
 
   const packageTemplate = PACKAGE_LIBRARY[packageKey];
   const storageAdjustedPrice = Math.round(packageTemplate.price * getStorageMultiplier(form.recordDays));
@@ -189,17 +190,22 @@ function SecurityScanPage() {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const uploadInputRef = useRef(null);
+  const captureCanvasRef = useRef(null);
   const [form, setForm] = useState(DEFAULT_FORM);
   const [markers, setMarkers] = useState([]);
   const [activeMarkerType, setActiveMarkerType] = useState('gate');
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [capturedImage, setCapturedImage] = useState('');
+  const [analysisSummary, setAnalysisSummary] = useState('');
+  const [analysisBlindSpots, setAnalysisBlindSpots] = useState([]);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [packageBias, setPackageBias] = useState(null);
   const [cameraSupported] = useState(() => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia);
   const [secureContext] = useState(() => typeof window !== 'undefined' ? !!window.isSecureContext : true);
-  const hasMeaningfulScan = markers.length > 0 || Boolean(capturedImage);
+  const hasMeaningfulScan = markers.length > 0;
 
-  const scanResult = useMemo(() => buildSuggestions(form, markers), [form, markers]);
+  const scanResult = useMemo(() => buildSuggestions(form, markers, packageBias), [form, markers, packageBias]);
 
   usePageSeo({
     title: 'Camigo Security Scan | Live CCTV Placement, Package, and Installation Estimate',
@@ -326,27 +332,83 @@ function SecurityScanPage() {
     }
   };
 
-  const resetLiveMarkers = () => setMarkers([]);
+  const resetLiveMarkers = () => clearAnalysis();
+
+  const clearAnalysis = () => {
+    setMarkers([]);
+    setAnalysisSummary('');
+    setAnalysisBlindSpots([]);
+    setPackageBias(null);
+  };
 
   const handleFallbackCapture = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const objectUrl = URL.createObjectURL(file);
-    setCapturedImage((current) => {
-      if (current && current.startsWith('blob:')) {
-        URL.revokeObjectURL(current);
-      }
-      return objectUrl;
-    });
-    setCameraError('');
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCapturedImage(String(reader.result || ''));
+      setCameraError('');
+      stopCamera();
+      clearAnalysis();
+    };
+    reader.onerror = () => {
+      setCameraError('The photo could not be read for AI scan.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const captureFrameFromVideo = () => {
+    if (!videoRef.current || !captureCanvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = captureCanvasRef.current;
+    const width = video.videoWidth || 1280;
+    const height = video.videoHeight || 720;
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.drawImage(video, 0, 0, width, height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.86);
+    setCapturedImage(dataUrl);
+    clearAnalysis();
     stopCamera();
   };
 
-  useEffect(() => () => {
-    if (capturedImage && capturedImage.startsWith('blob:')) {
-      URL.revokeObjectURL(capturedImage);
+  const analyzeWithAi = async () => {
+    if (!capturedImage) {
+      setCameraError('Capture or upload an image first so AI can scan the place.');
+      return;
     }
-  }, [capturedImage]);
+    try {
+      setAnalysisLoading(true);
+      setCameraError('');
+      const response = await fetch(`${API_URL}/security-scan/analyze`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          image_data_url: capturedImage,
+          place_type: form.placeType,
+          area_size: form.areaSize,
+          areas: form.areas,
+          notes: `${form.watchNight ? 'Night monitoring needed. ' : ''}${form.highValueAssets ? 'High value assets present. ' : ''}${form.sameDayInstall ? 'Same-day install requested.' : ''}`.trim()
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'AI scan failed.');
+      }
+      setMarkers(Array.isArray(data.markers) ? data.markers : []);
+      setAnalysisSummary(String(data.summary || '').trim());
+      setAnalysisBlindSpots(Array.isArray(data.blind_spots) ? data.blind_spots : []);
+      setPackageBias(data.recommended_package_bias || null);
+    } catch (error) {
+      setCameraError(error.message || 'AI scan failed.');
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
 
   return (
     <main className="container security-scan-page">
@@ -421,12 +483,20 @@ function SecurityScanPage() {
                   Open camera
                 </button>
               ) : (
-                <button type="button" className="btn btn-outline" onClick={stopCamera}>
-                  Stop camera
-                </button>
+                <>
+                  <button type="button" className="btn btn-primary" onClick={captureFrameFromVideo}>
+                    Capture frame
+                  </button>
+                  <button type="button" className="btn btn-outline" onClick={stopCamera}>
+                    Stop camera
+                  </button>
+                </>
               )}
               <button type="button" className="btn btn-outline" onClick={() => uploadInputRef.current?.click()}>
                 Use photo
+              </button>
+              <button type="button" className="btn btn-primary" onClick={analyzeWithAi} disabled={!capturedImage || analysisLoading}>
+                {analysisLoading ? 'Analyzing...' : 'AI scan'}
               </button>
               <button type="button" className="btn btn-outline" onClick={resetLiveMarkers}>
                 Clear markers
@@ -452,7 +522,7 @@ function SecurityScanPage() {
                 </div>
               )}
               {markers.map((marker) => {
-                const label = markerTypeById(marker.type)?.label || 'Marker';
+                const label = marker.label || markerTypeById(marker.type)?.label || 'Marker';
                 return (
                   <span
                     key={marker.id}
@@ -465,6 +535,7 @@ function SecurityScanPage() {
               })}
             </button>
           </div>
+          <canvas ref={captureCanvasRef} className="security-hidden-input" />
 
           {cameraError ? <p className="security-camera-error">{cameraError}</p> : null}
           {!cameraSupported ? <p className="security-camera-error">Live camera scan needs a browser with camera access support.</p> : null}
@@ -482,12 +553,18 @@ function SecurityScanPage() {
               <span>{markers.length} live markers added</span>
             </div>
             <div className="security-preview-tile">
-              <span>{markers.filter((marker) => marker.type === 'blind').length} blind spots flagged</span>
+              <span>{(analysisBlindSpots.length || markers.filter((marker) => marker.type === 'blind').length)} blind spots flagged</span>
             </div>
             <div className="security-preview-tile">
               <span>{hasMeaningfulScan ? `${scanResult.adjustedCameras} total camera points suggested` : 'Scan first to unlock recommendation'}</span>
             </div>
           </div>
+          {analysisSummary ? (
+            <div className="security-ai-summary">
+              <strong>AI scan summary</strong>
+              <p>{analysisSummary}</p>
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -697,11 +774,11 @@ function SecurityScanPage() {
             {!hasMeaningfulScan ? (
               <p className="security-technician-copy">No placement recommendation yet. Add live scan markers to generate this section.</p>
             ) : null}
-            {hasMeaningfulScan && scanResult.blindSpots.length > 0 && (
+            {hasMeaningfulScan && (analysisBlindSpots.length > 0 || scanResult.blindSpots.length > 0) && (
               <div className="security-blind-spot-box">
                 <strong>Uncovered areas detected</strong>
                 <ul>
-                  {scanResult.blindSpots.map((spot) => <li key={spot}>{spot}</li>)}
+                  {(analysisBlindSpots.length ? analysisBlindSpots : scanResult.blindSpots).map((spot) => <li key={spot}>{spot}</li>)}
                 </ul>
               </div>
             )}

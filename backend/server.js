@@ -101,6 +101,7 @@ const hasDelhiveryApiConfig = Boolean(
 );
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_BANNER_MODEL = process.env.OPENAI_BANNER_MODEL || 'gpt-4o-mini';
+const OPENAI_SECURITY_SCAN_MODEL = process.env.OPENAI_SECURITY_SCAN_MODEL || 'gpt-4o-mini';
 const MEDIA_MANIFEST_URL = process.env.MEDIA_MANIFEST_URL || '';
 const MEDIA_MANIFEST_FTP_HOST = process.env.MEDIA_MANIFEST_FTP_HOST || '';
 const MEDIA_MANIFEST_FTP_USER = process.env.MEDIA_MANIFEST_FTP_USER || '';
@@ -3939,6 +3940,136 @@ const callOpenAiJson = async ({ system, user }) => {
   }
   return extractJsonObject(data.choices?.[0]?.message?.content || '{}');
 };
+
+const sanitizeScanMarkers = (markers = []) => (
+  (Array.isArray(markers) ? markers : [])
+    .map((marker, index) => {
+      const x = Math.max(4, Math.min(96, Number(marker?.x)));
+      const y = Math.max(4, Math.min(96, Number(marker?.y)));
+      const label = String(marker?.label || '').trim().slice(0, 80);
+      const type = ['gate', 'cash', 'parking', 'blind'].includes(String(marker?.type || '').trim().toLowerCase())
+        ? String(marker.type).trim().toLowerCase()
+        : 'blind';
+      const reason = String(marker?.reason || '').trim().slice(0, 180);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !label) return null;
+      return {
+        id: `ai-${Date.now()}-${index}`,
+        x,
+        y,
+        label,
+        type,
+        reason
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 8)
+);
+
+app.post('/api/security-scan/analyze', async (req, res) => {
+  try {
+    if (!OPENAI_API_KEY) {
+      return res.status(503).json({ error: 'AI scan is not configured on the server yet.' });
+    }
+
+    const imageDataUrl = String(req.body?.image_data_url || '').trim();
+    const placeType = String(req.body?.place_type || 'shop').trim();
+    const areaSize = String(req.body?.area_size || 'medium').trim();
+    const selectedAreas = Array.isArray(req.body?.areas) ? req.body.areas.map((item) => String(item || '').trim()).filter(Boolean) : [];
+    const notes = String(req.body?.notes || '').trim().slice(0, 500);
+
+    if (!/^data:image\/(png|jpeg|jpg|webp);base64,/i.test(imageDataUrl)) {
+      return res.status(400).json({ error: 'A valid captured image is required for AI scan.' });
+    }
+
+    const system = [
+      'You are an expert CCTV site planning assistant for Camigo.',
+      'Analyze one property image and suggest camera positions.',
+      'Return strict JSON only.',
+      'Markers must use x and y percentage coordinates between 0 and 100 over the visible image.',
+      'Allowed marker types: gate, cash, parking, blind.',
+      'If the image is indoor and no gate or parking exists, use blind where needed.',
+      'Return concise, practical recommendations only.'
+    ].join(' ');
+
+    const userPayload = {
+      task: 'Analyze this property image for CCTV placement.',
+      place_type: placeType,
+      area_size: areaSize,
+      selected_areas: selectedAreas,
+      notes,
+      response_shape: {
+        summary: 'short string',
+        markers: [
+          {
+            label: 'Gate camera',
+            type: 'gate',
+            x: 24,
+            y: 18,
+            reason: 'Entry point should be covered'
+          }
+        ],
+        blind_spots: ['short string'],
+        recommended_package_bias: 'hd4 | ip4 | ip8 | hybrid'
+      }
+    };
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: OPENAI_SECURITY_SCAN_MODEL,
+        temperature: 0.2,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: system },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(userPayload)
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: imageDataUrl,
+                  detail: 'low'
+                }
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error?.message || 'AI security scan failed');
+    }
+
+    const parsed = extractJsonObject(data.choices?.[0]?.message?.content || '{}');
+    const markers = sanitizeScanMarkers(parsed?.markers);
+
+    if (!markers.length) {
+      return res.status(422).json({ error: 'AI scan could not detect useful camera points from this image. Try a clearer room or outdoor photo.' });
+    }
+
+    res.json({
+      summary: String(parsed?.summary || 'AI analyzed the image and suggested CCTV positions.').trim(),
+      markers,
+      blind_spots: Array.isArray(parsed?.blind_spots) ? parsed.blind_spots.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 4) : [],
+      recommended_package_bias: ['hd4', 'ip4', 'ip8', 'hybrid'].includes(String(parsed?.recommended_package_bias || '').trim())
+        ? String(parsed.recommended_package_bias).trim()
+        : null
+    });
+  } catch (error) {
+    console.error('Security scan AI analysis failed:', error);
+    res.status(500).json({ error: error.message || 'Security scan AI analysis failed.' });
+  }
+});
 
 const buildBannerSvgDataUrl = ({ width, height, headline, subheadline, eyebrow, cta, theme }) => {
   const safeWidth = Math.max(640, Number(width) || 1200);
