@@ -318,7 +318,7 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
       </div>
 
       <div className="shop-product-grid">
-        {categoryProducts.map((product) => {
+        {categoryProducts.map((product, index) => {
           const cartItem = cartItems.find((item) => Number(item.product_id || item.id) === Number(product.id));
           const selectedQty = cartItem?.quantity || 0;
           const isOutOfStock = Number(product.stock || 0) <= 0;
@@ -332,8 +332,14 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
                   sources={buildProductImageSources(product)}
                   fallbackSrc={getProductFallbackImage(product)}
                   alt={product.name}
-                  loading="lazy"
+                  loading={index < 4 ? 'eager' : 'lazy'}
+                  fetchPriority={index < 2 ? 'high' : 'auto'}
                   fallbackContent="CCTV"
+                  proxyWidth={360}
+                  proxyQuality={64}
+                  proxyFormat="webp"
+                  preferDirect={false}
+                  sizes="(max-width: 768px) 44vw, 240px"
                 />
                 {discount > 0 && (
                   <span className="product-corner-offer" aria-label={`${discount}% off`}>

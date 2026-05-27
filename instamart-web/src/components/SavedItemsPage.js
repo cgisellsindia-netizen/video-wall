@@ -92,6 +92,11 @@ function SavedItemsPage({
                   alt={product.name}
                   loading="lazy"
                   fallbackContent="CCTV"
+                  proxyWidth={320}
+                  proxyQuality={62}
+                  proxyFormat="webp"
+                  preferDirect={false}
+                  sizes="(max-width: 768px) 44vw, 220px"
                 />
                 {discount > 0 && (
                   <span className="product-corner-offer" aria-label={`${discount}% off`}>

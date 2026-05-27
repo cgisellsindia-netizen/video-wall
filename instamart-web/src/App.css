@@ -68,6 +68,76 @@
 
 .app { min-height: 100vh; background: rgba(255,255,255,.12); color: #fff; }
 .main-content { padding-bottom: 80px; }
+.playstore-install-prompt {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 86px;
+  z-index: 1600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(8, 42, 99, 0.96);
+  color: #fff;
+  box-shadow: 0 18px 44px rgba(8, 42, 99, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.playstore-install-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.playstore-install-copy strong {
+  font-size: 15px;
+  line-height: 1.25;
+}
+.playstore-install-copy span {
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(255,255,255,.82);
+}
+.playstore-install-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.playstore-install-primary,
+.playstore-install-secondary {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.playstore-install-primary {
+  background: #f6c400;
+  color: #082a63;
+}
+.playstore-install-secondary {
+  background: rgba(255,255,255,.12);
+  color: #fff;
+}
+@media (min-width: 769px) {
+  .playstore-install-prompt {
+    display: none;
+  }
+}
+@media (max-width: 520px) {
+  .playstore-install-prompt {
+    gap: 12px;
+    padding: 14px;
+    bottom: 80px;
+  }
+  .playstore-install-actions {
+    display: grid;
+    gap: 8px;
+  }
+}
 .home-band {
   position: relative;
   border-radius: 34px;

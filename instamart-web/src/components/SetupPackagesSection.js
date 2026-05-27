@@ -140,9 +140,11 @@ function SetupPackagesSection({
                   loading={index < 3 ? 'eager' : 'lazy'}
                   fetchPriority={index < 2 ? 'high' : 'auto'}
                   fallbackContent="CCTV"
-                  proxyWidth={560}
-                  proxyQuality={74}
+                  proxyWidth={420}
+                  proxyQuality={68}
                   proxyFormat="webp"
+                  preferDirect={false}
+                  sizes="(max-width: 768px) 72vw, 320px"
                 />
                 {discount > 0 && (
                   <span className="product-corner-offer" aria-label={`${discount}% off`}>

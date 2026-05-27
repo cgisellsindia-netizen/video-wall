@@ -88,6 +88,11 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
                   loading={prioritizeImages && index < 2 ? 'eager' : 'lazy'}
                   fetchPriority={prioritizeImages && index < 1 ? 'high' : 'auto'}
                   fallbackContent="CCTV"
+                  proxyWidth={360}
+                  proxyQuality={66}
+                  proxyFormat="webp"
+                  preferDirect={false}
+                  sizes="(max-width: 768px) 42vw, 220px"
                 />
                 {discount > 0 && (
                   <span className="product-corner-offer" aria-label={`${discount}% off`}>

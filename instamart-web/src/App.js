@@ -64,6 +64,28 @@ const getRuntimeAppMode = () => {
 };
 
 const APP_MODE = getRuntimeAppMode();
+const PLAY_STORE_APP_URL = 'https://play.google.com/store/apps/details?id=com.camigo.customer&pcampaignid=web_share';
+const APP_INSTALL_DISMISS_KEY = 'camigo_play_install_prompt_dismissed_at';
+
+const isAndroidMobileWeb = () => {
+  if (typeof window === 'undefined') return false;
+  if (Capacitor.isNativePlatform?.()) return false;
+  const userAgent = String(window.navigator?.userAgent || '').toLowerCase();
+  return userAgent.includes('android') && /mobile|mobi/.test(userAgent) && !/iphone|ipad|ipod/.test(userAgent);
+};
+
+const shouldShowInstallPrompt = () => {
+  if (!isAndroidMobileWeb()) return false;
+  if (typeof window === 'undefined') return false;
+  if (window.matchMedia?.('(display-mode: standalone)').matches) return false;
+  try {
+    const dismissedAt = Number(localStorage.getItem(APP_INSTALL_DISMISS_KEY) || 0);
+    if (!dismissedAt) return true;
+    return (Date.now() - dismissedAt) > (7 * 24 * 60 * 60 * 1000);
+  } catch (error) {
+    return true;
+  }
+};
 
 const getStoredUser = () => {
   if (typeof window === 'undefined') return null;
@@ -75,6 +97,25 @@ const getStoredUser = () => {
   } catch (error) {
     return null;
   }
+};
+
+const readCachedJson = (key, fallbackValue) => {
+  if (typeof window === 'undefined') return fallbackValue;
+  try {
+    const rawValue = localStorage.getItem(key);
+    if (!rawValue) return fallbackValue;
+    const parsedValue = JSON.parse(rawValue);
+    return parsedValue ?? fallbackValue;
+  } catch (error) {
+    return fallbackValue;
+  }
+};
+
+const writeCachedJson = (key, value) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {}
 };
 
 function DeliveryOnlyRoute({ user, children }) {
@@ -570,19 +611,28 @@ function AppContent() {
   const [user, setUser] = useState(() => getStoredUser());
   const [locationLabel, setLocationLabel] = useState(() => getSavedCustomerAreaName() || 'Bhubaneswar, Odisha');
   const [deliveryEtaLabel, setDeliveryEtaLabel] = useState('16 mins');
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState(() => {
+    const cachedProducts = readCachedJson('camigo_cached_products', []);
+    return Array.isArray(cachedProducts) ? cachedProducts : [];
+  });
+  const [categories, setCategories] = useState(() => {
+    const cachedCategories = readCachedJson('camigo_cached_categories', []);
+    return Array.isArray(cachedCategories) ? cachedCategories : [];
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [activeOrder, setActiveOrder] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [appNotice, setAppNotice] = useState(null);
   const [customerOrders, setCustomerOrders] = useState([]);
   const [savedItems, setSavedItems] = useState([]);
-  const [pageContent, setPageContent] = useState(DEFAULT_PAGE_CONTENT);
+  const [pageContent, setPageContent] = useState(() => (
+    normalizePageContent(readCachedJson('camigo_cached_page_content', DEFAULT_PAGE_CONTENT))
+  ));
   const [seoAutomationSnapshot, setSeoAutomationSnapshot] = useState(null);
   const [notificationPermission, setNotificationPermission] = useState(() => (
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
   ));
+  const [showInstallPrompt, setShowInstallPrompt] = useState(() => shouldShowInstallPrompt());
   const cartBusyRef = useRef(new Set());
   const navigate = useNavigate();
   const location = useLocation();
@@ -688,7 +738,11 @@ function AppContent() {
     try {
       const res = await fetch(`${API_URL}/page-content`);
       const data = await res.json().catch(() => ({}));
-      if (res.ok) setPageContent(normalizePageContent(data));
+      if (res.ok) {
+        const nextPageContent = normalizePageContent(data);
+        setPageContent(nextPageContent);
+        writeCachedJson('camigo_cached_page_content', nextPageContent);
+      }
     } catch (e) {}
   };
 
@@ -759,6 +813,10 @@ function AppContent() {
 
   useEffect(() => {
     fetchSeoAutomationSnapshot();
+  }, []);
+
+  useEffect(() => {
+    setShowInstallPrompt(shouldShowInstallPrompt());
   }, []);
 
   useEffect(() => {
@@ -1099,7 +1157,9 @@ function AppContent() {
     try {
       const res = await fetch(`${API_URL}/categories`);
       const data = await res.json();
-      setCategories(Array.isArray(data) ? data : []);
+      const nextCategories = Array.isArray(data) ? data : [];
+      setCategories(nextCategories);
+      writeCachedJson('camigo_cached_categories', nextCategories);
     } catch (e) {}
   };
 
@@ -1107,7 +1167,9 @@ function AppContent() {
     try {
       const res = await fetch(`${API_URL}/products`);
       const data = await res.json();
-      setProducts(Array.isArray(data) ? data : []);
+      const nextProducts = Array.isArray(data) ? data : [];
+      setProducts(nextProducts);
+      writeCachedJson('camigo_cached_products', nextProducts);
     } catch (e) {}
   };
 
@@ -1387,6 +1449,18 @@ function AppContent() {
     if (appNotice?.id && /^\d+$/.test(String(appNotice.id))) localStorage.setItem(`camigo_notice_${appNotice.id}`, '1');
     setAppNotice(null);
   };
+  const dismissInstallPrompt = () => {
+    try {
+      localStorage.setItem(APP_INSTALL_DISMISS_KEY, String(Date.now()));
+    } catch (error) {}
+    setShowInstallPrompt(false);
+  };
+  const handleInstallApp = () => {
+    if (typeof window !== 'undefined') {
+      window.open(PLAY_STORE_APP_URL, '_blank', 'noopener,noreferrer');
+    }
+    dismissInstallPrompt();
+  };
   const showEnablePhoneAlerts = notificationPermission === 'default';
   const renderAppNotice = () => appNotice && (
     <div className={appNotice.product_id ? 'app-notice clickable' : 'app-notice'} onClick={handleNoticeOpen}>
@@ -1400,6 +1474,18 @@ function AppContent() {
       <div className="app-notice-actions">
         {showEnablePhoneAlerts && <button className="notice-enable" onClick={requestPhoneAlerts}>Enable alerts</button>}
         <button onClick={dismissNotice}>Close</button>
+      </div>
+    </div>
+  );
+  const renderInstallPrompt = () => showInstallPrompt && (
+    <div className="playstore-install-prompt" role="dialog" aria-label="Install Camigo app from Play Store">
+      <div className="playstore-install-copy">
+        <strong>Install the Camigo app</strong>
+        <span>Use the Android app for faster shopping, order updates, and a smoother mobile experience.</span>
+      </div>
+      <div className="playstore-install-actions">
+        <button type="button" className="playstore-install-secondary" onClick={dismissInstallPrompt}>Not now</button>
+        <button type="button" className="playstore-install-primary" onClick={handleInstallApp}>Install</button>
       </div>
     </div>
   );
@@ -1544,6 +1630,7 @@ function AppContent() {
       {APP_MODE !== 'delivery' && APP_MODE !== 'installer' && user?.role !== 'delivery_partner' && user?.role !== 'installer' && !activeOrder?.id && (
         <FloatingCheckoutBar cartCount={cartCount} cartTotal={cartTotal} cartItems={cartItems} onCartClick={() => setCartOpen(true)} />
       )}
+      {APP_MODE !== 'delivery' && APP_MODE !== 'installer' && user?.role !== 'delivery_partner' && user?.role !== 'installer' && renderInstallPrompt()}
       {APP_MODE !== 'delivery' && APP_MODE !== 'installer' && user?.role !== 'delivery_partner' && user?.role !== 'installer' && <BottomNav cartCount={cartCount} onCartClick={() => setCartOpen(true)} user={user} />}
     </div>
   );
