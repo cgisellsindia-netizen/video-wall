@@ -8,7 +8,7 @@ function Footer() {
   return (
     <footer className="footer">
       <div className="footer-inner">
-        <div className="footer-col"><h4>Company</h4><a href="/about-camigo">About Camigo</a><a href="/contact">Contact Us</a><a href="/terms-of-service">Terms of Service</a><a href="/privacy-policy">Privacy Policy</a></div>
+        <div className="footer-col"><h4>Company</h4><a href="/about-camigo">About Camigo</a><a href="/security-scan">Camigo Security Scan</a><a href="/contact">Contact Us</a><a href="/terms-of-service">Terms of Service</a><a href="/privacy-policy">Privacy Policy</a></div>
         <div className="footer-col"><h4>Support</h4><a href="/install">Installation</a><a href="/installation-policy">Installation Policy</a><a href="/shipping-policy">Shipping Policy</a><a href="/returns-policy">Returns Policy</a><a href="/contact">Support Contact</a></div>
         <div className="footer-col"><h4>Products</h4><a href="/category/1">AHD Cameras</a><a href="/category/2">IP Cameras</a><a href="/category/3">PTZ Cameras</a><a href="/shop">DVR/NVR</a></div>
         <div className="footer-col">

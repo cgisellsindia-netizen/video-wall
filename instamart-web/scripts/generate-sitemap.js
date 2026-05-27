@@ -14,6 +14,7 @@ const staticRoutes = [
   { path: '/orders', changefreq: 'weekly', priority: '0.5' },
   { path: '/contact', changefreq: 'monthly', priority: '0.5' },
   { path: '/about-camigo', changefreq: 'monthly', priority: '0.6' },
+  { path: '/security-scan', changefreq: 'weekly', priority: '0.8' },
   { path: '/cctv-camera-bhubaneswar', changefreq: 'weekly', priority: '0.9' },
   { path: '/cctv-installation-bhubaneswar', changefreq: 'weekly', priority: '0.9' },
   { path: '/security-camera-odisha', changefreq: 'weekly', priority: '0.8' },

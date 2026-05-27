@@ -35,6 +35,7 @@ const ReturnsPolicyPage = lazy(() => import('./components/ReturnsPolicyPage'));
 const InstallationPolicyPage = lazy(() => import('./components/InstallationPolicyPage'));
 const DealerDashboard = lazy(() => import('./components/DealerDashboard'));
 const InstallationPage = lazy(() => import('./components/InstallationPage'));
+const SecurityScanPage = lazy(() => import('./components/SecurityScanPage'));
 const ShopPage = lazy(() => import('./components/ShopPage'));
 const CheckoutPage = lazy(() => import('./components/CheckoutPage'));
 const CategoryPage = lazy(() => import('./components/CategoryPage'));
@@ -547,6 +548,24 @@ function MainPage({
   return (
     <>
       <main className="main-content">
+        {!searchQuery && (
+          <section className="security-scan-promo-band">
+            <div className="security-scan-promo-card">
+              <div className="security-scan-promo-copy">
+                <span className="eyebrow">New on Camigo</span>
+                <h2 className="section-title">Camigo Security Scan</h2>
+                <p>
+                  Show us the place you want to protect, get blind-spot suggestions, an instant CCTV package estimate,
+                  and a same-day technician CTA without guessing what to buy.
+                </p>
+              </div>
+              <div className="security-scan-promo-actions">
+                <Link to="/security-scan" className="btn btn-primary">Start scan</Link>
+                <Link to="/install" className="btn btn-outline">Book technician</Link>
+              </div>
+            </div>
+          </section>
+        )}
         {!searchQuery && (
           <HomepageBlocks
             pageContent={pageContent}
@@ -1698,6 +1717,7 @@ function AppContent() {
           <Route path="/orders" element={<DeliveryOnlyRoute user={user}><OrdersPage user={user} onLogin={() => setLoginOpen(true)} onUserUpdate={updateUserState} /></DeliveryOnlyRoute>} />
           <Route path="/saved" element={<DeliveryOnlyRoute user={user}><SavedItemsPage user={user} onLogin={() => setLoginOpen(true)} products={products} savedProductIds={savedProductIds} onToggleSaved={toggleSavedItem} onAdd={addToCart} onRemove={removeFromCart} cartItems={cartItems} priceForRole={priceForRole} deliveryEtaLabel={deliveryEtaLabel} /></DeliveryOnlyRoute>} />
           <Route path="/install" element={<DeliveryOnlyRoute user={user}><InstallationPage user={user} onLogin={() => setLoginOpen(true)} /></DeliveryOnlyRoute>} />
+          <Route path="/security-scan" element={<DeliveryOnlyRoute user={user}><SecurityScanPage /></DeliveryOnlyRoute>} />
           <Route path="/dealer" element={<DealerDashboard user={user} />} />
           <Route path="/distributor" element={<DealerDashboard user={user} />} />
           <Route path="/contact" element={<ContactPage user={user} />} />
