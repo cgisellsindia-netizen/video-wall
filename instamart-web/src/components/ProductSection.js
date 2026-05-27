@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Heart, Minus, Plus, Star } from 'lucide-react';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
 import ProductImage from './ProductImage';
-import { buildProductImageSources, getProductFallbackImage } from '../imageFallbacks';
+import { buildProductImageSources } from '../imageFallbacks';
 
 function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [], categoryId = null, savedProductIds = [], onToggleSaved = null, sectionTone = 'neutral', deliveryEtaLabel = '16 mins', prioritizeImages = false }) {
   const navigate = useNavigate();
@@ -83,7 +83,6 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
                 <ProductImage
                   src={product.image}
                   sources={buildProductImageSources(product)}
-                  fallbackSrc={getProductFallbackImage(product)}
                   alt={product.name}
                   loading={prioritizeImages && index < 2 ? 'eager' : 'lazy'}
                   fetchPriority={prioritizeImages && index < 1 ? 'high' : 'auto'}
@@ -92,6 +91,8 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
                   proxyQuality={66}
                   proxyFormat="webp"
                   preferDirect={false}
+                  fallbackToDirect={false}
+                  allowFallbackImage={false}
                   sizes="(max-width: 768px) 42vw, 220px"
                 />
                 {discount > 0 && (

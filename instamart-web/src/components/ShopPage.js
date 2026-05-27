@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Filter, Heart, Minus, Plus, Search, SlidersHorizontal, Star } from 'lucide-react';
 import ProductImage from './ProductImage';
-import { buildProductImageSources, getProductFallbackImage } from '../imageFallbacks';
+import { buildProductImageSources } from '../imageFallbacks';
 import usePageSeo from '../usePageSeo';
 
 function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null, deliveryEtaLabel = '16 mins', seoAutomationSnapshot = null }) {
@@ -304,7 +304,6 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
                 <ProductImage
                   src={product.image}
                   sources={buildProductImageSources(product)}
-                  fallbackSrc={getProductFallbackImage(product)}
                   alt={product.name}
                   loading={index < 4 ? 'eager' : 'lazy'}
                   fetchPriority={index < 2 ? 'high' : 'auto'}
@@ -313,6 +312,8 @@ function ShopPage({ products, categories, onAdd, onRemove, user, priceForRole, c
                   proxyQuality={64}
                   proxyFormat="webp"
                   preferDirect={false}
+                  fallbackToDirect={false}
+                  allowFallbackImage={false}
                   sizes="(max-width: 768px) 44vw, 240px"
                 />
                 {discount > 0 && (

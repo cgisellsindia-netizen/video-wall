@@ -77,6 +77,8 @@ const proxiedMediaSource = (value = '', options = {}) => {
   return `${API_URL}/media/proxy?${params.toString()}`;
 };
 
+const LOGO_PLACEHOLDER_SRC = '/camigo-logo.svg';
+
 const buildFallbackSources = (src, extraSources = [], fallbackSrc = '', options = {}) => {
   const cleanExtraSources = Array.isArray(extraSources) ? extraSources : [extraSources];
   const cleanFallbackSrc = normalizeImageSource(fallbackSrc);
@@ -103,7 +105,9 @@ const buildFallbackSources = (src, extraSources = [], fallbackSrc = '', options 
         addSource(proxiedMediaSource(cleanCandidate, options));
       } else {
         addSource(proxiedMediaSource(cleanCandidate, options));
-        addSource(cleanCandidate);
+        if (options.fallbackToDirect !== false) {
+          addSource(cleanCandidate);
+        }
       }
     } else {
       addSource(webpVariant);
@@ -112,7 +116,7 @@ const buildFallbackSources = (src, extraSources = [], fallbackSrc = '', options 
     }
   });
 
-  if (!candidateKeys.length) {
+  if (!candidateKeys.length && options.allowFallbackImage !== false) {
     addSource(cleanFallbackSrc);
   }
 
@@ -131,7 +135,9 @@ function ProductImage({
   proxyWidth = 0,
   proxyQuality = 80,
   proxyFormat = 'webp',
-  preferDirect = false,
+  preferDirect = true,
+  fallbackToDirect = true,
+  allowFallbackImage = true,
   onLoad,
   onError,
   ...imgProps
@@ -151,9 +157,11 @@ function ProductImage({
       width: proxyWidth,
       quality: proxyQuality,
       format: proxyFormat,
-      preferDirect
+      preferDirect,
+      fallbackToDirect,
+      allowFallbackImage
     }),
-    [src, sources, fallbackSrc, proxyWidth, proxyQuality, proxyFormat, preferDirect]
+    [src, sources, fallbackSrc, proxyWidth, proxyQuality, proxyFormat, preferDirect, fallbackToDirect, allowFallbackImage]
   );
   const sourceList = sourcePlan.sources;
   const [sourceIndex, setSourceIndex] = useState(0);
@@ -169,7 +177,16 @@ function ProductImage({
       <div
         className={className ? `${className} product-image-placeholder` : 'product-image-placeholder'}
         aria-label={alt || fallbackContent}
-      />
+      >
+        <img
+          src={LOGO_PLACEHOLDER_SRC}
+          alt=""
+          aria-hidden="true"
+          className="product-image-placeholder-logo"
+          loading="lazy"
+          decoding="async"
+        />
+      </div>
     );
   }
 

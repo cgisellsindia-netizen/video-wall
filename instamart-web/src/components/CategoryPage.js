@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Heart, Minus, Plus, Search, SlidersHorizontal, Star } from 'lucide-react';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
 import ProductImage from './ProductImage';
-import { buildProductImageSources, getProductFallbackImage } from '../imageFallbacks';
+import { buildProductImageSources } from '../imageFallbacks';
 import usePageSeo from '../usePageSeo';
 
 function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null, deliveryEtaLabel = '16 mins', seoAutomationSnapshot = null }) {
@@ -330,7 +330,6 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
                 <ProductImage
                   src={product.image}
                   sources={buildProductImageSources(product)}
-                  fallbackSrc={getProductFallbackImage(product)}
                   alt={product.name}
                   loading={index < 4 ? 'eager' : 'lazy'}
                   fetchPriority={index < 2 ? 'high' : 'auto'}
@@ -339,6 +338,8 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
                   proxyQuality={64}
                   proxyFormat="webp"
                   preferDirect={false}
+                  fallbackToDirect={false}
+                  allowFallbackImage={false}
                   sizes="(max-width: 768px) 44vw, 240px"
                 />
                 {discount > 0 && (
