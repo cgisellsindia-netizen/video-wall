@@ -239,6 +239,8 @@ function SecurityScanPage() {
   const [packageBias, setPackageBias] = useState(null);
   const [liveAutoScanEnabled, setLiveAutoScanEnabled] = useState(true);
   const [liveScanActive, setLiveScanActive] = useState(false);
+  const [visionReady, setVisionReady] = useState(false);
+  const [visionLoading, setVisionLoading] = useState(false);
   const [cameraSupported] = useState(() => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia);
   const [secureContext] = useState(() => typeof window !== 'undefined' ? !!window.isSecureContext : true);
   const hasMeaningfulScan = markers.length > 0;
@@ -329,6 +331,7 @@ function SecurityScanPage() {
         videoRef.current.muted = true;
         await videoRef.current.play();
       }
+      loadBrowserVision().catch(() => {});
       setLiveAutoScanEnabled(true);
       setLiveScanActive(false);
       setCameraReady(true);
@@ -400,11 +403,17 @@ function SecurityScanPage() {
   const loadBrowserVision = async () => {
     if (!browserVisionPromiseRef.current) {
       browserVisionPromiseRef.current = (async () => {
-        const { pipeline, env } = await import('@huggingface/transformers');
-        env.allowLocalModels = false;
-        const classifier = await pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32');
-        const detector = await pipeline('zero-shot-object-detection', 'Xenova/owlvit-base-patch32');
-        return { classifier, detector };
+        setVisionLoading(true);
+        try {
+          const { pipeline, env } = await import('@huggingface/transformers');
+          env.allowLocalModels = false;
+          const classifier = await pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32', { dtype: 'q8' });
+          const detector = await pipeline('zero-shot-object-detection', 'Xenova/owlvit-base-patch32', { dtype: 'q8' });
+          setVisionReady(true);
+          return { classifier, detector };
+        } finally {
+          setVisionLoading(false);
+        }
       })();
     }
     return browserVisionPromiseRef.current;
@@ -455,9 +464,9 @@ function SecurityScanPage() {
     return `${sceneText}${objectText}`.trim();
   };
 
-  const runBrowserVisionScan = async (imageDataUrl) => {
+  const runBrowserVisionScan = async (imageInput) => {
     const { classifier, detector } = await loadBrowserVision();
-    const candidateImage = String(imageDataUrl || '').trim();
+    const candidateImage = imageInput;
     const sceneResult = await classifier(candidateImage, SCENE_LABELS, {
       hypothesis_template: 'This is a photo of a {}.'
     });
@@ -531,7 +540,7 @@ function SecurityScanPage() {
   };
 
   const runCamigoScan = async (imageToAnalyze, options = {}) => {
-    const { persistCapture = false, silent = false } = options;
+    const { persistCapture = false, silent = false, browserImageInput = null } = options;
     const sourceImage = String(imageToAnalyze || capturedImage || '').trim();
     if (!sourceImage) {
       if (!silent) setCameraError('Capture or upload an image first so Camigo scan can review the place.');
@@ -545,7 +554,7 @@ function SecurityScanPage() {
       setCameraError('');
       let data;
       try {
-        data = await runBrowserVisionScan(sourceImage);
+        data = await runBrowserVisionScan(browserImageInput || sourceImage);
       } catch (visionError) {
         const response = await fetch(`${API_URL}/security-scan/analyze`, {
           method: 'POST',
@@ -621,9 +630,10 @@ function SecurityScanPage() {
       if (!active) return;
       if (!liveScanBusyRef.current) {
         const frame = captureVideoFrame();
-        if (frame) {
+        const canvas = captureCanvasRef.current;
+        if (frame && canvas) {
           setLiveScanActive(true);
-          await runCamigoScan(frame, { silent: true });
+          await runCamigoScan(frame, { silent: true, browserImageInput: canvas });
         }
       }
       if (active) {
@@ -785,13 +795,13 @@ function SecurityScanPage() {
 
           <div className="security-live-hint-grid">
             <div className="security-preview-tile">
-              <span>{cameraReady && liveAutoScanEnabled ? (liveScanActive ? 'Live scan is updating markers' : 'Live scan is warming up') : `${markers.length} scan markers added`}</span>
+              <span>{cameraReady && liveAutoScanEnabled ? (visionLoading ? 'Loading live vision engine' : liveScanActive ? 'Live scan is updating markers' : 'Live scan is warming up') : `${markers.length} scan markers added`}</span>
             </div>
             <div className="security-preview-tile">
               <span>{(analysisBlindSpots.length || markers.filter((marker) => marker.type === 'blind').length)} blind spots flagged</span>
             </div>
             <div className="security-preview-tile">
-              <span>{analysisLoading ? 'Camigo is scanning this room now' : cameraReady && liveAutoScanEnabled ? 'Recommended camera points refresh every few seconds' : hasMeaningfulScan ? `${scanResult.adjustedCameras} total camera points suggested` : 'Capture a frame to auto-scan this room'}</span>
+              <span>{analysisLoading ? 'Camigo is scanning this room now' : cameraReady && liveAutoScanEnabled ? (visionReady ? 'Layout recognition refreshes every few seconds' : 'Preparing room recognition model') : hasMeaningfulScan ? `${scanResult.adjustedCameras} total camera points suggested` : 'Capture a frame to auto-scan this room'}</span>
             </div>
           </div>
           {analysisSummary ? (
