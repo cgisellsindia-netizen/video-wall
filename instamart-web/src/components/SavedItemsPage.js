@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Heart, Minus, Plus, Search, ShoppingCart, Star } from 'lucide-react';
 import ProductImage from './ProductImage';
-import { buildProductImageSources } from '../imageFallbacks';
+import { buildProductImageSources, pickPrimaryProductImage } from '../imageFallbacks';
 
 function SavedItemsPage({
   user,
@@ -82,12 +82,14 @@ function SavedItemsPage({
             const discount = Number(product.discount_percent) > 0
               ? Math.round(Number(product.discount_percent))
               : product.mrp ? Math.max(0, Math.round((1 - product.price / product.mrp) * 100)) : 0;
+            const imageSources = buildProductImageSources(product, { excludeGeneric: true });
+            const primaryImage = pickPrimaryProductImage(product, { excludeGeneric: true });
             return (
               <div key={product.id} className="product-card" onClick={() => navigate(`/product/${product.id}`)}>
               <div className="product-img-wrap">
                 <ProductImage
-                  src={product.image}
-                  sources={buildProductImageSources(product, { excludeGeneric: true })}
+                  src={primaryImage}
+                  sources={imageSources.slice(1)}
                   alt={product.name}
                   loading="lazy"
                   fallbackContent="CCTV"

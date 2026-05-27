@@ -127,3 +127,8 @@ export function buildProductImageSources(product = {}, options = {}) {
   const filteredSources = sourceList.filter((value) => !isGenericProductVisual(value));
   return filteredSources;
 }
+
+export function pickPrimaryProductImage(product = {}, options = {}) {
+  const sources = buildProductImageSources(product, options);
+  return sources[0] || '';
+}

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Heart, Minus, Plus, Star } from 'lucide-react';
 import { API_URL } from '../api';
 import ProductImage from './ProductImage';
-import { buildProductImageSources } from '../imageFallbacks';
+import { buildProductImageSources, isGenericProductVisual, pickPrimaryProductImage } from '../imageFallbacks';
 
 function SetupPackagesSection({
   products = [],
@@ -65,7 +65,7 @@ function SetupPackagesSection({
             ...product,
             name: entry.title || product.name,
             description: entry.subtitle || product.description,
-            image: entry.image || product.image,
+            image: isGenericProductVisual(entry.image) ? product.image : (entry.image || product.image),
             package_badge: entry.badge || '',
             package_price: Number(entry.price || 0) > 0 ? Number(entry.price) : product.price,
             package_category_id: entry.category_id || product.category_id
@@ -123,6 +123,8 @@ function SetupPackagesSection({
             : user?.role === 'distributor' && Number(product.distributor_price) > 0
               ? Math.round(Number(product.distributor_price))
               : user?.role === 'dealer' ? Math.round(basePrice * 0.90) : user?.role === 'distributor' ? Math.round(basePrice * 0.85) : basePrice;
+          const imageSources = buildProductImageSources(product, { excludeGeneric: true });
+          const primaryImage = pickPrimaryProductImage(product, { excludeGeneric: true });
 
           return (
             <div
@@ -133,8 +135,8 @@ function SetupPackagesSection({
             >
               <div className="product-img-wrap">
                 <ProductImage
-                  src={product.image}
-                  sources={buildProductImageSources(product, { excludeGeneric: true })}
+                  src={primaryImage}
+                  sources={imageSources.slice(1)}
                   alt={product.name}
                   loading={index < 3 ? 'eager' : 'lazy'}
                   fetchPriority={index < 2 ? 'high' : 'auto'}

@@ -25,7 +25,10 @@ const allowedOrigins = new Set([
   'http://127.0.0.1:3000',
   'http://127.0.0.1:3001',
   'http://127.0.0.1:3002',
+  'https://getcamigo.in',
+  'https://www.getcamigo.in',
   'https://camigo-store.onrender.com',
+  'https://camigo-web.onrender.com',
   'capacitor://localhost',
   'ionic://localhost',
   'http://localhost',
@@ -137,8 +140,9 @@ const OPERATIONAL_STATE_ENCRYPTION_KEY = crypto
   .digest();
 const publicServerBaseUrl = (
   process.env.PUBLIC_SERVER_URL ||
+  process.env.PUBLIC_STOREFRONT_URL ||
   process.env.RENDER_EXTERNAL_URL ||
-  'https://camigo-store.onrender.com'
+  'https://getcamigo.in'
 ).replace(/\/+$/, '');
 const publicStorefrontUrl = (
   process.env.PUBLIC_STOREFRONT_URL ||
@@ -146,7 +150,7 @@ const publicStorefrontUrl = (
 ).replace(/\/+$/, '');
 const publicWebBaseUrl = (
   process.env.PUBLIC_WEB_URL ||
-  'https://camigo-web.onrender.com'
+  publicStorefrontUrl
 ).replace(/\/+$/, '');
 const MEDIA_PROXY_CACHE_DIR = path.join(__dirname, '.cache', 'media-proxy');
 const MEDIA_PROXY_CACHE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
@@ -438,6 +442,12 @@ const roundCurrency = (value = 0) => Math.round(Number(value || 0));
 const roundToStep = (value = 0, step = 5) => Math.ceil(Number(value || 0) / step) * step;
 const roundOneDecimal = (value = 0) => Math.round(Number(value || 0) * 10) / 10;
 const normalizeSettingKey = (value = '') => String(value || '').trim();
+const isGenericProductVisualPath = (value = '') => {
+  const cleanValue = String(value || '').trim().toLowerCase();
+  if (!cleanValue) return false;
+  return cleanValue.startsWith('/category-real/')
+    || cleanValue.startsWith('/images/cgi-');
+};
 const normalizeSetupPackageId = (value = '', fallbackIndex = 0) => {
   const base = String(value || '')
     .trim()
@@ -2430,9 +2440,16 @@ const buildSetupPackageProductDraft = (entry = {}) => {
 
 const mergeSetupPackageWithProduct = (entry = {}, product = null) => {
   if (!product) return entry;
+  const entryImage = String(entry.image || '').trim();
+  const productImage = String(product.image || '').trim();
+  const resolvedImage = (
+    !isGenericProductVisualPath(entryImage) ? entryImage
+      : !isGenericProductVisualPath(productImage) ? productImage
+        : entryImage || productImage || '/category-real/accessories.jpg'
+  );
   return {
     ...entry,
-    image: String(entry.image || product.image || '/category-real/accessories.jpg').trim(),
+    image: resolvedImage,
     price: Math.max(0, Math.round(Number(entry.price || product.price || 0))),
     mrp: Math.max(
       Math.round(Number(entry.price || product.price || 0)),

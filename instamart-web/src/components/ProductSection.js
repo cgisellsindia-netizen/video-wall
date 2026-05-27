@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Heart, Minus, Plus, Star } from 'lucide-react';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
 import ProductImage from './ProductImage';
-import { buildProductImageSources } from '../imageFallbacks';
+import { buildProductImageSources, pickPrimaryProductImage } from '../imageFallbacks';
 
 function ProductSection({ title, products, onAdd, onRemove, user, cartItems = [], categoryId = null, savedProductIds = [], onToggleSaved = null, sectionTone = 'neutral', deliveryEtaLabel = '16 mins', prioritizeImages = false }) {
   const navigate = useNavigate();
@@ -71,6 +71,8 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
             : user?.role === 'distributor' && Number(product.distributor_price) > 0
               ? Math.round(Number(product.distributor_price))
               : user?.role === 'dealer' ? Math.round(product.price * 0.90) : user?.role === 'distributor' ? Math.round(product.price * 0.85) : product.price;
+          const imageSources = buildProductImageSources(product, { excludeGeneric: true });
+          const primaryImage = pickPrimaryProductImage(product, { excludeGeneric: true });
 
           return (
             <div
@@ -81,8 +83,8 @@ function ProductSection({ title, products, onAdd, onRemove, user, cartItems = []
             >
               <div className="product-img-wrap">
                 <ProductImage
-                  src={product.image}
-                  sources={buildProductImageSources(product, { excludeGeneric: true })}
+                  src={primaryImage}
+                  sources={imageSources.slice(1)}
                   alt={product.name}
                   loading={prioritizeImages && index < 2 ? 'eager' : 'lazy'}
                   fetchPriority={prioritizeImages && index < 1 ? 'high' : 'auto'}

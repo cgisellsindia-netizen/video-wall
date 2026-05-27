@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Heart, Minus, Plus, Search, SlidersHorizontal, Star } from 'lucide-react';
 import CategoryBannerCarousel from './CategoryBannerCarousel';
 import ProductImage from './ProductImage';
-import { buildProductImageSources } from '../imageFallbacks';
+import { buildProductImageSources, pickPrimaryProductImage } from '../imageFallbacks';
 import usePageSeo from '../usePageSeo';
 
 function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRole, cartItems = [], savedProductIds = [], onToggleSaved = null, deliveryEtaLabel = '16 mins', seoAutomationSnapshot = null }) {
@@ -324,12 +324,14 @@ function CategoryPage({ categories, products, onAdd, onRemove, user, priceForRol
           const isOutOfStock = Number(product.stock || 0) <= 0;
           const isSaved = savedProductIds.includes(Number(product.id));
           const discount = Number(product.discount_percent) > 0 ? Math.round(Number(product.discount_percent)) : product.mrp ? Math.max(0, Math.round((1 - product.price / product.mrp) * 100)) : 0;
+          const imageSources = buildProductImageSources(product, { excludeGeneric: true });
+          const primaryImage = pickPrimaryProductImage(product, { excludeGeneric: true });
           return (
             <div key={product.id} className="product-card" onClick={() => navigate(`/product/${product.id}`)}>
               <div className="product-img-wrap">
                 <ProductImage
-                  src={product.image}
-                  sources={buildProductImageSources(product, { excludeGeneric: true })}
+                  src={primaryImage}
+                  sources={imageSources.slice(1)}
                   alt={product.name}
                   loading={index < 4 ? 'eager' : 'lazy'}
                   fetchPriority={index < 2 ? 'high' : 'auto'}
