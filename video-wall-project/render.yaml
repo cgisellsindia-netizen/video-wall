@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: video-wall-project
+    runtime: static
+    rootDir: video-wall-project
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VIDEO_WALL_PROJECT_ID
+        value: your-new-render-project-id
+      - key: VIDEO_WALL_LINKS
+        value: https://www.youtube.com/watch?v=dQw4w9WgXcQ,https://example.com/video.mp4
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
