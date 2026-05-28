@@ -1,11 +1,11 @@
 # Video Wall Project
 
-Standalone website for running a CCTV-style video wall.
+Standalone website for running a camera-link video wall.
 
 ## What it does
 
 - Supports up to 50 camera tiles in one wall
-- Uses square tiles for showroom-style CCTV demos
+- Uses square tiles for showroom-style camera demos
 - Accepts one line per camera with primary and backup sources
 - Shows your project ID on the page
 - Retries dropped streams automatically
@@ -28,13 +28,17 @@ Showroom 1|https://nvr.example.com/showroom1.m3u8
 Back Office|https://gateway.example.com/backoffice.mp4|https://backup.example.com/backoffice.mp4
 ```
 
-## RTSP note
+## Best link type
 
-Browsers do not play raw `rtsp://` streams directly. For customer-facing playback, convert RTSP camera feeds into browser-playable URLs such as:
+Use your normal browser-playable camera website links whenever possible:
 
 - HLS `.m3u8`
+- MP4
 - WebRTC streams
-- MP4 or fragmented MP4 outputs from your NVR or stream gateway
+
+## RTSP note
+
+If some cameras only give `rtsp://` links, browsers will not play those directly. Convert them through your NVR, stream gateway, or camera server into browser-playable URLs first.
 
 ## Local use
 

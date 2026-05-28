@@ -129,9 +129,9 @@
     '<main class="page">',
     '  <section class="toolbar">',
     '    <div class="toolbar-main">',
-    '      <span class="eyebrow">CCTV Wall</span>',
-    '      <h1>50-camera customer demo wall</h1>',
-    '      <p>One line per camera: <code>Camera Name|primary-url|backup-url-1|backup-url-2</code></p>',
+    '      <span class="eyebrow">Camera Wall</span>',
+      '      <h1>50-camera customer demo wall</h1>',
+    '      <p>Use your normal camera website links here. One line per tile: <code>Camera Name|primary-url|backup-url-1|backup-url-2</code></p>',
     '    </div>',
     '    <div class="stat"><strong id="project-id-stat"></strong><span>Project ID</span></div>',
     '    <div class="stat"><strong id="video-count-stat"></strong><span>Active cameras</span></div>',
@@ -144,19 +144,20 @@
     '          <span>Project ID</span>',
     '          <input id="project-id-input" type="text" placeholder="Enter the project ID" />',
     '        </label>',
-    '        <div class="note"><strong>RTSP note:</strong> browsers cannot play <code>rtsp://</code> directly. Use HLS (<code>.m3u8</code>), WebRTC, or MP4 gateway URLs from your NVR or camera server.</div>',
+    '        <div class="note"><strong>Best input:</strong> use normal browser-playable camera links such as HLS <code>.m3u8</code>, MP4, or other website video URLs from your camera system.</div>',
+    '        <div class="note"><strong>RTSP only if needed:</strong> browsers cannot play raw <code>rtsp://</code> directly, so those links need conversion through your NVR, gateway, or stream server.</div>',
     '        <div class="note"><strong>Failover:</strong> if a stream drops, stalls, or ends, the wall retries and moves to the next configured source automatically.</div>',
     '      </div>',
     '      <div>',
     '        <label class="field">',
     '          <span>Camera config</span>',
-    '          <textarea id="video-links-input" rows="12" placeholder="Front Gate|https://nvr.example.com/frontgate.m3u8|https://backup.example.com/frontgate.m3u8&#10;Showroom 1|https://nvr.example.com/showroom1.m3u8&#10;Back Office|rtsp://192.168.1.25:554/stream1|https://gateway.example.com/backoffice.m3u8"></textarea>',
+    '          <textarea id="video-links-input" rows="12" placeholder="Front Gate|https://cams.example.com/frontgate.m3u8|https://backup.example.com/frontgate.m3u8&#10;Showroom 1|https://cams.example.com/showroom1.mp4&#10;Back Office|https://cams.example.com/backoffice.m3u8|https://backup.example.com/backoffice.m3u8"></textarea>',
     '        </label>',
     '      </div>',
     '    </div>',
     '  </section>',
     '  <section class="wall-grid" id="video-grid"></section>',
-    '  <div class="footer-note">The wall keeps retrying automatically after outages. Direct <code>rtsp://</code> entries are marked unsupported until you provide a browser-playable converted stream.</div>',
+    '  <div class="footer-note">The wall keeps retrying automatically after outages. Normal browser-playable camera links work best.</div>',
     '</main>'
   ].join('');
 
@@ -281,8 +282,8 @@
       const sourceText = source.url;
 
       if (source.type === 'rtsp') {
-        mediaHost.innerHTML = '<div class="tile-placeholder"><div><strong>RTSP needs conversion</strong><span>Use an HLS, WebRTC, or MP4 gateway URL for browser playback.</span></div></div>';
-        setStatus(article, 'RTSP unsupported in browser', 'is-unsupported', sourceText);
+        mediaHost.innerHTML = '<div class="tile-placeholder"><div><strong>Browser cannot open this link directly</strong><span>Convert this camera feed to an HLS, WebRTC, or MP4 website URL.</span></div></div>';
+        setStatus(article, 'Link needs browser-playable conversion', 'is-unsupported', sourceText);
         scheduleNext(reason || 'rtsp');
         return;
       }
