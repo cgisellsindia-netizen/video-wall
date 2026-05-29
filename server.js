@@ -166,3 +166,4 @@ process.on('SIGINT', async () => {
 server.listen(PORT, () => {
   console.log(`Dashboard running on http://localhost:${PORT}`);
 });
+
