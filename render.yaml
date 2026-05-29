@@ -1,6 +1,6 @@
 ﻿services:
   - type: web
-    name: video-wall-real-player
+    name: video-wall-browser
     env: docker
     plan: starter
     dockerfilePath: ./Dockerfile

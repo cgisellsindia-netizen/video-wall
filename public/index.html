@@ -2,263 +2,196 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>Proxy Scanner + Auto Browser Tiles</title>
+  <title>Real Live Video Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
   <style>
     * { box-sizing: border-box; font-family: Arial, sans-serif; }
-    body { margin:0; background:#0f1115; color:white; overflow-x:hidden; }
-    header { padding:12px 16px; background:#171923; border-bottom:1px solid #2c2f3a; }
-    h1 { margin:0; font-size:20px; }
-    .sub { color:#aeb4c2; font-size:12px; margin-top:4px; }
-    .wrap { display:grid; grid-template-columns:320px 1fr; gap:12px; padding:12px; }
-    .card { background:#171923; border:1px solid #2c2f3a; border-radius:12px; padding:12px; min-width:0; }
-    label { display:block; margin-top:10px; margin-bottom:5px; color:#cdd3df; font-size:12px; }
-    input, textarea { width:100%; background:#0f1115; color:white; border:1px solid #333746; border-radius:9px; padding:9px; font-size:12px; }
-    textarea { min-height:230px; resize:vertical; white-space:pre-wrap; overflow-wrap:anywhere; }
-    button, a { border:none; border-radius:9px; padding:10px 12px; font-weight:bold; cursor:pointer; text-decoration:none; display:inline-block; }
-    .start { width:100%; background:#19c37d; color:#06170f; margin-top:10px; }
-    .stop { width:100%; background:#ff4d4d; color:white; margin-top:10px; }
-    .download { width:100%; background:#4f8cff; color:white; margin-top:10px; text-align:center; }
-    .stats { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:12px; }
-    .stat { background:#171923; border:1px solid #2c2f3a; border-radius:12px; padding:10px; }
-    .label2 { color:#aeb4c2; font-size:12px; }
-    .num { font-size:22px; font-weight:bold; margin-top:5px; }
-    .good { color:#19c37d; }
-    .bad { color:#ff4d4d; }
-    .warn { color:#f0a500; }
-    .info { color:#73a7ff; }
-    .tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:10px; }
-    .tile { background:#0f1115; border:1px solid #2c2f3a; border-radius:12px; padding:8px; min-height:260px; }
-    .tile img { width:100%; border-radius:8px; background:#111; display:block; }
-    .proxy { color:#aaa; font-size:11px; overflow-wrap:anywhere; word-break:break-word; margin-top:6px; }
-    .list, .logs { height:260px; overflow:auto; background:#0f1115; border:1px solid #2c2f3a; border-radius:12px; padding:8px; font-size:12px; }
-    .row, .log { padding:6px 4px; border-bottom:1px solid #222633; overflow-wrap:anywhere; word-break:break-word; }
-    .hint { color:#aeb4c2; font-size:11px; line-height:1.4; margin-top:5px; }
+    body { margin: 0; background: #0f1115; color: white; }
+    header { background: #171923; border-bottom: 1px solid #2c2f3a; padding: 14px 18px; }
+    h1 { margin: 0; font-size: 22px; }
+    .sub { color: #aeb4c2; font-size: 12px; margin-top: 5px; }
+    .wrap { display: grid; grid-template-columns: 360px 1fr; gap: 14px; padding: 14px; }
+    .card { background: #171923; border: 1px solid #2c2f3a; border-radius: 12px; padding: 14px; }
+    label { display: block; color: #cdd3df; font-size: 13px; margin-top: 12px; margin-bottom: 6px; }
+    input, select, button { width: 100%; padding: 10px; border-radius: 9px; border: 1px solid #333746; background: #0f1115; color: white; font-size: 13px; }
+    button { border: none; font-weight: bold; cursor: pointer; margin-top: 12px; }
+    .start { background: #19c37d; color: #06170f; }
+    .stop { background: #ff4d4d; color: white; }
+    video { width: 100%; height: 72vh; background: black; border-radius: 12px; }
+    .status { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+    .stat { background: #0f1115; border: 1px solid #2c2f3a; border-radius: 10px; padding: 10px; font-size: 12px; }
+    .stat b { display: block; color: #aeb4c2; margin-bottom: 5px; }
+    .logs { height: 220px; overflow: auto; background: #0f1115; border: 1px solid #2c2f3a; border-radius: 10px; padding: 8px; font-size: 12px; margin-top: 12px; }
+    .log { padding: 6px 0; border-bottom: 1px solid #222633; overflow-wrap: anywhere; }
+    .hint { color: #aeb4c2; font-size: 12px; line-height: 1.5; margin-top: 12px; }
+    @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } video { height: 50vh; } }
   </style>
 </head>
+
 <body>
 <header>
-  <h1>Proxy Scanner + Auto Browser Tiles</h1>
-  <div class="sub">Working proxy found → browser tile opens automatically → autoplay detected links show below</div>
+  <h1>Real Live Video Player</h1>
+  <div class="sub">No screenshot. No browser tile. FFmpeg creates HLS and browser plays real video.</div>
 </header>
 
 <div class="wrap">
   <div class="card">
-    <label>Target Video Page URL</label>
-    <input id="targetUrl" value="https://example.com" />
+    <label>Direct Video URL</label>
+    <input id="videoUrl" placeholder="https://your-site.com/video.mp4 or stream.m3u8" />
 
-    <label>Parallel Proxy Tests</label>
-    <input id="parallelTests" type="number" value="8" />
-    <div class="hint">Proxy scanner speed. Render safe: 5–10 for stable scanning.</div>
+    <label>Proxy Optional</label>
+    <input id="proxy" placeholder="ip:port:user:pass or http://user:pass@ip:port" />
 
-    <label>Max Browser Tiles</label>
-    <input id="maxBrowserTiles" type="number" value="1" />
-    <div class="hint">Browser tiles are heavy. Use 1 only on Render browser mode.</div>
+    <label>Mode</label>
+    <select id="mode">
+      <option value="copy" selected>Fast Copy Mode</option>
+      <option value="transcode">Transcode Mode</option>
+    </select>
 
-    <label>Upload Proxy File</label>
-    <input id="proxyFile" type="file" accept=".txt,.csv,.list,.log" />
+    <button class="start" onclick="startPlayer()">Start Real Player</button>
+    <button class="stop" onclick="stopPlayer()">Stop Player</button>
 
-    <label>Proxy List</label>
-    <textarea id="proxies" placeholder="ip:port&#10;ip:port:user:pass&#10;socks5://user:pass@ip:port"></textarea>
-
-    <button class="start" id="startBtn">Start Scanner + Auto Tiles</button>
-    <button class="stop" id="stopBtn">Stop All</button>
-    <a class="download" href="/api/working" target="_blank">Open Working Proxies</a>
+    <div class="hint">
+      Use direct video links only: .mp4, .m3u8, .webm, CDN video URL.  
+      If copy mode fails, try transcode mode.
+    </div>
   </div>
 
-  <div>
-    <div class="stats">
-      <div class="stat"><div class="label2">Total</div><div id="total" class="num">0</div></div>
-      <div class="stat"><div class="label2">Tested</div><div id="tested" class="num info">0</div></div>
-      <div class="stat"><div class="label2">Working</div><div id="working" class="num good">0</div></div>
-      <div class="stat"><div class="label2">Autoplay</div><div id="autoplay" class="num good">0</div></div>
-      <div class="stat"><div class="label2">Failed</div><div id="failed" class="num bad">0</div></div>
-      <div class="stat"><div class="label2">Blocked</div><div id="blocked" class="num warn">0</div></div>
+  <div class="card">
+    <div class="status">
+      <div class="stat"><b>Status</b><span id="active">Idle</span></div>
+      <div class="stat"><b>Ready</b><span id="ready">No</span></div>
+      <div class="stat"><b>Mode</b><span id="modeText">-</span></div>
+      <div class="stat"><b>Error</b><span id="error">-</span></div>
     </div>
 
-    <div class="card" style="margin-bottom:12px;">
-      <h3 style="margin-top:0;">Separate Browser Tiles</h3>
-      <div id="tiles" class="tiles"></div>
-    </div>
+    <video id="player" controls autoplay muted playsinline></video>
 
-    <div class="card" style="margin-bottom:12px;">
-      <h3 style="margin-top:0;">Autoplay Detected / Working Links</h3>
-      <div id="workingList" class="list"></div>
-    </div>
-
-    <div class="card">
-      <h3 style="margin-top:0;">Live Logs</h3>
-      <div id="logs" class="logs"></div>
-    </div>
+    <div class="logs" id="logs"></div>
   </div>
 </div>
 
 <script>
-function normalizeProxyText(text) {
-  return String(text || "")
-    .replace(/\r/g, "\n")
-    .replace(/,/g, "\n")
-    .replace(/;/g, "\n")
-    .split("\n")
-    .map(x => x.trim())
-    .filter(Boolean)
-    .join("\n");
+let hls = null;
+let currentHls = "";
+
+function saveInputs() {
+  localStorage.setItem("livePlayer.videoUrl", document.getElementById("videoUrl").value || "");
+  localStorage.setItem("livePlayer.proxy", document.getElementById("proxy").value || "");
+  localStorage.setItem("livePlayer.mode", document.getElementById("mode").value || "copy");
 }
 
-function cls(level) {
-  if (level === "success") return "good";
-  if (level === "error") return "bad";
-  if (level === "warn") return "warn";
-  return "info";
+function restoreInputs() {
+  document.getElementById("videoUrl").value = localStorage.getItem("livePlayer.videoUrl") || "";
+  document.getElementById("proxy").value = localStorage.getItem("livePlayer.proxy") || "";
+  document.getElementById("mode").value = localStorage.getItem("livePlayer.mode") || "copy";
 }
 
-function renderTiles(tiles) {
-  const box = document.getElementById("tiles");
-  box.innerHTML = "";
-
-  for (const t of tiles || []) {
-    const div = document.createElement("div");
-    div.className = "tile";
-
-    const statusClass = t.autoplay ? "good" : t.status.includes("Failed") || t.status.includes("Blocked") ? "bad" : "info";
-
-    div.innerHTML = `
-      <b>${t.status}</b> — <span class="${statusClass}">${Math.round(t.currentTime || 0)}s</span>
-      ${t.image ? `<img src="${t.image}" />` : `<div style="height:180px;background:#111;border-radius:8px;margin-top:8px;"></div>`}
-      <div class="proxy">
-        <b>Proxy:</b> ${t.proxy || ""}<br>
-        <b>IP:</b> ${t.ip || ""}
-      </div>
-    `;
-
-    box.appendChild(div);
-  }
-}
-
-function renderState(s) {
-  document.getElementById("total").innerText = s.total || 0;
-  document.getElementById("tested").innerText = s.tested || 0;
-  document.getElementById("working").innerText = s.working || 0;
-  document.getElementById("autoplay").innerText = s.autoplayDetected || 0;
-  document.getElementById("failed").innerText = s.failed || 0;
-  document.getElementById("blocked").innerText = s.blocked || 0;
-
-  renderTiles(s.tiles || []);
-
-  const list = document.getElementById("workingList");
-  list.innerHTML = "";
-
-  for (const item of s.workingList || []) {
-    const div = document.createElement("div");
-    div.className = "row good";
-    div.textContent = `${item.time} | ${item.display} | IP: ${item.ip}`;
-    list.appendChild(div);
-  }
-
-  const logs = document.getElementById("logs");
-  logs.innerHTML = "";
-
-  for (const line of s.logs || []) {
-    const div = document.createElement("div");
-    div.className = "log " + cls(line.level);
-    div.textContent = `${line.time} | ${line.message}`;
-    logs.appendChild(div);
-  }
-}
-
-async function poll() {
-  try {
-    const res = await fetch("/api/state?t=" + Date.now(), { cache: "no-store" });
-    const s = await res.json();
-    renderState(s);
-  } catch {}
-}
-
-setInterval(poll, 1000);
-poll();
-
-document.getElementById("proxyFile").addEventListener("change", e => {
-  const file = e.target.files && e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-
-  reader.onload = ev => {
-    const clean = normalizeProxyText(ev.target.result || "");
-    document.getElementById("proxies").value = clean;
-    saveDashboardInputs();
-    alert("Proxy file loaded: " + clean.split("\n").length + " lines");
-  };
-
-  reader.readAsText(file);
-});
-
-document.getElementById("startBtn").addEventListener("click", async () => {
-  const proxies = document.getElementById("proxies").value.trim();
-  if (!proxies) return alert("Upload proxy file first");
-
-  saveDashboardInputs();
+async function startPlayer() {
+  saveInputs();
 
   const payload = {
-    targetUrl: document.getElementById("targetUrl").value.trim(),
-    parallelTests: Number(document.getElementById("parallelTests").value || 25),
-    maxBrowserTiles: Number(document.getElementById("maxBrowserTiles").value || 4),
-    proxies
+    videoUrl: document.getElementById("videoUrl").value.trim(),
+    proxy: document.getElementById("proxy").value.trim(),
+    mode: document.getElementById("mode").value
   };
 
   const res = await fetch("/api/start", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
 
   const data = await res.json();
-  if (!data.ok) alert(data.message || "Start failed");
-});
 
-document.getElementById("stopBtn").addEventListener("click", async () => {
+  if (!data.ok) {
+    alert(data.message || "Start failed");
+  }
+}
+
+async function stopPlayer() {
   await fetch("/api/stop", { method: "POST" });
-});
 
-function saveDashboardInputs() {
-  try {
-    localStorage.setItem("proxyScanner.targetUrl", document.getElementById("targetUrl").value || "");
-    localStorage.setItem("proxyScanner.parallelTests", document.getElementById("parallelTests").value || "");
-    localStorage.setItem("proxyScanner.maxBrowserTiles", document.getElementById("maxBrowserTiles").value || "");
-    localStorage.setItem("proxyScanner.proxies", document.getElementById("proxies").value || "");
-  } catch {}
+  const video = document.getElementById("player");
+  video.pause();
+  video.removeAttribute("src");
+
+  if (hls) {
+    hls.destroy();
+    hls = null;
+  }
+
+  currentHls = "";
 }
 
-function restoreDashboardInputs() {
-  try {
-    const targetUrl = localStorage.getItem("proxyScanner.targetUrl");
-    const parallelTests = localStorage.getItem("proxyScanner.parallelTests");
-    const maxBrowserTiles = localStorage.getItem("proxyScanner.maxBrowserTiles");
-    const proxies = localStorage.getItem("proxyScanner.proxies");
+function loadPlayer(hlsUrl) {
+  if (!hlsUrl || currentHls === hlsUrl) return;
 
-    if (targetUrl) document.getElementById("targetUrl").value = targetUrl;
-    if (parallelTests) document.getElementById("parallelTests").value = parallelTests;
-    if (maxBrowserTiles) document.getElementById("maxBrowserTiles").value = maxBrowserTiles;
-    if (proxies) document.getElementById("proxies").value = proxies;
-  } catch {}
+  const video = document.getElementById("player");
+
+  if (hls) {
+    hls.destroy();
+    hls = null;
+  }
+
+  if (Hls.isSupported()) {
+    hls = new Hls({
+      lowLatencyMode: true,
+      liveSyncDuration: 3,
+      maxBufferLength: 10
+    });
+
+    hls.loadSource(hlsUrl + "?t=" + Date.now());
+    hls.attachMedia(video);
+
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      video.muted = true;
+      video.play().catch(() => {});
+    });
+  } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = hlsUrl + "?t=" + Date.now();
+    video.play().catch(() => {});
+  }
+
+  currentHls = hlsUrl;
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  restoreDashboardInputs();
+function renderLogs(logs) {
+  const box = document.getElementById("logs");
+  box.innerHTML = "";
 
-  ["targetUrl", "parallelTests", "maxBrowserTiles", "proxies"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.addEventListener("input", saveDashboardInputs);
-      el.addEventListener("change", saveDashboardInputs);
-    }
+  (logs || []).forEach(line => {
+    const div = document.createElement("div");
+    div.className = "log";
+    div.textContent = `${line.time || ""} | ${line.message || ""}`;
+    box.appendChild(div);
   });
-});
+}
 
+async function poll() {
+  try {
+    const res = await fetch("/api/status?t=" + Date.now(), { cache: "no-store" });
+    const s = await res.json();
+
+    document.getElementById("active").innerText = s.active ? "Running" : "Idle";
+    document.getElementById("ready").innerText = s.ready ? "Yes" : "No";
+    document.getElementById("modeText").innerText = s.mode || "-";
+    document.getElementById("error").innerText = s.error || "-";
+
+    renderLogs(s.logs || []);
+
+    if (s.ready && s.hlsUrl) {
+      loadPlayer(s.hlsUrl);
+    }
+  } catch {}
+}
+
+window.addEventListener("load", () => {
+  restoreInputs();
+  setInterval(poll, 1000);
+  poll();
+});
 </script>
 </body>
 </html>
-
-
-
-
-
