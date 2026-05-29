@@ -47,12 +47,12 @@
     <input id="targetUrl" value="https://example.com" />
 
     <label>Parallel Proxy Tests</label>
-    <input id="parallelTests" type="number" value="25" />
-    <div class="hint">Proxy scanner speed. Render safe: 20–40.</div>
+    <input id="parallelTests" type="number" value="15" />
+    <div class="hint">Proxy scanner speed. Render safe: 10–15 for browser tiles.</div>
 
     <label>Max Browser Tiles</label>
-    <input id="maxBrowserTiles" type="number" value="4" />
-    <div class="hint">Browser tiles are heavy. Use 2–4 on Render.</div>
+    <input id="maxBrowserTiles" type="number" value="2" />
+    <div class="hint">Browser tiles are heavy. Use 1–2 on Render first.</div>
 
     <label>Upload Proxy File</label>
     <input id="proxyFile" type="file" accept=".txt,.csv,.list,.log" />
@@ -218,3 +218,4 @@ document.getElementById("stopBtn").addEventListener("click", async () => {
 </script>
 </body>
 </html>
+

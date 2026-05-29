@@ -17,6 +17,9 @@ let browser = null;
 
 const activeTiles = new Map();
 
+let tileQueue = [];
+let tileQueueRunning = false;
+
 const scanState = {
   total: 0,
   tested: 0,
@@ -34,15 +37,15 @@ const scanState = {
 const CONFIG = {
   TARGET_URL: "https://example.com",
 
-  PARALLEL_TESTS: 25,
+  PARALLEL_TESTS: 15,
   PROXY_TIMEOUT_MS: 12000,
 
-  MAX_BROWSER_TILES: 4,
+  MAX_BROWSER_TILES: 2,
   TILE_WIDTH: 360,
   TILE_HEIGHT: 640,
-  TILE_TIMEOUT_MS: 30000,
+  TILE_TIMEOUT_MS: 45000,
   AUTOPLAY_DETECT_SECONDS: 3,
-  CLOSE_TILE_AFTER_PLAY_MS: 12000,
+  CLOSE_TILE_AFTER_PLAY_MS: 8000,
 
   BLOCK_WORDS: [
     "captcha",
@@ -96,6 +99,8 @@ function resetScanState() {
   scanState.logs = [];
   scanState.workingList = [];
   scanState.tiles = [];
+  tileQueue = [];
+  tileQueueRunning = false;
 }
 
 function parseOneProxy(line) {
@@ -480,6 +485,36 @@ async function closeTile(tileId) {
 
   activeTiles.delete(tileId);
   removeTile(tileId);
+
+  processTileQueue();
+}
+
+
+function queueBrowserTile(item) {
+  tileQueue.push(item);
+  processTileQueue();
+}
+
+async function processTileQueue() {
+  if (tileQueueRunning) return;
+
+  tileQueueRunning = true;
+
+  try {
+    while (tileQueue.length > 0 && activeTiles.size < CONFIG.MAX_BROWSER_TILES) {
+      const item = tileQueue.shift();
+
+      if (!item) break;
+
+      log("Opening browser tile from queue: " + item.display, "info");
+
+      await queueBrowserTile(item);
+    }
+  } catch (err) {
+    log("Tile queue error: " + err.message, "error");
+  } finally {
+    tileQueueRunning = false;
+  }
 }
 
 async function startBrowserTile(item) {
@@ -624,7 +659,9 @@ async function startBrowserTile(item) {
 
     setTimeout(() => {
       removeTile(tileId);
-    }, 5000);
+
+  processTileQueue();
+}, 5000);
   }
 }
 
@@ -705,7 +742,7 @@ app.post("/api/start", async (req, res) => {
 
       log("WORKING: " + proxyObj.display + " | IP: " + result.ip, "success");
 
-      startBrowserTile(item);
+      queueBrowserTile(item);
     } else if (result.blocked) {
       scanState.blocked++;
       log("Blocked: " + proxyObj.display + " | " + result.reason, "warn");
@@ -755,5 +792,6 @@ app.get("/api/health", (req, res) => {
 app.listen(PORT, () => {
   console.log("Auto browser tile scanner running on port " + PORT);
 });
+
 
 
