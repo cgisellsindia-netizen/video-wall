@@ -167,7 +167,7 @@ function renderState(s) {
 
 async function poll() {
   try {
-    const res = await fetch("/api/state");
+    const res = await fetch("/api/state?t=" + Date.now(), { cache: "no-store" });
     const s = await res.json();
     renderState(s);
   } catch {}
@@ -257,6 +257,7 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 </body>
 </html>
+
 
 
 

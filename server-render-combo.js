@@ -533,6 +533,7 @@ async function closeTile(tileId) {
 
   activeTiles.delete(tileId);
   removeTile(tileId);
+  processTileQueue();
 
   processTileQueue();
 }
@@ -556,7 +557,8 @@ async function processTileQueue() {
 
       log("Opening browser tile from queue: " + item.display, "info");
 
-      await queueBrowserTile(item);
+      // Important: start tile directly here, do NOT queue again
+      startBrowserTile(item);
     }
   } catch (err) {
     log("Tile queue error: " + err.message, "error");
@@ -707,6 +709,7 @@ async function startBrowserTile(item) {
 
     setTimeout(() => {
       removeTile(tileId);
+  processTileQueue();
 
   processTileQueue();
 }, 5000);
@@ -734,6 +737,10 @@ app.get("/", (req, res) => {
 
 app.get("/api/state", (req, res) => {
   saveScanSession();
+
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
 
   const safeState = {
     ...scanState,
@@ -884,6 +891,7 @@ loadScanSession();
 app.listen(PORT, () => {
   console.log("Auto browser tile scanner running on port " + PORT);
 });
+
 
 
 
