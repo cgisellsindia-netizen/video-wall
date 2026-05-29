@@ -10,7 +10,8 @@
     "local": "node server.js",
     "render": "node server-render.js",
     "browser-render": "node server-render-browser.js",
-    "combo": "node server-render-combo.js"
+    "combo": "node server-render-combo.js",
+    "live-player": "node server-render-live-player.js"
   },
   "dependencies": {
     "express": "^4.22.2",

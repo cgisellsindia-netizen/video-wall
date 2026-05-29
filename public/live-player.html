@@ -1,0 +1,318 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Real Live Video Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+  <style>
+    * { box-sizing: border-box; font-family: Arial, sans-serif; }
+
+    body {
+      margin: 0;
+      background: #0f1115;
+      color: white;
+    }
+
+    header {
+      background: #171923;
+      border-bottom: 1px solid #2c2f3a;
+      padding: 14px 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    .sub {
+      color: #aeb4c2;
+      font-size: 12px;
+      margin-top: 5px;
+    }
+
+    .wrap {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 14px;
+      padding: 14px;
+    }
+
+    .card {
+      background: #171923;
+      border: 1px solid #2c2f3a;
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    label {
+      display: block;
+      color: #cdd3df;
+      font-size: 13px;
+      margin-top: 12px;
+      margin-bottom: 6px;
+    }
+
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      border-radius: 9px;
+      border: 1px solid #333746;
+      background: #0f1115;
+      color: white;
+      font-size: 13px;
+    }
+
+    button {
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+
+    .start {
+      background: #19c37d;
+      color: #06170f;
+    }
+
+    .stop {
+      background: #ff4d4d;
+      color: white;
+    }
+
+    video {
+      width: 100%;
+      height: 72vh;
+      background: black;
+      border-radius: 12px;
+    }
+
+    .status {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .stat {
+      background: #0f1115;
+      border: 1px solid #2c2f3a;
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 12px;
+    }
+
+    .stat b {
+      display: block;
+      color: #aeb4c2;
+      margin-bottom: 5px;
+    }
+
+    .logs {
+      height: 220px;
+      overflow: auto;
+      background: #0f1115;
+      border: 1px solid #2c2f3a;
+      border-radius: 10px;
+      padding: 8px;
+      font-size: 12px;
+      margin-top: 12px;
+    }
+
+    .log {
+      padding: 6px 0;
+      border-bottom: 1px solid #222633;
+      overflow-wrap: anywhere;
+    }
+
+    .hint {
+      color: #aeb4c2;
+      font-size: 12px;
+      line-height: 1.5;
+      margin-top: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .wrap { grid-template-columns: 1fr; }
+      video { height: 50vh; }
+    }
+  </style>
+</head>
+
+<body>
+<header>
+  <h1>Real Live Video Player</h1>
+  <div class="sub">No screenshot. FFmpeg creates HLS and browser plays real live video.</div>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <label>Direct Video URL</label>
+    <input id="videoUrl" placeholder="https://your-site.com/video.mp4 or stream.m3u8" />
+
+    <label>Proxy Optional</label>
+    <input id="proxy" placeholder="ip:port:user:pass or http://user:pass@ip:port" />
+
+    <label>Mode</label>
+    <select id="mode">
+      <option value="copy" selected>Fast Copy Mode</option>
+      <option value="transcode">Transcode Mode</option>
+    </select>
+
+    <button class="start" onclick="startPlayer()">Start Live Player</button>
+    <button class="stop" onclick="stopPlayer()">Stop Player</button>
+
+    <div class="hint">
+      Use direct video link only: .mp4, .m3u8, .webm, CDN video URL.  
+      If copy mode fails, try transcode mode.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="status">
+      <div class="stat"><b>Status</b><span id="active">Idle</span></div>
+      <div class="stat"><b>Ready</b><span id="ready">No</span></div>
+      <div class="stat"><b>Mode</b><span id="modeText">-</span></div>
+      <div class="stat"><b>Error</b><span id="error">-</span></div>
+    </div>
+
+    <video id="player" controls autoplay muted playsinline></video>
+
+    <div class="logs" id="logs"></div>
+  </div>
+</div>
+
+<script>
+let hls = null;
+let currentHls = "";
+
+function saveInputs() {
+  localStorage.setItem("livePlayer.videoUrl", document.getElementById("videoUrl").value || "");
+  localStorage.setItem("livePlayer.proxy", document.getElementById("proxy").value || "");
+  localStorage.setItem("livePlayer.mode", document.getElementById("mode").value || "copy");
+}
+
+function restoreInputs() {
+  document.getElementById("videoUrl").value = localStorage.getItem("livePlayer.videoUrl") || "";
+  document.getElementById("proxy").value = localStorage.getItem("livePlayer.proxy") || "";
+  document.getElementById("mode").value = localStorage.getItem("livePlayer.mode") || "copy";
+}
+
+async function startPlayer() {
+  saveInputs();
+
+  const payload = {
+    videoUrl: document.getElementById("videoUrl").value.trim(),
+    proxy: document.getElementById("proxy").value.trim(),
+    mode: document.getElementById("mode").value
+  };
+
+  const res = await fetch("/api/start", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+
+  if (!data.ok) {
+    alert(data.message || "Start failed");
+  }
+}
+
+async function stopPlayer() {
+  await fetch("/api/stop", {
+    method: "POST"
+  });
+
+  const video = document.getElementById("player");
+  video.pause();
+  video.removeAttribute("src");
+
+  if (hls) {
+    hls.destroy();
+    hls = null;
+  }
+
+  currentHls = "";
+}
+
+function loadPlayer(hlsUrl) {
+  if (!hlsUrl || currentHls === hlsUrl) return;
+
+  const video = document.getElementById("player");
+
+  if (hls) {
+    hls.destroy();
+    hls = null;
+  }
+
+  if (Hls.isSupported()) {
+    hls = new Hls({
+      lowLatencyMode: true,
+      liveSyncDuration: 3,
+      maxBufferLength: 10
+    });
+
+    hls.loadSource(hlsUrl + "?t=" + Date.now());
+    hls.attachMedia(video);
+
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      video.muted = true;
+      video.play().catch(() => {});
+    });
+
+    hls.on(Hls.Events.ERROR, (event, data) => {
+      console.log("HLS error", data);
+    });
+  } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = hlsUrl + "?t=" + Date.now();
+    video.play().catch(() => {});
+  }
+
+  currentHls = hlsUrl;
+}
+
+function renderLogs(logs) {
+  const box = document.getElementById("logs");
+  box.innerHTML = "";
+
+  (logs || []).forEach(line => {
+    const div = document.createElement("div");
+    div.className = "log";
+    div.textContent = `${line.time || ""} | ${line.message || ""}`;
+    box.appendChild(div);
+  });
+}
+
+async function poll() {
+  try {
+    const res = await fetch("/api/status?t=" + Date.now(), {
+      cache: "no-store"
+    });
+
+    const s = await res.json();
+
+    document.getElementById("active").innerText = s.active ? "Running" : "Idle";
+    document.getElementById("ready").innerText = s.ready ? "Yes" : "No";
+    document.getElementById("modeText").innerText = s.mode || "-";
+    document.getElementById("error").innerText = s.error || "-";
+
+    renderLogs(s.logs || []);
+
+    if (s.ready && s.hlsUrl) {
+      loadPlayer(s.hlsUrl);
+    }
+  } catch {}
+}
+
+window.addEventListener("load", () => {
+  restoreInputs();
+  setInterval(poll, 1000);
+  poll();
+});
+</script>
+</body>
+</html>
