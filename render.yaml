@@ -1,6 +1,6 @@
 ﻿services:
   - type: web
-    name: multi-ip-dashboard-small
+    name: video-wall
     env: node
     plan: starter
     buildCommand: npm install
