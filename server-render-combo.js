@@ -34,6 +34,8 @@ const scanState = {
   tiles: []
 };
 
+const SCAN_SESSION_FILE = path.join(__dirname, "scan-session.json");
+
 const CONFIG = {
   TARGET_URL: "https://example.com",
 
@@ -69,6 +71,37 @@ const CONFIG = {
   ]
 };
 
+
+function saveScanSession() {
+  try {
+    const data = {
+      scanState,
+      savedAt: new Date().toISOString()
+    };
+
+    fs.writeFileSync(SCAN_SESSION_FILE, JSON.stringify(data, null, 2));
+  } catch {}
+}
+
+function loadScanSession() {
+  try {
+    if (!fs.existsSync(SCAN_SESSION_FILE)) return;
+
+    const raw = fs.readFileSync(SCAN_SESSION_FILE, "utf8");
+    const data = JSON.parse(raw);
+
+    if (data && data.scanState) {
+      Object.assign(scanState, data.scanState);
+
+      // If server restarted, old scan is no longer truly active.
+      scanState.active = false;
+      scanState.currentProxy = "";
+    }
+  } catch {}
+}
+
+setInterval(saveScanSession, 1000);
+
 function shortText(text, max = 220) {
   text = String(text || "").replace(/\s+/g, " ");
   return text.length > max ? text.slice(0, max) + "..." : text;
@@ -85,6 +118,7 @@ function log(message, level = "info") {
   if (scanState.logs.length > 600) scanState.logs.pop();
 
   console.log("[" + level + "] " + line.message);
+  saveScanSession();
 }
 
 function resetScanState() {
@@ -670,6 +704,7 @@ app.get("/", (req, res) => {
 });
 
 app.get("/api/state", (req, res) => {
+  saveScanSession();
   res.json(scanState);
 });
 
@@ -707,56 +742,74 @@ app.post("/api/start", async (req, res) => {
   scanning = true;
   scanState.active = true;
   scanState.total = proxies.length;
+  scanState.tested = 0;
+  scanState.currentProxy = "";
+  saveScanSession();
 
   res.json({
     ok: true,
     count: proxies.length
   });
 
-  log("Scanner started.", "info");
-  log("Total proxies: " + proxies.length, "info");
-  log("Parallel tests: " + CONFIG.PARALLEL_TESTS, "info");
-  log("Max browser tiles: " + CONFIG.MAX_BROWSER_TILES, "info");
-  log("Target URL: " + CONFIG.TARGET_URL, "info");
+  // Run scan in background so browser refresh does not stop it.
+  setImmediate(async () => {
+    try {
+      log("Scanner started in background.", "info");
+      log("Total proxies: " + proxies.length, "info");
+      log("Parallel tests: " + CONFIG.PARALLEL_TESTS, "info");
+      log("Max browser tiles: " + CONFIG.MAX_BROWSER_TILES, "info");
+      log("Target URL: " + CONFIG.TARGET_URL, "info");
 
-  await runPool(proxies, CONFIG.PARALLEL_TESTS, async (proxyObj) => {
-    scanState.currentProxy = proxyObj.display;
+      await runPool(proxies, CONFIG.PARALLEL_TESTS, async (proxyObj) => {
+        scanState.currentProxy = proxyObj.display;
+        saveScanSession();
 
-    const result = await testProxy(proxyObj);
+        const result = await testProxy(proxyObj);
 
-    scanState.tested++;
+        scanState.tested++;
 
-    if (result.ok) {
-      const item = {
-        id: scanState.workingList.length,
-        display: proxyObj.display,
-        url: proxyObj.url,
-        ip: result.ip || "",
-        time: new Date().toLocaleTimeString()
-      };
+        if (result.ok) {
+          const item = {
+            id: scanState.workingList.length,
+            display: proxyObj.display,
+            url: proxyObj.url,
+            ip: result.ip || "",
+            time: new Date().toLocaleTimeString()
+          };
 
-      scanState.working++;
-      scanState.workingList.unshift(item);
+          scanState.working++;
+          scanState.workingList.unshift(item);
 
-      saveWorkingProxy(proxyObj, result.ip);
+          saveWorkingProxy(proxyObj, result.ip);
 
-      log("WORKING: " + proxyObj.display + " | IP: " + result.ip, "success");
+          log("WORKING: " + proxyObj.display + " | IP: " + result.ip, "success");
 
-      queueBrowserTile(item);
-    } else if (result.blocked) {
-      scanState.blocked++;
-      log("Blocked: " + proxyObj.display + " | " + result.reason, "warn");
-    } else {
-      scanState.failed++;
-      log("Failed: " + proxyObj.display + " | " + result.reason, "error");
+          queueBrowserTile(item);
+        } else if (result.blocked) {
+          scanState.blocked++;
+          log("Blocked: " + proxyObj.display + " | " + result.reason, "warn");
+        } else {
+          scanState.failed++;
+          log("Failed: " + proxyObj.display + " | " + result.reason, "error");
+        }
+
+        saveScanSession();
+      });
+
+      scanning = false;
+      scanState.active = false;
+      scanState.currentProxy = "";
+      saveScanSession();
+
+      log("Scanning finished.", "info");
+    } catch (err) {
+      scanning = false;
+      scanState.active = false;
+      scanState.currentProxy = "";
+      log("Background scan error: " + err.message, "error");
+      saveScanSession();
     }
   });
-
-  scanning = false;
-  scanState.active = false;
-  scanState.currentProxy = "";
-
-  log("Scanning finished.", "info");
 });
 
 app.post("/api/stop", async (req, res) => {
@@ -789,9 +842,12 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+loadScanSession();
+
 app.listen(PORT, () => {
   console.log("Auto browser tile scanner running on port " + PORT);
 });
+
 
 
 

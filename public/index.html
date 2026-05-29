@@ -185,6 +185,7 @@ document.getElementById("proxyFile").addEventListener("change", e => {
   reader.onload = ev => {
     const clean = normalizeProxyText(ev.target.result || "");
     document.getElementById("proxies").value = clean;
+    saveDashboardInputs();
     alert("Proxy file loaded: " + clean.split("\n").length + " lines");
   };
 
@@ -194,6 +195,8 @@ document.getElementById("proxyFile").addEventListener("change", e => {
 document.getElementById("startBtn").addEventListener("click", async () => {
   const proxies = document.getElementById("proxies").value.trim();
   if (!proxies) return alert("Upload proxy file first");
+
+  saveDashboardInputs();
 
   const payload = {
     targetUrl: document.getElementById("targetUrl").value.trim(),
@@ -215,7 +218,44 @@ document.getElementById("startBtn").addEventListener("click", async () => {
 document.getElementById("stopBtn").addEventListener("click", async () => {
   await fetch("/api/stop", { method: "POST" });
 });
+
+function saveDashboardInputs() {
+  try {
+    localStorage.setItem("proxyScanner.targetUrl", document.getElementById("targetUrl").value || "");
+    localStorage.setItem("proxyScanner.parallelTests", document.getElementById("parallelTests").value || "");
+    localStorage.setItem("proxyScanner.maxBrowserTiles", document.getElementById("maxBrowserTiles").value || "");
+    localStorage.setItem("proxyScanner.proxies", document.getElementById("proxies").value || "");
+  } catch {}
+}
+
+function restoreDashboardInputs() {
+  try {
+    const targetUrl = localStorage.getItem("proxyScanner.targetUrl");
+    const parallelTests = localStorage.getItem("proxyScanner.parallelTests");
+    const maxBrowserTiles = localStorage.getItem("proxyScanner.maxBrowserTiles");
+    const proxies = localStorage.getItem("proxyScanner.proxies");
+
+    if (targetUrl) document.getElementById("targetUrl").value = targetUrl;
+    if (parallelTests) document.getElementById("parallelTests").value = parallelTests;
+    if (maxBrowserTiles) document.getElementById("maxBrowserTiles").value = maxBrowserTiles;
+    if (proxies) document.getElementById("proxies").value = proxies;
+  } catch {}
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  restoreDashboardInputs();
+
+  ["targetUrl", "parallelTests", "maxBrowserTiles", "proxies"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener("input", saveDashboardInputs);
+      el.addEventListener("change", saveDashboardInputs);
+    }
+  });
+});
+
 </script>
 </body>
 </html>
+
 
