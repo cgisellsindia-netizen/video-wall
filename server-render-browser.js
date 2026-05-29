@@ -39,12 +39,12 @@ const state = {
 
 const CONFIG = {
   TARGET_URL: "https://example.com",
-  PARALLEL_BROWSERS: 4,
+  PARALLEL_BROWSERS: 1,
   PAGE_TIMEOUT_MS: 30000,
   PLAY_DETECT_SECONDS: 4,
-  MAX_SESSION_MS: 45000,
-  TILE_WIDTH: 320,
-  TILE_HEIGHT: 520,
+  MAX_SESSION_MS: 25000,
+  TILE_WIDTH: 260,
+  TILE_HEIGHT: 420,
 
   BLOCK_WORDS: [
     "captcha",
@@ -495,3 +495,4 @@ app.get("/api/health", (req, res) => {
     port: PORT
   });
 });
+

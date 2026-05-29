@@ -3,11 +3,16 @@
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
+RUN npm install --omit=dev
 
 COPY . .
 
 ENV NODE_ENV=production
-ENV PORT=4000
+ENV PORT=10000
+
+EXPOSE 10000
 
 CMD ["node", "server-render-browser.js"]

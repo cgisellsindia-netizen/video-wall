@@ -5,3 +5,8 @@
     plan: starter
     dockerfilePath: ./Dockerfile
     autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
