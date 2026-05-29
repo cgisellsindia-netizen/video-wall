@@ -1,11 +1,13 @@
-﻿FROM mcr.microsoft.com/playwright:v1.56.1-noble
+﻿FROM node:20-bookworm-slim
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY package*.json ./
-
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-
 RUN npm install --omit=dev
 
 COPY . .
@@ -15,4 +17,4 @@ ENV PORT=10000
 
 EXPOSE 10000
 
-CMD ["node", "server-render-combo.js"]
+CMD ["node", "server-render-live-player.js"]

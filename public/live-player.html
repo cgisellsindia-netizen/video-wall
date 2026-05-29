@@ -7,142 +7,32 @@
 
   <style>
     * { box-sizing: border-box; font-family: Arial, sans-serif; }
-
-    body {
-      margin: 0;
-      background: #0f1115;
-      color: white;
-    }
-
-    header {
-      background: #171923;
-      border-bottom: 1px solid #2c2f3a;
-      padding: 14px 18px;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: 22px;
-    }
-
-    .sub {
-      color: #aeb4c2;
-      font-size: 12px;
-      margin-top: 5px;
-    }
-
-    .wrap {
-      display: grid;
-      grid-template-columns: 360px 1fr;
-      gap: 14px;
-      padding: 14px;
-    }
-
-    .card {
-      background: #171923;
-      border: 1px solid #2c2f3a;
-      border-radius: 12px;
-      padding: 14px;
-    }
-
-    label {
-      display: block;
-      color: #cdd3df;
-      font-size: 13px;
-      margin-top: 12px;
-      margin-bottom: 6px;
-    }
-
-    input, select, button {
-      width: 100%;
-      padding: 10px;
-      border-radius: 9px;
-      border: 1px solid #333746;
-      background: #0f1115;
-      color: white;
-      font-size: 13px;
-    }
-
-    button {
-      border: none;
-      font-weight: bold;
-      cursor: pointer;
-      margin-top: 12px;
-    }
-
-    .start {
-      background: #19c37d;
-      color: #06170f;
-    }
-
-    .stop {
-      background: #ff4d4d;
-      color: white;
-    }
-
-    video {
-      width: 100%;
-      height: 72vh;
-      background: black;
-      border-radius: 12px;
-    }
-
-    .status {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-
-    .stat {
-      background: #0f1115;
-      border: 1px solid #2c2f3a;
-      border-radius: 10px;
-      padding: 10px;
-      font-size: 12px;
-    }
-
-    .stat b {
-      display: block;
-      color: #aeb4c2;
-      margin-bottom: 5px;
-    }
-
-    .logs {
-      height: 220px;
-      overflow: auto;
-      background: #0f1115;
-      border: 1px solid #2c2f3a;
-      border-radius: 10px;
-      padding: 8px;
-      font-size: 12px;
-      margin-top: 12px;
-    }
-
-    .log {
-      padding: 6px 0;
-      border-bottom: 1px solid #222633;
-      overflow-wrap: anywhere;
-    }
-
-    .hint {
-      color: #aeb4c2;
-      font-size: 12px;
-      line-height: 1.5;
-      margin-top: 12px;
-    }
-
-    @media (max-width: 900px) {
-      .wrap { grid-template-columns: 1fr; }
-      video { height: 50vh; }
-    }
+    body { margin: 0; background: #0f1115; color: white; }
+    header { background: #171923; border-bottom: 1px solid #2c2f3a; padding: 14px 18px; }
+    h1 { margin: 0; font-size: 22px; }
+    .sub { color: #aeb4c2; font-size: 12px; margin-top: 5px; }
+    .wrap { display: grid; grid-template-columns: 360px 1fr; gap: 14px; padding: 14px; }
+    .card { background: #171923; border: 1px solid #2c2f3a; border-radius: 12px; padding: 14px; }
+    label { display: block; color: #cdd3df; font-size: 13px; margin-top: 12px; margin-bottom: 6px; }
+    input, select, button { width: 100%; padding: 10px; border-radius: 9px; border: 1px solid #333746; background: #0f1115; color: white; font-size: 13px; }
+    button { border: none; font-weight: bold; cursor: pointer; margin-top: 12px; }
+    .start { background: #19c37d; color: #06170f; }
+    .stop { background: #ff4d4d; color: white; }
+    video { width: 100%; height: 72vh; background: black; border-radius: 12px; }
+    .status { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+    .stat { background: #0f1115; border: 1px solid #2c2f3a; border-radius: 10px; padding: 10px; font-size: 12px; }
+    .stat b { display: block; color: #aeb4c2; margin-bottom: 5px; }
+    .logs { height: 220px; overflow: auto; background: #0f1115; border: 1px solid #2c2f3a; border-radius: 10px; padding: 8px; font-size: 12px; margin-top: 12px; }
+    .log { padding: 6px 0; border-bottom: 1px solid #222633; overflow-wrap: anywhere; }
+    .hint { color: #aeb4c2; font-size: 12px; line-height: 1.5; margin-top: 12px; }
+    @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } video { height: 50vh; } }
   </style>
 </head>
 
 <body>
 <header>
   <h1>Real Live Video Player</h1>
-  <div class="sub">No screenshot. FFmpeg creates HLS and browser plays real live video.</div>
+  <div class="sub">No screenshot. No browser tile. FFmpeg creates HLS and browser plays real video.</div>
 </header>
 
 <div class="wrap">
@@ -159,11 +49,11 @@
       <option value="transcode">Transcode Mode</option>
     </select>
 
-    <button class="start" onclick="startPlayer()">Start Live Player</button>
+    <button class="start" onclick="startPlayer()">Start Real Player</button>
     <button class="stop" onclick="stopPlayer()">Stop Player</button>
 
     <div class="hint">
-      Use direct video link only: .mp4, .m3u8, .webm, CDN video URL.  
+      Use direct video links only: .mp4, .m3u8, .webm, CDN video URL.  
       If copy mode fails, try transcode mode.
     </div>
   </div>
@@ -209,9 +99,7 @@ async function startPlayer() {
 
   const res = await fetch("/api/start", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
 
@@ -223,9 +111,7 @@ async function startPlayer() {
 }
 
 async function stopPlayer() {
-  await fetch("/api/stop", {
-    method: "POST"
-  });
+  await fetch("/api/stop", { method: "POST" });
 
   const video = document.getElementById("player");
   video.pause();
@@ -263,10 +149,6 @@ function loadPlayer(hlsUrl) {
       video.muted = true;
       video.play().catch(() => {});
     });
-
-    hls.on(Hls.Events.ERROR, (event, data) => {
-      console.log("HLS error", data);
-    });
   } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
     video.src = hlsUrl + "?t=" + Date.now();
     video.play().catch(() => {});
@@ -289,10 +171,7 @@ function renderLogs(logs) {
 
 async function poll() {
   try {
-    const res = await fetch("/api/status?t=" + Date.now(), {
-      cache: "no-store"
-    });
-
+    const res = await fetch("/api/status?t=" + Date.now(), { cache: "no-store" });
     const s = await res.json();
 
     document.getElementById("active").innerText = s.active ? "Running" : "Idle";

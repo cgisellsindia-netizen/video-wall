@@ -98,15 +98,10 @@ app.get("/", (req, res) => {
 
 app.get("/api/status", (req, res) => {
   const m3u8 = path.join(__dirname, "public", "hls", "live", "index.m3u8");
-
   state.ready = fs.existsSync(m3u8);
 
   res.setHeader("Cache-Control", "no-store");
-
-  res.json({
-    ...state,
-    ready: state.ready
-  });
+  res.json({ ...state });
 });
 
 app.post("/api/start", (req, res) => {
@@ -139,8 +134,8 @@ app.post("/api/start", (req, res) => {
     hlsUrl: state.hlsUrl
   });
 
-  log("Starting real live player.", "info");
-  log("Input: " + videoUrl, "info");
+  log("Starting real HLS player.", "info");
+  log("Input URL: " + videoUrl, "info");
 
   const args = [
     "-y",
@@ -172,9 +167,7 @@ app.post("/api/start", (req, res) => {
       "-b:a", "128k"
     );
   } else {
-    args.push(
-      "-c", "copy"
-    );
+    args.push("-c", "copy");
   }
 
   args.push(
@@ -195,6 +188,7 @@ app.post("/api/start", (req, res) => {
 
   ffmpegProcess.on("close", code => {
     log("FFmpeg stopped with code: " + code, code === 0 ? "info" : "error");
+
     state.active = false;
 
     if (code !== 0) {
@@ -221,10 +215,10 @@ app.post("/api/stop", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
-    mode: "real-live-hls-player-no-screenshot"
+    mode: "real-live-hls-player-no-browser-tiles"
   });
 });
 
 app.listen(PORT, () => {
-  console.log("Real live player running on port " + PORT);
+  console.log("Real live HLS player running on port " + PORT);
 });
