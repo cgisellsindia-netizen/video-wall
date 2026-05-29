@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CGI Multi-IP Website Testing Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div>
+      <h1>CGI Multi-IP Website Testing Dashboard</h1>
+      <p>Open multiple isolated browser tiles for your own website testing.</p>
+    </div>
+    <span id="statusBadge">Idle</span>
+  </header>
+
+  <main>
+    <section class="control-card">
+      <label>Website URL</label>
+      <input id="urlInput" value="https://getcamigo.in" placeholder="https://yourwebsite.com" />
+
+      <label>How many browsers?</label>
+      <input id="countInput" type="number" min="1" max="20" value="4" />
+
+      <div class="buttons">
+        <button id="startBtn">Start Test</button>
+        <button id="stopBtn" class="secondary">Stop All</button>
+      </div>
+
+      <p class="note">Add proxies in <b>proxies.txt</b>. Keep /health ping only for uptime monitoring.</p>
+      <p id="message"></p>
+    </section>
+
+    <section>
+      <div id="grid" class="grid"></div>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

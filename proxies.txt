@@ -1,0 +1,5 @@
+# Add one proxy per line. Supported formats:
+# http://username:password@ip:port
+# http://ip:port
+# socks5://username:password@ip:port
+# Leave empty to run without proxies.
