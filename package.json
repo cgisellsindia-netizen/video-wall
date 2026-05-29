@@ -9,7 +9,8 @@
     "start": "node server-render-browser.js",
     "local": "node server.js",
     "render": "node server-render.js",
-    "browser-render": "node server-render-browser.js"
+    "browser-render": "node server-render-browser.js",
+    "combo": "node server-render-combo.js"
   },
   "dependencies": {
     "express": "^4.22.2",
