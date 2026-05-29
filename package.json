@@ -1,19 +1,19 @@
 {
-  "name": "multi-ip-browser-dashboard",
-  "version": "1.0.0",
-  "description": "Multi-browser website testing dashboard with optional proxy assignment per browser session.",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
-    "install-browsers": "npx playwright install chromium"
-  },
-  "dependencies": {
-    "express": "^4.19.2",
-    "playwright": "^1.45.3",
-    "socket.io": "^4.7.5"
-  },
-  "engines": {
-    "node": ">=18"
-  }
+    "name":  "multi-ip-browser-dashboard",
+    "version":  "1.0.0",
+    "description":  "Multi-browser website testing dashboard with optional proxy assignment per browser session.",
+    "main":  "server.js",
+    "scripts":  {
+                    "start":  "node server.js",
+                    "dev":  "node server.js",
+                    "install-browsers":  "npx playwright install chromium"
+                },
+    "dependencies":  {
+                         "express":  "^4.19.2",
+                         "playwright":  "^1.45.3",
+                         "socket.io":  "^4.7.5"
+                     },
+    "engines":  {
+                    "node":  "20.x"
+                }
 }
