@@ -2,81 +2,75 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>Render Proxy Tester</title>
+  <title>Render Browser Video Tester</title>
   <style>
     * { box-sizing: border-box; font-family: Arial, sans-serif; }
-    body { margin: 0; background: #0f1115; color: white; overflow-x: hidden; }
-    header { padding: 12px 16px; background: #171923; border-bottom: 1px solid #2c2f3a; }
-    h1 { margin: 0; font-size: 20px; }
-    .sub { color: #aeb4c2; font-size: 12px; margin-top: 4px; }
-    .wrap { display: grid; grid-template-columns: 320px 1fr; gap: 12px; padding: 12px; }
-    .card { background: #171923; border: 1px solid #2c2f3a; border-radius: 12px; padding: 12px; min-width: 0; }
+    body { margin:0; background:#0f1115; color:white; }
+    header { padding:12px 16px; background:#171923; border-bottom:1px solid #2c2f3a; }
+    h1 { margin:0; font-size:20px; }
+    .sub { color:#aeb4c2; font-size:12px; margin-top:4px; }
+    .wrap { display:grid; grid-template-columns:320px 1fr; gap:12px; padding:12px; }
+    .card { background:#171923; border:1px solid #2c2f3a; border-radius:12px; padding:12px; }
     label { display:block; margin-top:10px; margin-bottom:5px; color:#cdd3df; font-size:12px; }
     input, textarea { width:100%; background:#0f1115; color:white; border:1px solid #333746; border-radius:9px; padding:9px; font-size:12px; }
-    textarea { min-height:260px; resize:vertical; white-space:pre-wrap; overflow-wrap:anywhere; }
+    textarea { min-height:230px; resize:vertical; }
     button { width:100%; border:none; border-radius:10px; padding:12px; margin-top:10px; font-weight:bold; cursor:pointer; }
     .start { background:#19c37d; color:#06170f; }
     .stop { background:#ff4d4d; color:white; }
-    .download { background:#4f8cff; color:white; display:block; text-align:center; text-decoration:none; border-radius:10px; padding:12px; margin-top:10px; font-weight:bold; }
-    .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
-    .stat { background:#171923; border:1px solid #2c2f3a; border-radius:12px; padding:12px; }
+    .stats { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:12px; }
+    .stat { background:#171923; border:1px solid #2c2f3a; border-radius:12px; padding:10px; }
     .label2 { color:#aeb4c2; font-size:12px; }
-    .num { font-size:26px; font-weight:bold; margin-top:6px; }
+    .num { font-size:22px; font-weight:bold; margin-top:5px; }
     .good { color:#19c37d; }
     .bad { color:#ff4d4d; }
     .warn { color:#f0a500; }
     .info { color:#73a7ff; }
-    .logs, .working { height:300px; overflow-y:auto; overflow-x:hidden; background:#0f1115; border:1px solid #2c2f3a; border-radius:12px; padding:10px; font-size:12px; }
-    .log, .work { padding:7px 4px; border-bottom:1px solid #222633; overflow-wrap:anywhere; word-break:break-word; }
-    .time { color:#777f91; margin-right:8px; }
-    .hint { color:#aeb4c2; font-size:11px; margin-top:5px; line-height:1.4; }
+    .tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px; }
+    .tile { background:#0f1115; border:1px solid #2c2f3a; border-radius:12px; padding:8px; min-height:220px; }
+    .tile img { width:100%; border-radius:8px; background:#111; display:block; }
+    .proxy { color:#aaa; font-size:11px; overflow-wrap:anywhere; margin-top:5px; }
+    .logs { height:240px; overflow:auto; background:#0f1115; border:1px solid #2c2f3a; border-radius:12px; padding:8px; font-size:12px; }
+    .log { padding:6px 4px; border-bottom:1px solid #222633; overflow-wrap:anywhere; }
+    .hint { color:#aeb4c2; font-size:11px; line-height:1.4; margin-top:5px; }
   </style>
 </head>
 <body>
   <header>
-    <h1>Render Proxy Tester</h1>
-    <div class="sub">Small cloud version · no Chrome windows · working proxies show instantly</div>
+    <h1>Render Browser Video Tester</h1>
+    <div class="sub">Headless Chromium on Render · screenshot previews · for your own website video testing</div>
   </header>
 
   <div class="wrap">
     <div class="card">
-      <label>Target URL</label>
+      <label>Target Video Page URL</label>
       <input id="targetUrl" value="https://example.com" />
 
-      <label>Parallel Tests</label>
-      <input id="parallelTests" type="number" value="30" />
-      <div class="hint">Render safe: 20–40. More may timeout.</div>
+      <label>Parallel Browsers</label>
+      <input id="parallelBrowsers" type="number" value="3" />
+      <div class="hint">Use 2–4 on Render. More needs bigger paid plan.</div>
 
       <label>Upload Proxy File</label>
       <input id="proxyFile" type="file" accept=".txt,.csv,.list,.log" />
-      <div class="hint">Supports IP:PORT, IP:PORT:USER:PASS, http://, socks5://</div>
 
       <label>Proxy List</label>
-      <textarea id="proxies" placeholder="38.154.203.95:5863:username:password&#10;socks5://user:pass@ip:port&#10;http://ip:port"></textarea>
+      <textarea id="proxies" placeholder="ip:port&#10;ip:port:user:pass&#10;socks5://user:pass@ip:port"></textarea>
 
-      <button class="start" id="startBtn">Start Testing</button>
+      <button class="start" id="startBtn">Start Browser Test</button>
       <button class="stop" id="stopBtn">Stop</button>
-      <a class="download" href="/api/working" target="_blank">Open Working Proxies</a>
     </div>
 
     <div>
       <div class="stats">
         <div class="stat"><div class="label2">Total</div><div id="total" class="num">0</div></div>
         <div class="stat"><div class="label2">Tested</div><div id="tested" class="num info">0</div></div>
-        <div class="stat"><div class="label2">Working</div><div id="working" class="num good">0</div></div>
+        <div class="stat"><div class="label2">Playing</div><div id="playing" class="num good">0</div></div>
         <div class="stat"><div class="label2">Failed</div><div id="failed" class="num bad">0</div></div>
-      </div>
-
-      <div class="stats">
         <div class="stat"><div class="label2">Blocked</div><div id="blocked" class="num warn">0</div></div>
-        <div class="stat"><div class="label2">Progress</div><div id="progress" class="num">0%</div></div>
-        <div class="stat"><div class="label2">Status</div><div id="status" class="num info">Idle</div></div>
-        <div class="stat"><div class="label2">Current</div><div id="current" class="num info" style="font-size:13px;">None</div></div>
       </div>
 
       <div class="card" style="margin-bottom:12px;">
-        <h3 style="margin-top:0;">Working Proxies</h3>
-        <div id="workingList" class="working"></div>
+        <h3 style="margin-top:0;">Browser Preview Tiles</h3>
+        <div id="tiles" class="tiles"></div>
       </div>
 
       <div class="card">
@@ -87,55 +81,49 @@
   </div>
 
   <script>
-    let ws;
+    function escapeHtml(t) {
+      return String(t || "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+    }
 
     function addLog(log) {
       const box = document.getElementById("logs");
       const div = document.createElement("div");
       div.className = "log";
-
       let cls = "info";
       if (log.level === "success") cls = "good";
       if (log.level === "error") cls = "bad";
       if (log.level === "warn") cls = "warn";
-
-      div.innerHTML = `<span class="time">${log.time || ""}</span><span class="${cls}">${escapeHtml(log.message || "")}</span>`;
+      div.innerHTML = `<span class="${cls}">${escapeHtml(log.time)} | ${escapeHtml(log.message)}</span>`;
       box.prepend(div);
     }
 
-    function addWorking(item) {
-      const box = document.getElementById("workingList");
-      const div = document.createElement("div");
-      div.className = "work good";
-      div.textContent = `${item.time || ""} | ${item.proxy || ""} | IP: ${item.ip || ""}`;
-      box.prepend(div);
-    }
+    function renderTiles(tiles) {
+      const box = document.getElementById("tiles");
+      box.innerHTML = "";
 
-    function escapeHtml(text) {
-      return String(text).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
-    }
-
-    function updateState(state) {
-      document.getElementById("total").innerText = state.total || 0;
-      document.getElementById("tested").innerText = state.tested || 0;
-      document.getElementById("working").innerText = state.working || 0;
-      document.getElementById("failed").innerText = state.failed || 0;
-      document.getElementById("blocked").innerText = state.blocked || 0;
-      document.getElementById("status").innerText = state.active ? "Running" : "Idle";
-      document.getElementById("current").innerText = state.currentProxy || "None";
-
-      const progress = state.total ? Math.round((state.tested / state.total) * 100) : 0;
-      document.getElementById("progress").innerText = progress + "%";
-
-      if (Array.isArray(state.workingList)) {
-        const box = document.getElementById("workingList");
-        box.innerHTML = "";
-        state.workingList.slice().reverse().forEach(addWorking);
+      for (const t of tiles || []) {
+        const div = document.createElement("div");
+        div.className = "tile";
+        div.innerHTML = `
+          <b>Slot ${t.slot}</b> — <span class="${t.status === "PLAYING" ? "good" : t.status.includes("Failed") ? "bad" : "info"}">${escapeHtml(t.status)}</span>
+          ${t.image ? `<img src="${t.image}" />` : `<div style="height:160px;background:#111;border-radius:8px;margin-top:8px;"></div>`}
+          <div class="proxy">${escapeHtml(t.proxy || "")}</div>
+        `;
+        box.appendChild(div);
       }
     }
 
-    function connectSocket() {
-      ws = new WebSocket(`wss://${location.host}`);
+    function updateState(s) {
+      document.getElementById("total").innerText = s.total || 0;
+      document.getElementById("tested").innerText = s.tested || 0;
+      document.getElementById("playing").innerText = s.playing || 0;
+      document.getElementById("failed").innerText = s.failed || 0;
+      document.getElementById("blocked").innerText = s.blocked || 0;
+      renderTiles(s.tiles || []);
+    }
+
+    function connect() {
+      const ws = new WebSocket(`wss://${location.host}`);
 
       ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
@@ -143,12 +131,8 @@
         if (msg.type === "log") addLog(msg.data || {});
       };
 
-      ws.onopen = () => addLog({ time:new Date().toLocaleTimeString(), level:"success", message:"Connected to Render server" });
-
-      ws.onclose = () => {
-        addLog({ time:new Date().toLocaleTimeString(), level:"warn", message:"Disconnected. Reconnecting..." });
-        setTimeout(connectSocket, 2000);
-      };
+      ws.onopen = () => addLog({ time:new Date().toLocaleTimeString(), level:"success", message:"Connected" });
+      ws.onclose = () => setTimeout(connect, 2000);
     }
 
     function normalizeProxyText(text) {
@@ -162,69 +146,43 @@
         .join("\n");
     }
 
-    document.getElementById("proxyFile").addEventListener("change", function(event) {
+    document.getElementById("proxyFile").addEventListener("change", (event) => {
       const file = event.target.files && event.target.files[0];
       if (!file) return;
-
       const reader = new FileReader();
-
-      reader.onload = function(e) {
+      reader.onload = e => {
         const clean = normalizeProxyText(e.target.result || "");
         document.getElementById("proxies").value = clean;
-        const count = clean ? clean.split("\n").length : 0;
-        addLog({ time:new Date().toLocaleTimeString(), level:"success", message:`Proxy file loaded: ${file.name} | Lines: ${count}` });
+        addLog({ time:new Date().toLocaleTimeString(), level:"success", message:`Loaded ${file.name} lines ${clean.split("\n").length}` });
       };
-
-      reader.onerror = function() {
-        alert("Could not read proxy file");
-      };
-
       reader.readAsText(file);
     });
 
-    document.getElementById("startBtn").addEventListener("click", async function() {
+    document.getElementById("startBtn").addEventListener("click", async () => {
       const proxies = document.getElementById("proxies").value.trim();
-      if (!proxies) {
-        alert("Proxy list empty. Upload file first.");
-        return;
-      }
+      if (!proxies) return alert("Upload/paste proxy list first");
 
       const payload = {
         targetUrl: document.getElementById("targetUrl").value.trim(),
-        parallelTests: Number(document.getElementById("parallelTests").value || 30),
+        parallelBrowsers: Number(document.getElementById("parallelBrowsers").value || 3),
         proxies
       };
 
-      addLog({ time:new Date().toLocaleTimeString(), level:"info", message:"Start clicked. Sending to /api/start..." });
+      const res = await fetch("/api/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
 
-      try {
-        const res = await fetch("/api/start", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-
-        if (!data.ok) {
-          alert(data.message || "Start failed");
-          addLog({ time:new Date().toLocaleTimeString(), level:"error", message:data.message || "Start failed" });
-          return;
-        }
-
-        addLog({ time:new Date().toLocaleTimeString(), level:"success", message:`Start accepted. Proxies: ${data.count}` });
-      } catch (err) {
-        alert("Start failed: " + err.message);
-        addLog({ time:new Date().toLocaleTimeString(), level:"error", message:"Start failed: " + err.message });
-      }
+      const data = await res.json();
+      if (!data.ok) alert(data.message || "Start failed");
     });
 
-    document.getElementById("stopBtn").addEventListener("click", async function() {
+    document.getElementById("stopBtn").addEventListener("click", async () => {
       await fetch("/api/stop", { method:"POST" });
-      addLog({ time:new Date().toLocaleTimeString(), level:"warn", message:"Stop sent" });
     });
 
-    connectSocket();
+    connect();
   </script>
 </body>
 </html>

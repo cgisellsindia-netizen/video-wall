@@ -5,10 +5,16 @@ const fs = require("fs");
 const { chromium } = require("playwright");
 
 const app = express();
+
+// FORCE_BROWSER_TESTER_HOME
 const PORT = process.env.PORT || 4000;
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.static(path.join(__dirname, "public")));
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "render-browser.html"));
+});
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "render-browser.html"));
@@ -495,4 +501,5 @@ app.get("/api/health", (req, res) => {
     port: PORT
   });
 });
+
 
