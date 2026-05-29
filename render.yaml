@@ -1,8 +1,7 @@
 ﻿services:
   - type: web
-    name: video-wall
-    env: node
+    name: video-browser-tester
+    env: docker
     plan: starter
-    buildCommand: npm install
-    startCommand: npm start
+    dockerfilePath: ./Dockerfile
     autoDeploy: true
