@@ -1,169 +1,211 @@
-const express = require('express');
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const { chromium } = require('playwright');
-const { Server } = require('socket.io');
-
-const PORT = process.env.PORT || 4000;
-const MAX_BROWSERS = Number(process.env.MAX_BROWSERS || 20);
-const SCREENSHOT_INTERVAL_MS = Number(process.env.SCREENSHOT_INTERVAL_MS || 1500);
-const HEADLESS = process.env.HEADLESS !== 'false';
-const DEFAULT_URL = process.env.DEFAULT_URL || 'https://getcamigo.in';
+const express = require("express");
+const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
+const { chromium } = require("playwright");
 
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+const PORT = process.env.PORT || 4000;
 
-app.use(express.json({ limit: '1mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json({ limit: "2mb" }));
+app.use(express.static(path.join(__dirname, "public")));
 
-const sessions = new Map();
+const upload = multer({ dest: "uploads/" });
 
-function parseProxy(line) {
-  const raw = line.trim();
-  if (!raw || raw.startsWith('#')) return null;
+let sessions = [];
+let uploadedProxies = [];
+
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
+});
+
+app.post("/upload-proxies", upload.single("proxyfile"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No proxy file uploaded" });
+
+  const content = fs.readFileSync(req.file.path, "utf8");
+  uploadedProxies = content
+    .split(/\r?\n/)
+    .map(x => x.trim())
+    .filter(Boolean);
+
+  fs.unlinkSync(req.file.path);
+  res.json({ ok: true, count: uploadedProxies.length });
+});
+
+function parseProxy(proxyLine) {
+  if (!proxyLine) return null;
+
+  // supported:
+  // http://user:pass@ip:port
+  // http://ip:port
+  // ip:port
+  let line = proxyLine.trim();
+
+  if (!line.startsWith("http://") && !line.startsWith("https://") && !line.startsWith("socks5://")) {
+    line = "http://" + line;
+  }
+
   try {
-    const u = new URL(raw);
-    const proxy = { server: `${u.protocol}//${u.hostname}:${u.port}` };
+    const u = new URL(line);
+    const proxy = {
+      server: `${u.protocol}//${u.hostname}:${u.port}`
+    };
+
     if (u.username) proxy.username = decodeURIComponent(u.username);
     if (u.password) proxy.password = decodeURIComponent(u.password);
+
     return proxy;
   } catch {
-    const parts = raw.split(':');
-    if (parts.length === 2) return { server: `http://${raw}` };
     return null;
   }
 }
 
-function loadProxies() {
-  const proxyPath = path.join(__dirname, 'proxies.txt');
-  if (!fs.existsSync(proxyPath)) return [];
-  return fs.readFileSync(proxyPath, 'utf8')
-    .split(/\r?\n/)
-    .map(parseProxy)
-    .filter(Boolean);
+function isVideoUrl(url) {
+  const u = url.toLowerCase();
+  return (
+    u.includes("pexels.com/download/video") ||
+    u.includes(".mp4") ||
+    u.includes(".webm") ||
+    u.includes(".mov") ||
+    u.includes(".m3u8")
+  );
 }
 
-function safeUrl(input) {
-  try {
-    const u = new URL(input);
-    if (!['http:', 'https:'].includes(u.protocol)) return null;
-    return u.toString();
-  } catch {
-    return null;
-  }
+function videoPlayerHtml(videoUrl) {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    html,body{
+      margin:0;
+      width:100%;
+      height:100%;
+      background:#000;
+      overflow:hidden;
+      font-family:Arial,sans-serif;
+    }
+    video{
+      width:100vw;
+      height:100vh;
+      object-fit:contain;
+      background:#000;
+    }
+    .label{
+      position:fixed;
+      left:10px;
+      top:10px;
+      color:#fff;
+      background:rgba(0,0,0,.6);
+      padding:6px 10px;
+      border-radius:8px;
+      font-size:13px;
+      z-index:10;
+    }
+  </style>
+</head>
+<body>
+  <div class="label">Video test mode</div>
+  <video src="${videoUrl}" autoplay muted loop controls playsinline></video>
+</body>
+</html>`;
 }
 
-function sessionSummary() {
-  return Array.from(sessions.values()).map(s => ({
-    id: s.id,
-    url: s.url,
-    proxyLabel: s.proxyLabel,
-    status: s.status,
-    createdAt: s.createdAt
-  }));
-}
+app.post("/start", async (req, res) => {
+  const { url, count } = req.body;
 
-async function startOneSession({ id, url, proxy }) {
-  const proxyLabel = proxy ? proxy.server.replace(/\/\/.*@/, '//***@') : 'No proxy';
-  const record = {
-    id,
-    url,
-    proxyLabel,
-    status: 'starting',
-    createdAt: new Date().toISOString(),
-    browser: null,
-    page: null,
-    timer: null
-  };
-  sessions.set(id, record);
-  io.emit('sessions', sessionSummary());
+  if (!url) return res.status(400).json({ error: "URL required" });
 
-  try {
-    const launchOptions = { headless: HEADLESS };
+  const browserCount = Math.min(Math.max(parseInt(count || 1), 1), 12);
+
+  await stopAllSessions();
+
+  for (let i = 0; i < browserCount; i++) {
+    const proxyLine = uploadedProxies[i % uploadedProxies.length];
+    const proxy = parseProxy(proxyLine);
+
+    const launchOptions = {
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--autoplay-policy=no-user-gesture-required",
+        "--mute-audio"
+      ]
+    };
+
     if (proxy) launchOptions.proxy = proxy;
 
     const browser = await chromium.launch(launchOptions);
-    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-    record.browser = browser;
-    record.page = page;
-    record.status = 'loading';
-    io.emit('sessions', sessionSummary());
+    const page = await browser.newPage({
+      viewport: { width: 1280, height: 720 }
+    });
 
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-    record.status = 'live';
-    io.emit('sessions', sessionSummary());
-
-    record.timer = setInterval(async () => {
-      try {
-        if (!sessions.has(id)) return;
-        const buffer = await page.screenshot({ type: 'jpeg', quality: 55 });
-        io.emit('tile-frame', { id, image: `data:image/jpeg;base64,${buffer.toString('base64')}` });
-      } catch (err) {
-        record.status = 'screenshot-error';
-        io.emit('sessions', sessionSummary());
+    try {
+      if (isVideoUrl(url)) {
+        await page.setContent(videoPlayerHtml(url), { waitUntil: "domcontentloaded" });
+      } else {
+        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
       }
-    }, SCREENSHOT_INTERVAL_MS);
-  } catch (err) {
-    record.status = `error: ${err.message.slice(0, 120)}`;
-    io.emit('sessions', sessionSummary());
+    } catch (err) {
+      await page.setContent(`<h1 style="font-family:Arial;color:red;">Failed to open</h1><pre>${err.message}</pre>`);
+    }
+
+    sessions.push({
+      id: i + 1,
+      browser,
+      page,
+      proxy: proxyLine || "No proxy"
+    });
   }
-}
+
+  res.json({ ok: true, count: sessions.length });
+});
+
+app.get("/screens", async (req, res) => {
+  const result = [];
+
+  for (const session of sessions) {
+    try {
+      const shot = await session.page.screenshot({
+        type: "jpeg",
+        quality: 60,
+        fullPage: false
+      });
+
+      result.push({
+        id: session.id,
+        proxy: session.proxy,
+        image: "data:image/jpeg;base64," + shot.toString("base64")
+      });
+    } catch (e) {
+      result.push({
+        id: session.id,
+        proxy: session.proxy,
+        error: e.message
+      });
+    }
+  }
+
+  res.json(result);
+});
 
 async function stopAllSessions() {
-  const all = Array.from(sessions.values());
-  sessions.clear();
-  for (const s of all) {
-    if (s.timer) clearInterval(s.timer);
+  for (const session of sessions) {
     try {
-      if (s.browser) await s.browser.close();
+      await session.browser.close();
     } catch {}
   }
-  io.emit('sessions', []);
-  io.emit('clear-tiles');
+  sessions = [];
 }
 
-app.get('/health', (req, res) => res.status(200).send('OK'));
-
-app.get('/api/status', (req, res) => {
-  res.json({ running: sessions.size, maxBrowsers: MAX_BROWSERS, sessions: sessionSummary() });
-});
-
-app.post('/api/start', async (req, res) => {
-  const url = safeUrl(req.body.url || DEFAULT_URL);
-  const count = Number(req.body.browserCount || 1);
-
-  if (!url) return res.status(400).json({ error: 'Invalid URL. Use http:// or https:// URL.' });
-  if (!Number.isInteger(count) || count < 1) return res.status(400).json({ error: 'Browser count must be at least 1.' });
-  if (count > MAX_BROWSERS) return res.status(400).json({ error: `Maximum ${MAX_BROWSERS} browsers allowed.` });
-
+app.post("/stop", async (req, res) => {
   await stopAllSessions();
-
-  const proxies = loadProxies();
-  for (let i = 0; i < count; i++) {
-    const proxy = proxies.length ? proxies[i % proxies.length] : null;
-    startOneSession({ id: `B${i + 1}`, url, proxy });
-  }
-
-  res.json({ ok: true, message: `Starting ${count} browser session(s).`, proxiesLoaded: proxies.length });
+  res.json({ ok: true });
 });
 
-app.post('/api/stop', async (req, res) => {
-  await stopAllSessions();
-  res.json({ ok: true, message: 'All browser sessions stopped.' });
-});
-
-io.on('connection', socket => {
-  socket.emit('sessions', sessionSummary());
-});
-
-process.on('SIGINT', async () => {
-  await stopAllSessions();
-  process.exit(0);
-});
-
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`Dashboard running on http://localhost:${PORT}`);
 });
-

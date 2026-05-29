@@ -1,71 +1,93 @@
-const socket = io();
-const grid = document.getElementById('grid');
-const message = document.getElementById('message');
-const statusBadge = document.getElementById('statusBadge');
-const tiles = new Map();
+let timer = null;
 
-function makeTile(session) {
-  const tile = document.createElement('div');
-  tile.className = 'tile';
-  tile.innerHTML = `
-    <div class="tile-head">
-      <strong>${session.id}</strong>
-      <span>${session.status}</span>
-    </div>
-    <div class="meta">${session.proxyLabel}</div>
-    <img alt="Browser preview ${session.id}" />
-  `;
-  grid.appendChild(tile);
-  tiles.set(session.id, tile);
-  return tile;
+function setStatus(msg) {
+  document.getElementById("status").innerText = msg;
 }
 
-socket.on('sessions', sessions => {
-  statusBadge.textContent = sessions.length ? `${sessions.length} running` : 'Idle';
-
-  const activeIds = new Set(sessions.map(s => s.id));
-  for (const [id, tile] of tiles) {
-    if (!activeIds.has(id)) {
-      tile.remove();
-      tiles.delete(id);
-    }
+async function uploadProxies() {
+  const file = document.getElementById("proxyfile").files[0];
+  if (!file) {
+    setStatus("Please select proxy file first.");
+    return;
   }
 
-  sessions.forEach(session => {
-    const tile = tiles.get(session.id) || makeTile(session);
-    tile.querySelector('.tile-head span').textContent = session.status;
-    tile.querySelector('.meta').textContent = session.proxyLabel;
+  const form = new FormData();
+  form.append("proxyfile", file);
+
+  const res = await fetch("/upload-proxies", {
+    method: "POST",
+    body: form
   });
-});
 
-socket.on('tile-frame', ({ id, image }) => {
-  const tile = tiles.get(id);
-  if (tile) tile.querySelector('img').src = image;
-});
+  const data = await res.json();
 
-socket.on('clear-tiles', () => {
-  grid.innerHTML = '';
-  tiles.clear();
-});
+  if (data.ok) {
+    setStatus(`Uploaded ${data.count} proxies.`);
+  } else {
+    setStatus(data.error || "Proxy upload failed.");
+  }
+}
 
-document.getElementById('startBtn').addEventListener('click', async () => {
-  message.textContent = 'Starting...';
-  const body = {
-    url: document.getElementById('urlInput').value,
-    browserCount: Number(document.getElementById('countInput').value)
-  };
+async function startTest() {
+  const url = document.getElementById("url").value.trim();
+  const count = document.getElementById("count").value;
 
-  const res = await fetch('/api/start', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+  setStatus("Starting browsers...");
+
+  const res = await fetch("/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, count })
   });
-  const data = await res.json();
-  message.textContent = data.message || data.error || 'Done';
-});
 
-document.getElementById('stopBtn').addEventListener('click', async () => {
-  const res = await fetch('/api/stop', { method: 'POST' });
   const data = await res.json();
-  message.textContent = data.message || 'Stopped';
-});
+
+  if (!data.ok) {
+    setStatus(data.error || "Failed to start.");
+    return;
+  }
+
+  setStatus(`Started ${data.count} browser sessions.`);
+
+  if (timer) clearInterval(timer);
+  timer = setInterval(loadScreens, 2500);
+  loadScreens();
+}
+
+async function loadScreens() {
+  const res = await fetch("/screens");
+  const data = await res.json();
+
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+
+  data.forEach(item => {
+    const card = document.createElement("div");
+    card.className = "card";
+
+    const title = document.createElement("div");
+    title.className = "title";
+    title.innerText = `Browser ${item.id} | ${item.proxy}`;
+    card.appendChild(title);
+
+    if (item.image) {
+      const img = document.createElement("img");
+      img.src = item.image;
+      card.appendChild(img);
+    } else {
+      const err = document.createElement("pre");
+      err.innerText = item.error || "No image";
+      card.appendChild(err);
+    }
+
+    grid.appendChild(card);
+  });
+}
+
+async function stopTest() {
+  await fetch("/stop", { method: "POST" });
+  if (timer) clearInterval(timer);
+  timer = null;
+  document.getElementById("grid").innerHTML = "";
+  setStatus("Stopped all browsers.");
+}

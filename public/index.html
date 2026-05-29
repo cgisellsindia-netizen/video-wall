@@ -1,43 +1,37 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CGI Multi-IP Website Testing Dashboard</title>
+  <title>CGI Multi Browser Testing Dashboard</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header>
-    <div>
-      <h1>CGI Multi-IP Website Testing Dashboard</h1>
-      <p>Open multiple isolated browser tiles for your own website testing.</p>
-    </div>
-    <span id="statusBadge">Idle</span>
+    <h1>CGI Multi Browser Testing Dashboard</h1>
+    <p>For own website/video testing only</p>
   </header>
 
-  <main>
-    <section class="control-card">
-      <label>Website URL</label>
-      <input id="urlInput" value="https://getcamigo.in" placeholder="https://yourwebsite.com" />
+  <section class="panel">
+    <label>Website / Video URL</label>
+    <input id="url" value="https://www.pexels.com/download/video/35510817/" />
 
-      <label>How many browsers?</label>
-      <input id="countInput" type="number" min="1" max="20" value="4" />
+    <label>How many browsers?</label>
+    <input id="count" type="number" min="1" max="12" value="2" />
 
-      <div class="buttons">
-        <button id="startBtn">Start Test</button>
-        <button id="stopBtn" class="secondary">Stop All</button>
-      </div>
+    <label>Upload proxy file optional</label>
+    <input id="proxyfile" type="file" accept=".txt,.csv" />
 
-      <p class="note">Add proxies in <b>proxies.txt</b>. Keep /health ping only for uptime monitoring.</p>
-      <p id="message"></p>
-    </section>
+    <div class="buttons">
+      <button onclick="uploadProxies()">Upload Proxies</button>
+      <button onclick="startTest()">Start Test</button>
+      <button class="stop" onclick="stopTest()">Stop All</button>
+    </div>
 
-    <section>
-      <div id="grid" class="grid"></div>
-    </section>
-  </main>
+    <div id="status"></div>
+  </section>
 
-  <script src="/socket.io/socket.io.js"></script>
+  <section id="grid"></section>
+
   <script src="app.js"></script>
 </body>
 </html>
