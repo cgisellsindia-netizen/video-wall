@@ -35,10 +35,6 @@ app.post("/upload-proxies", upload.single("proxyfile"), (req, res) => {
 function parseProxy(proxyLine) {
   if (!proxyLine) return null;
 
-  // supported:
-  // http://user:pass@ip:port
-  // http://ip:port
-  // ip:port
   let line = proxyLine.trim();
 
   if (!line.startsWith("http://") && !line.startsWith("https://") && !line.startsWith("socks5://")) {
@@ -71,7 +67,17 @@ function isVideoUrl(url) {
   );
 }
 
+function safeHtml(text) {
+  return String(text || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
 function videoPlayerHtml(videoUrl) {
+  const cleanUrl = safeHtml(videoUrl);
+
   return `
 <!DOCTYPE html>
 <html>
@@ -97,71 +103,114 @@ function videoPlayerHtml(videoUrl) {
       left:10px;
       top:10px;
       color:#fff;
-      background:rgba(0,0,0,.6);
+      background:rgba(0,0,0,.7);
       padding:6px 10px;
       border-radius:8px;
       font-size:13px;
+      z-index:10;
+    }
+    .note{
+      position:fixed;
+      left:10px;
+      bottom:10px;
+      right:10px;
+      color:#fff;
+      background:rgba(160,0,0,.75);
+      padding:8px 10px;
+      border-radius:8px;
+      font-size:12px;
       z-index:10;
     }
   </style>
 </head>
 <body>
   <div class="label">Video test mode</div>
-  <video src="${videoUrl}" autoplay muted loop controls playsinline></video>
+  <video src="${cleanUrl}" autoplay muted loop controls playsinline></video>
+  <div class="note">If video is black, this URL may be download/protected/codec-blocked. Use direct .webm or direct playable .mp4.</div>
 </body>
 </html>`;
 }
 
-app.post("/start", async (req, res) => {
-  const { url, count } = req.body;
+async function safeSetContent(page, html) {
+  try {
+    await page.goto("about:blank", { waitUntil: "domcontentloaded", timeout: 15000 });
+  } catch {}
 
-  if (!url) return res.status(400).json({ error: "URL required" });
-
-  const browserCount = Math.min(Math.max(parseInt(count || 1), 1), 12);
-
-  await stopAllSessions();
-
-  for (let i = 0; i < browserCount; i++) {
-    const proxyLine = uploadedProxies[i % uploadedProxies.length];
-    const proxy = parseProxy(proxyLine);
-
-    const launchOptions = {
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--autoplay-policy=no-user-gesture-required",
-        "--mute-audio"
-      ]
-    };
-
-    if (proxy) launchOptions.proxy = proxy;
-
-    const browser = await chromium.launch(launchOptions);
-    const page = await browser.newPage({
-      viewport: { width: 1280, height: 720 }
-    });
-
+  try {
+    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 15000 });
+  } catch (err) {
     try {
-      if (isVideoUrl(url)) {
-        await page.setContent(videoPlayerHtml(url), { waitUntil: "domcontentloaded" });
-      } else {
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+      await page.evaluate((content) => {
+        document.open();
+        document.write(content);
+        document.close();
+      }, html);
+    } catch {}
+  }
+}
+
+app.post("/start", async (req, res) => {
+  try {
+    const { url, count } = req.body;
+
+    if (!url) return res.status(400).json({ error: "URL required" });
+
+    const browserCount = Math.min(Math.max(parseInt(count || 1), 1), 12);
+
+    await stopAllSessions();
+
+    for (let i = 0; i < browserCount; i++) {
+      const proxyLine = uploadedProxies[i % uploadedProxies.length];
+      const proxy = parseProxy(proxyLine);
+
+      const launchOptions = {
+        headless: true,
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--autoplay-policy=no-user-gesture-required",
+          "--mute-audio"
+        ]
+      };
+
+      if (proxy) launchOptions.proxy = proxy;
+
+      const browser = await chromium.launch(launchOptions);
+      const page = await browser.newPage({
+        viewport: { width: 1280, height: 720 }
+      });
+
+      sessions.push({
+        id: i + 1,
+        browser,
+        page,
+        proxy: proxyLine || "No proxy"
+      });
+
+      try {
+        if (isVideoUrl(url)) {
+          await safeSetContent(page, videoPlayerHtml(url));
+        } else {
+          await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+        }
+      } catch (err) {
+        await safeSetContent(
+          page,
+          `<html><body style="font-family:Arial;background:#111;color:#fff;padding:20px;">
+            <h2 style="color:#ff4444;">Failed to open</h2>
+            <p>${safeHtml(url)}</p>
+            <pre style="white-space:pre-wrap;color:#ff9999;">${safeHtml(err.message)}</pre>
+          </body></html>`
+        );
       }
-    } catch (err) {
-      await page.setContent(`<h1 style="font-family:Arial;color:red;">Failed to open</h1><pre>${err.message}</pre>`);
     }
 
-    sessions.push({
-      id: i + 1,
-      browser,
-      page,
-      proxy: proxyLine || "No proxy"
-    });
+    res.json({ ok: true, count: sessions.length });
+  } catch (err) {
+    console.error("START ERROR:", err);
+    res.status(500).json({ error: err.message });
   }
-
-  res.json({ ok: true, count: sessions.length });
 });
 
 app.get("/screens", async (req, res) => {
@@ -172,7 +221,8 @@ app.get("/screens", async (req, res) => {
       const shot = await session.page.screenshot({
         type: "jpeg",
         quality: 60,
-        fullPage: false
+        fullPage: false,
+        timeout: 15000
       });
 
       result.push({
@@ -204,6 +254,14 @@ async function stopAllSessions() {
 app.post("/stop", async (req, res) => {
   await stopAllSessions();
   res.json({ ok: true });
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED REJECTION:", err);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION:", err);
 });
 
 app.listen(PORT, () => {
