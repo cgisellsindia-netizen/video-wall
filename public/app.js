@@ -1,4 +1,5 @@
 let timer = null;
+let statsTimer = null;
 let enlargedId = null;
 let selectedBrowserId = null;
 
@@ -24,17 +25,38 @@ async function uploadProxies() {
   const data = await res.json();
 
   if (data.ok) {
-    setStatus(`Uploaded ${data.count} proxies.`);
+    setStatus(`Uploaded ${data.count} proxies. SOCKS4 supported.`);
+    loadProxyStats();
   } else {
     setStatus(data.error || "Proxy upload failed.");
   }
+}
+
+async function loadProxyStats() {
+  try {
+    const res = await fetch("/proxy-stats");
+    const s = await res.json();
+
+    const box = document.getElementById("proxyStats");
+    if (!box) return;
+
+    box.innerHTML = `
+      <b>Proxy Stats</b><br>
+      Total: ${s.total} |
+      Tried: ${s.tried} |
+      Working: ${s.good} |
+      Failed: ${s.bad}<br>
+      Last Working: ${s.lastWorking || "-"}<br>
+      Last Error: ${s.lastError || "-"}
+    `;
+  } catch {}
 }
 
 async function startTest() {
   const url = document.getElementById("url").value.trim();
   const count = document.getElementById("count").value;
 
-  setStatus("Starting browsers...");
+  setStatus("Starting browsers. Proxies will keep trying until success...");
 
   const res = await fetch("/start", {
     method: "POST",
@@ -54,8 +76,13 @@ async function startTest() {
   setStatus(`Started ${data.count} browser sessions. Double-click any tile to enlarge.`);
 
   if (timer) clearInterval(timer);
+  if (statsTimer) clearInterval(statsTimer);
+
   timer = setInterval(loadScreens, 1200);
+  statsTimer = setInterval(loadProxyStats, 1500);
+
   loadScreens();
+  loadProxyStats();
 }
 
 async function loadScreens() {
@@ -208,10 +235,18 @@ document.addEventListener("keydown", async function(e) {
 
 async function stopTest() {
   await fetch("/stop", { method: "POST" });
+
   if (timer) clearInterval(timer);
+  if (statsTimer) clearInterval(statsTimer);
+
   timer = null;
+  statsTimer = null;
   enlargedId = null;
   selectedBrowserId = null;
+
   document.getElementById("grid").innerHTML = "";
   setStatus("Stopped all browsers.");
+  loadProxyStats();
 }
+
+window.addEventListener("load", loadProxyStats);

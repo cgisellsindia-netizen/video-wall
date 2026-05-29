@@ -14,18 +14,52 @@ const upload = multer({ dest: "uploads/" });
 
 let sessions = [];
 let uploadedProxies = [];
+let goodProxies = [];
+let badProxies = new Set();
+let proxyPointer = 0;
+
+let proxyStats = {
+  total: 0,
+  good: 0,
+  bad: 0,
+  tried: 0,
+  lastWorking: "",
+  lastError: ""
+};
 
 app.get("/health", (req, res) => {
   res.status(200).send("OK");
+});
+
+app.get("/proxy-stats", (req, res) => {
+  res.json(proxyStats);
 });
 
 app.post("/upload-proxies", upload.single("proxyfile"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No proxy file uploaded" });
 
   const content = fs.readFileSync(req.file.path, "utf8");
-  uploadedProxies = content.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+
+  uploadedProxies = content
+    .split(/\r?\n/)
+    .map(x => x.trim())
+    .filter(Boolean);
+
+  goodProxies = [];
+  badProxies = new Set();
+  proxyPointer = 0;
+
+  proxyStats = {
+    total: uploadedProxies.length,
+    good: 0,
+    bad: 0,
+    tried: 0,
+    lastWorking: "",
+    lastError: ""
+  };
 
   fs.unlinkSync(req.file.path);
+
   res.json({ ok: true, count: uploadedProxies.length });
 });
 
@@ -34,13 +68,23 @@ function parseProxy(proxyLine) {
 
   let line = proxyLine.trim();
 
-  if (!line.startsWith("http://") && !line.startsWith("https://") && !line.startsWith("socks5://")) {
-    line = "http://" + line;
+  // For your SOCKS4 proxies:
+  // 1.2.3.4:1080 becomes socks4://1.2.3.4:1080
+  if (
+    !line.startsWith("http://") &&
+    !line.startsWith("https://") &&
+    !line.startsWith("socks4://") &&
+    !line.startsWith("socks5://")
+  ) {
+    line = "socks4://" + line;
   }
 
   try {
     const u = new URL(line);
-    const proxy = { server: `${u.protocol}//${u.hostname}:${u.port}` };
+
+    const proxy = {
+      server: `${u.protocol}//${u.hostname}:${u.port}`
+    };
 
     if (u.username) proxy.username = decodeURIComponent(u.username);
     if (u.password) proxy.password = decodeURIComponent(u.password);
@@ -49,6 +93,49 @@ function parseProxy(proxyLine) {
   } catch {
     return null;
   }
+}
+
+function getNextProxy() {
+  if (goodProxies.length > 0) {
+    const p = goodProxies[proxyPointer % goodProxies.length];
+    proxyPointer++;
+    return p;
+  }
+
+  for (let i = 0; i < uploadedProxies.length; i++) {
+    const p = uploadedProxies[proxyPointer % uploadedProxies.length];
+    proxyPointer++;
+
+    if (!badProxies.has(p)) {
+      return p;
+    }
+  }
+
+  return null;
+}
+
+function markGood(proxyLine) {
+  if (!proxyLine) return;
+
+  if (!goodProxies.includes(proxyLine)) {
+    goodProxies.push(proxyLine);
+  }
+
+  badProxies.delete(proxyLine);
+
+  proxyStats.good = goodProxies.length;
+  proxyStats.bad = badProxies.size;
+  proxyStats.lastWorking = proxyLine;
+}
+
+function markBad(proxyLine, error) {
+  if (!proxyLine) return;
+
+  badProxies.add(proxyLine);
+
+  proxyStats.bad = badProxies.size;
+  proxyStats.good = goodProxies.length;
+  proxyStats.lastError = `${proxyLine} => ${error}`;
 }
 
 function isVideoUrl(url) {
@@ -79,43 +166,10 @@ function videoPlayerHtml(videoUrl) {
 <head>
   <meta charset="UTF-8" />
   <style>
-    html,body{
-      margin:0;
-      width:100%;
-      height:100%;
-      background:#000;
-      overflow:hidden;
-      font-family:Arial,sans-serif;
-    }
-    video{
-      width:100vw;
-      height:100vh;
-      object-fit:contain;
-      background:#000;
-    }
-    .label{
-      position:fixed;
-      left:10px;
-      top:10px;
-      color:#fff;
-      background:rgba(0,0,0,.7);
-      padding:6px 10px;
-      border-radius:8px;
-      font-size:13px;
-      z-index:10;
-    }
-    .note{
-      position:fixed;
-      left:10px;
-      bottom:10px;
-      right:10px;
-      color:#fff;
-      background:rgba(160,0,0,.75);
-      padding:8px 10px;
-      border-radius:8px;
-      font-size:12px;
-      z-index:10;
-    }
+    html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden;font-family:Arial,sans-serif;}
+    video{width:100vw;height:100vh;object-fit:contain;background:#000;}
+    .label{position:fixed;left:10px;top:10px;color:#fff;background:rgba(0,0,0,.7);padding:6px 10px;border-radius:8px;font-size:13px;z-index:10;}
+    .note{position:fixed;left:10px;bottom:10px;right:10px;color:#fff;background:rgba(160,0,0,.75);padding:8px 10px;border-radius:8px;font-size:12px;z-index:10;}
   </style>
 </head>
 <body>
@@ -148,6 +202,107 @@ function findSession(id) {
   return sessions.find(s => String(s.id) === String(id));
 }
 
+async function createBrowserWithProxy(url, sessionId) {
+  const maxTries = uploadedProxies.length > 0 ? Math.min(uploadedProxies.length, 120) : 1;
+
+  for (let attempt = 1; attempt <= maxTries; attempt++) {
+    let proxyLine = null;
+    let proxy = null;
+
+    if (uploadedProxies.length > 0) {
+      proxyLine = getNextProxy();
+      proxy = parseProxy(proxyLine);
+    }
+
+    proxyStats.tried++;
+
+    const launchOptions = {
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--autoplay-policy=no-user-gesture-required",
+        "--mute-audio"
+      ]
+    };
+
+    if (proxy) launchOptions.proxy = proxy;
+
+    let browser = null;
+
+    try {
+      browser = await chromium.launch(launchOptions);
+
+      const page = await browser.newPage({
+        viewport: { width: 1280, height: 720 }
+      });
+
+      page.setDefaultTimeout(20000);
+
+      if (isVideoUrl(url)) {
+        await safeSetContent(page, videoPlayerHtml(url));
+      } else {
+        await page.goto(url, {
+          waitUntil: "domcontentloaded",
+          timeout: 30000
+        });
+      }
+
+      markGood(proxyLine);
+
+      return {
+        id: sessionId,
+        browser,
+        page,
+        proxy: proxyLine || "No proxy",
+        attempt
+      };
+
+    } catch (err) {
+      if (browser) {
+        try { await browser.close(); } catch {}
+      }
+
+      markBad(proxyLine, err.message);
+
+      console.log(`Browser ${sessionId} proxy failed attempt ${attempt}: ${proxyLine || "No proxy"} | ${err.message}`);
+    }
+  }
+
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--autoplay-policy=no-user-gesture-required",
+      "--mute-audio"
+    ]
+  });
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+
+  await safeSetContent(
+    page,
+    `<html><body style="background:#111;color:#fff;font-family:Arial;padding:20px;">
+      <h2 style="color:#ff4444;">No working proxy found</h2>
+      <p>Uploaded proxies: ${uploadedProxies.length}</p>
+      <p>Tried: ${proxyStats.tried}</p>
+      <p>Bad: ${proxyStats.bad}</p>
+      <pre>${safeHtml(proxyStats.lastError)}</pre>
+    </body></html>`
+  );
+
+  return {
+    id: sessionId,
+    browser,
+    page,
+    proxy: "No working proxy",
+    attempt: maxTries
+  };
+}
+
 app.post("/start", async (req, res) => {
   try {
     const { url, count } = req.body;
@@ -159,53 +314,16 @@ app.post("/start", async (req, res) => {
     await stopAllSessions();
 
     for (let i = 0; i < browserCount; i++) {
-      const proxyLine = uploadedProxies[i % uploadedProxies.length];
-      const proxy = parseProxy(proxyLine);
-
-      const launchOptions = {
-        headless: true,
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--autoplay-policy=no-user-gesture-required",
-          "--mute-audio"
-        ]
-      };
-
-      if (proxy) launchOptions.proxy = proxy;
-
-      const browser = await chromium.launch(launchOptions);
-      const page = await browser.newPage({
-        viewport: { width: 1280, height: 720 }
-      });
-
-      sessions.push({
-        id: i + 1,
-        browser,
-        page,
-        proxy: proxyLine || "No proxy"
-      });
-
-      try {
-        if (isVideoUrl(url)) {
-          await safeSetContent(page, videoPlayerHtml(url));
-        } else {
-          await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-        }
-      } catch (err) {
-        await safeSetContent(
-          page,
-          `<html><body style="font-family:Arial;background:#111;color:#fff;padding:20px;">
-            <h2 style="color:#ff4444;">Failed to open</h2>
-            <p>${safeHtml(url)}</p>
-            <pre style="white-space:pre-wrap;color:#ff9999;">${safeHtml(err.message)}</pre>
-          </body></html>`
-        );
-      }
+      const session = await createBrowserWithProxy(url, i + 1);
+      sessions.push(session);
     }
 
-    res.json({ ok: true, count: sessions.length });
+    res.json({
+      ok: true,
+      count: sessions.length,
+      stats: proxyStats
+    });
+
   } catch (err) {
     console.error("START ERROR:", err);
     res.status(500).json({ error: err.message });
@@ -229,6 +347,7 @@ app.get("/screens", async (req, res) => {
         proxy: session.proxy,
         image: "data:image/jpeg;base64," + shot.toString("base64")
       });
+
     } catch (e) {
       result.push({
         id: session.id,
