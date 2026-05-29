@@ -33,6 +33,15 @@ p {
   border-radius: 14px;
 }
 
+.warning {
+  padding: 12px;
+  background: #4a2100;
+  border: 1px solid #ff9d00;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  color: #ffdca8;
+}
+
 label {
   display: block;
   margin-top: 12px;
@@ -66,10 +75,6 @@ button {
   cursor: pointer;
 }
 
-button:hover {
-  opacity: .85;
-}
-
 button.stop {
   background: #444;
 }
@@ -77,6 +82,15 @@ button.stop {
 #status {
   margin-top: 12px;
   color: #00ff9d;
+}
+
+.stats {
+  margin-top: 12px;
+  padding: 12px;
+  background: #090909;
+  border: 1px solid #333;
+  border-radius: 10px;
+  color: #ddd;
 }
 
 #grid {
@@ -93,46 +107,18 @@ button.stop {
   overflow: hidden;
 }
 
-.card.enlarged {
-  position: fixed;
-  inset: 12px;
-  z-index: 9999;
-  background: #000;
-  border: 2px solid #ff2b2b;
-  border-radius: 16px;
-  display: flex;
-  flex-direction: column;
-}
-
 .title {
   padding: 10px;
   background: #000;
   font-size: 13px;
   color: #eee;
   border-bottom: 1px solid #333;
-  cursor: pointer;
-}
-
-.help {
-  padding: 8px 10px;
-  background: #2a0000;
-  color: #fff;
-  font-size: 12px;
-  border-bottom: 1px solid #440000;
 }
 
 .card img {
   width: 100%;
   display: block;
   background: #000;
-  cursor: crosshair;
-  user-select: none;
-}
-
-.card.enlarged img {
-  flex: 1;
-  height: calc(100vh - 100px);
-  object-fit: contain;
 }
 
 pre {

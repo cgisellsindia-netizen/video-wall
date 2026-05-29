@@ -8,25 +8,26 @@
 <body>
   <header>
     <h1>CGI Multi Browser Testing Dashboard</h1>
-    <p>Fast proxy scan + live browser opening</p>
+    <p>Use local mode for real browser feel. Render mode is only screenshot preview.</p>
   </header>
 
   <section class="panel">
+    <div class="warning">
+      Free SOCKS proxies often show CAPTCHA. For clean testing use trusted ISP/residential proxies or your own network.
+    </div>
+
     <label>Website / Video URL</label>
-    <input id="url" value="https://www.pexels.com/download/video/35510817/" />
+    <input id="url" value="https://getcamigo.in" />
 
-    <label>How many working browsers to open?</label>
-    <input id="count" type="number" min="1" max="12" value="2" />
+    <label>How many browsers?</label>
+    <input id="count" type="number" min="1" max="10" value="1" />
 
-    <label>Proxy test speed / concurrency</label>
-    <input id="concurrency" type="number" min="1" max="80" value="25" />
-
-    <label>Upload SOCKS4 proxy file</label>
+    <label>Upload proxy file optional</label>
     <input id="proxyfile" type="file" accept=".txt,.csv" />
 
     <div class="buttons">
       <button onclick="uploadProxies()">Upload Proxies</button>
-      <button onclick="startTest()">Start Fast Scan</button>
+      <button onclick="startTest()">Start</button>
       <button class="stop" onclick="stopTest()">Stop All</button>
     </div>
 

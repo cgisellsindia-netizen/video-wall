@@ -6,6 +6,7 @@ const { chromium } = require("playwright");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+const LOCAL_REAL_BROWSER = process.env.LOCAL_REAL_BROWSER === "1";
 
 app.use(express.json({ limit: "5mb" }));
 app.use(express.static(path.join(__dirname, "public")));
@@ -15,8 +16,6 @@ const upload = multer({ dest: "uploads/" });
 let sessions = [];
 let uploadedProxies = [];
 let proxyQueue = [];
-let scanning = false;
-let stopRequested = false;
 
 let proxyStats = {
   total: 0,
@@ -28,7 +27,7 @@ let proxyStats = {
   targetBrowsers: 0,
   lastWorking: "",
   lastError: "",
-  status: "Idle"
+  status: LOCAL_REAL_BROWSER ? "Local real browser mode" : "Render screenshot mode"
 };
 
 app.get("/health", (req, res) => res.status(200).send("OK"));
@@ -46,18 +45,15 @@ app.post("/upload-proxies", upload.single("proxyfile"), (req, res) => {
 
   proxyQueue = [...uploadedProxies];
 
-  proxyStats = {
-    total: uploadedProxies.length,
-    tested: 0,
-    working: 0,
-    failed: 0,
-    activeTests: 0,
-    openedBrowsers: 0,
-    targetBrowsers: 0,
-    lastWorking: "",
-    lastError: "",
-    status: "Proxy file uploaded"
-  };
+  proxyStats.total = uploadedProxies.length;
+  proxyStats.tested = 0;
+  proxyStats.working = 0;
+  proxyStats.failed = 0;
+  proxyStats.activeTests = 0;
+  proxyStats.openedBrowsers = 0;
+  proxyStats.lastWorking = "";
+  proxyStats.lastError = "";
+  proxyStats.status = "Proxy file uploaded";
 
   fs.unlinkSync(req.file.path);
   res.json({ ok: true, count: uploadedProxies.length });
@@ -80,20 +76,14 @@ function parseProxy(proxyLine) {
   try {
     const u = new URL(line);
     const proxy = { server: `${u.protocol}//${u.hostname}:${u.port}` };
+
     if (u.username) proxy.username = decodeURIComponent(u.username);
     if (u.password) proxy.password = decodeURIComponent(u.password);
+
     return proxy;
   } catch {
     return null;
   }
-}
-
-function safeHtml(text) {
-  return String(text || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
 }
 
 function isVideoUrl(url) {
@@ -102,35 +92,23 @@ function isVideoUrl(url) {
 }
 
 function videoPlayerHtml(videoUrl) {
-  const cleanUrl = safeHtml(videoUrl);
   return `
 <html>
 <body style="margin:0;background:#000;overflow:hidden;">
-  <video src="${cleanUrl}" autoplay muted loop controls playsinline style="width:100vw;height:100vh;object-fit:contain;background:#000;"></video>
+  <video src="${videoUrl}" autoplay muted loop controls playsinline style="width:100vw;height:100vh;object-fit:contain;background:#000;"></video>
 </body>
 </html>`;
 }
 
-async function safeSetContent(page, html) {
-  try { await page.goto("about:blank", { waitUntil: "domcontentloaded", timeout: 8000 }); } catch {}
-  try {
-    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 8000 });
-  } catch {
-    try {
-      await page.evaluate((content) => {
-        document.open();
-        document.write(content);
-        document.close();
-      }, html);
-    } catch {}
-  }
-}
-
-function launchOptions(proxyLine) {
+async function openBrowser(proxyLine, url, id) {
   const proxy = parseProxy(proxyLine);
 
+  const profilePath = path.join(__dirname, "profiles", "browser_" + id);
+  fs.mkdirSync(profilePath, { recursive: true });
+
   const options = {
-    headless: true,
+    headless: LOCAL_REAL_BROWSER ? false : true,
+    viewport: { width: 1280, height: 720 },
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -141,109 +119,78 @@ function launchOptions(proxyLine) {
   };
 
   if (proxy) options.proxy = proxy;
-  return options;
-}
 
-async function openBrowserWithProxy(proxyLine, url) {
-  const browser = await chromium.launch(launchOptions(proxyLine));
-  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-  page.setDefaultTimeout(12000);
+  let context;
 
-  if (isVideoUrl(url)) {
-    await safeSetContent(page, videoPlayerHtml(url));
+  if (LOCAL_REAL_BROWSER) {
+    context = await chromium.launchPersistentContext(profilePath, options);
   } else {
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 12000 });
-  }
-
-  return { browser, page };
-}
-
-async function testAndOpen(proxyLine, url) {
-  proxyStats.activeTests++;
-
-  try {
-    const opened = await openBrowserWithProxy(proxyLine, url);
-
-    if (stopRequested || sessions.length >= proxyStats.targetBrowsers) {
-      try { await opened.browser.close(); } catch {}
-      return;
-    }
-
-    sessions.push({
-      id: sessions.length + 1,
-      browser: opened.browser,
-      page: opened.page,
-      proxy: proxyLine || "No proxy"
+    const browser = await chromium.launch({
+      headless: true,
+      proxy: proxy || undefined,
+      args: options.args
     });
 
-    proxyStats.working++;
-    proxyStats.openedBrowsers = sessions.length;
-    proxyStats.lastWorking = proxyLine || "No proxy";
-    proxyStats.status = `Working proxy found. Opened browser ${sessions.length}/${proxyStats.targetBrowsers}`;
+    context = await browser.newContext({
+      viewport: { width: 1280, height: 720 }
+    });
 
-  } catch (err) {
-    proxyStats.failed++;
-    proxyStats.lastError = `${proxyLine} => ${err.message}`;
-  } finally {
-    proxyStats.tested++;
-    proxyStats.activeTests--;
-  }
-}
-
-async function scannerLoop(url, browserCount, concurrency) {
-  scanning = true;
-  stopRequested = false;
-  proxyStats.status = "Scanning proxies...";
-
-  const workers = [];
-
-  for (let i = 0; i < concurrency; i++) {
-    workers.push((async () => {
-      while (!stopRequested && sessions.length < browserCount && proxyQueue.length > 0) {
-        const proxyLine = proxyQueue.shift();
-        await testAndOpen(proxyLine, url);
-      }
-    })());
+    context._browserRef = browser;
   }
 
-  await Promise.allSettled(workers);
+  const page = context.pages()[0] || await context.newPage();
+  page.setDefaultTimeout(15000);
 
-  scanning = false;
-
-  if (sessions.length >= browserCount) {
-    proxyStats.status = "Target browsers opened";
-  } else if (proxyQueue.length === 0) {
-    proxyStats.status = "Finished. Not enough working proxies found";
+  if (isVideoUrl(url)) {
+    await page.setContent(videoPlayerHtml(url), { waitUntil: "domcontentloaded", timeout: 15000 });
   } else {
-    proxyStats.status = "Stopped";
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
   }
+
+  return { context, page };
 }
 
 app.post("/start", async (req, res) => {
   try {
-    const { url, count, concurrency } = req.body;
+    const { url, count } = req.body;
     if (!url) return res.status(400).json({ error: "URL required" });
 
     await stopAllSessions();
 
-    const browserCount = Math.min(Math.max(parseInt(count || 1), 1), 12);
-    const scanConcurrency = Math.min(Math.max(parseInt(concurrency || 20), 1), 80);
+    const browserCount = Math.min(Math.max(parseInt(count || 1), 1), LOCAL_REAL_BROWSER ? 10 : 2);
 
-    proxyQueue = uploadedProxies.length ? [...uploadedProxies] : [null];
-
-    proxyStats.tested = 0;
-    proxyStats.working = 0;
-    proxyStats.failed = 0;
-    proxyStats.activeTests = 0;
-    proxyStats.openedBrowsers = 0;
     proxyStats.targetBrowsers = browserCount;
-    proxyStats.lastWorking = "";
-    proxyStats.lastError = "";
-    proxyStats.status = "Starting fast proxy scan...";
+    proxyStats.openedBrowsers = 0;
+    proxyStats.status = LOCAL_REAL_BROWSER
+      ? "Opening real local browser windows..."
+      : "Opening Render screenshot browsers...";
 
-    scannerLoop(url, browserCount, scanConcurrency);
+    const proxies = uploadedProxies.length ? uploadedProxies : [null];
 
-    res.json({ ok: true, message: "Fast scan started" });
+    for (let i = 0; i < browserCount; i++) {
+      const proxyLine = proxies[i % proxies.length];
+
+      try {
+        const opened = await openBrowser(proxyLine, url, i + 1);
+
+        sessions.push({
+          id: sessions.length + 1,
+          context: opened.context,
+          page: opened.page,
+          proxy: proxyLine || "No proxy"
+        });
+
+        proxyStats.working++;
+        proxyStats.openedBrowsers = sessions.length;
+        proxyStats.lastWorking = proxyLine || "No proxy";
+        proxyStats.status = `Opened ${sessions.length}/${browserCount}`;
+      } catch (err) {
+        proxyStats.failed++;
+        proxyStats.lastError = `${proxyLine || "No proxy"} => ${err.message}`;
+      }
+    }
+
+    res.json({ ok: true, count: sessions.length, localMode: LOCAL_REAL_BROWSER });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -274,51 +221,12 @@ app.get("/screens", async (req, res) => {
   res.json(result);
 });
 
-function findSession(id) {
-  return sessions.find(s => String(s.id) === String(id));
-}
-
-app.post("/browser/:id/click", async (req, res) => {
-  try {
-    const session = findSession(req.params.id);
-    if (!session) return res.status(404).json({ error: "Browser not found" });
-    await session.page.mouse.click(Number(req.body.x), Number(req.body.y));
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post("/browser/:id/type", async (req, res) => {
-  try {
-    const session = findSession(req.params.id);
-    if (!session) return res.status(404).json({ error: "Browser not found" });
-    await session.page.keyboard.type(String(req.body.text || ""), { delay: 15 });
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post("/browser/:id/key", async (req, res) => {
-  try {
-    const session = findSession(req.params.id);
-    if (!session) return res.status(404).json({ error: "Browser not found" });
-    await session.page.keyboard.press(String(req.body.key));
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post("/browser/:id/wheel", async (req, res) => {
-  try {
-    const session = findSession(req.params.id);
-    if (!session) return res.status(404).json({ error: "Browser not found" });
-    await session.page.mouse.wheel(0, Number(req.body.deltaY || 0));
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
 async function stopAllSessions() {
-  stopRequested = true;
-
   for (const session of sessions) {
-    try { await session.browser.close(); } catch {}
+    try {
+      await session.context.close();
+      if (session.context._browserRef) await session.context._browserRef.close();
+    } catch {}
   }
 
   sessions = [];
@@ -331,7 +239,7 @@ app.post("/stop", async (req, res) => {
   res.json({ ok: true });
 });
 
-process.on("unhandledRejection", err => console.error("UNHANDLED:", err));
-process.on("uncaughtException", err => console.error("UNCAUGHT:", err));
-
-app.listen(PORT, () => console.log(`Dashboard running on http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Dashboard running on http://localhost:${PORT}`);
+  console.log(`Mode: ${LOCAL_REAL_BROWSER ? "LOCAL REAL BROWSER" : "RENDER SCREENSHOT"}`);
+});
