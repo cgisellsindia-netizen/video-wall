@@ -39,13 +39,13 @@ const SCAN_SESSION_FILE = path.join(__dirname, "scan-session.json");
 const CONFIG = {
   TARGET_URL: "https://example.com",
 
-  PARALLEL_TESTS: 10,
+  PARALLEL_TESTS: 8,
   PROXY_TIMEOUT_MS: 9000,
 
   MAX_BROWSER_TILES: 1,
   TILE_WIDTH: 260,
   TILE_HEIGHT: 420,
-  TILE_TIMEOUT_MS: 30000,
+  TILE_TIMEOUT_MS: 35000,
   AUTOPLAY_DETECT_SECONDS: 3,
   CLOSE_TILE_AFTER_PLAY_MS: 6000,
 
@@ -534,6 +534,7 @@ async function closeTile(tileId) {
   activeTiles.delete(tileId);
   removeTile(tileId);
   processTileQueue();
+  processTileQueue();
 
   processTileQueue();
 }
@@ -567,6 +568,33 @@ async function processTileQueue() {
   }
 }
 
+
+function startTileWatchdog(tileId, seconds = 35) {
+  setTimeout(async () => {
+    const tile = scanState.tiles.find(t => t.id === tileId);
+    if (!tile) return;
+
+    const badStatuses = [
+      "Opening browser",
+      "Starting engine",
+      "Creating browser context",
+      "Loading page",
+      "Testing autoplay"
+    ];
+
+    if (badStatuses.includes(tile.status) && Number(tile.currentTime || 0) === 0) {
+      updateTile(tileId, {
+        status: "Tile timeout - closing",
+        image: ""
+      });
+
+      log("Tile stuck, closed to continue queue: " + (tile.proxy || ""), "warn");
+
+      await closeTile(tileId);
+    }
+  }, seconds * 1000);
+}
+
 async function startBrowserTile(item) {
   if (activeTiles.size >= CONFIG.MAX_BROWSER_TILES) {
     log("Tile limit reached. Keeping proxy in working list only: " + item.display, "warn");
@@ -590,7 +618,10 @@ async function startBrowserTile(item) {
   let interval = null;
 
   try {
+    updateTile(tileId, { status: "Starting engine" });
     const b = await ensureBrowser();
+
+    updateTile(tileId, { status: "Creating browser context" });
 
     context = await b.newContext({
       proxy: proxyForPlaywright(item),
@@ -601,6 +632,8 @@ async function startBrowserTile(item) {
       },
       userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome Safari/537.36"
     });
+
+    updateTile(tileId, { status: "Creating page" });
 
     page = await context.newPage();
 
@@ -770,8 +803,10 @@ app.post("/api/start", async (req, res) => {
   }
 
   const requestedTiles = Number(req.body.maxBrowserTiles || CONFIG.MAX_BROWSER_TILES);
-  if (requestedTiles >= 1 && requestedTiles <= 8) {
+  if (requestedTiles >= 1 && requestedTiles <= 1) {
     CONFIG.MAX_BROWSER_TILES = requestedTiles;
+  } else {
+    CONFIG.MAX_BROWSER_TILES = 1;
   }
 
   const proxies = parseProxyList(req.body.proxies || "");
@@ -891,6 +926,7 @@ loadScanSession();
 app.listen(PORT, () => {
   console.log("Auto browser tile scanner running on port " + PORT);
 });
+
 
 
 
