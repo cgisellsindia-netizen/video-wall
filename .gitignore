@@ -1,0 +1,6 @@
+﻿node_modules/
+chrome-profiles/
+working-proxies.txt
+*.log
+.env
+.DS_Store

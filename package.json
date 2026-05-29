@@ -6,13 +6,17 @@
     "node": "20.x"
   },
   "scripts": {
-    "start": "PLAYWRIGHT_BROWSERS_PATH=0 node server.js",
-    "local": "set LOCAL_REAL_BROWSER=1&& node server.js",
-    "postinstall": "PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install chromium"
+    "start": "node server-render.js",
+    "local": "node server.js",
+    "render": "node server-render.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
+    "express": "^4.22.2",
+    "https-proxy-agent": "^9.0.0",
     "multer": "^1.4.5-lts.1",
-    "playwright": "^1.52.0"
+    "node-fetch": "^2.7.0",
+    "playwright": "^1.60.0",
+    "socks-proxy-agent": "^10.0.0",
+    "ws": "^8.21.0"
   }
 }

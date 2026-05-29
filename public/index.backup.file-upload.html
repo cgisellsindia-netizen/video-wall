@@ -1,0 +1,402 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Tester Window Proxy Dashboard</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: #0f1115;
+      color: white;
+    }
+
+    header {
+      background: #171923;
+      padding: 16px 20px;
+      border-bottom: 1px solid #2c2f3a;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    .sub {
+      color: #aeb4c2;
+      margin-top: 5px;
+      font-size: 13px;
+    }
+
+    .wrap {
+      display: grid;
+      grid-template-columns: 370px 1fr;
+      gap: 18px;
+      padding: 18px;
+    }
+
+    .card {
+      background: #171923;
+      border: 1px solid #2c2f3a;
+      border-radius: 14px;
+      padding: 15px;
+    }
+
+    label {
+      display: block;
+      margin-top: 11px;
+      margin-bottom: 6px;
+      color: #cdd3df;
+      font-size: 13px;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      background: #0f1115;
+      color: white;
+      border: 1px solid #333746;
+      border-radius: 10px;
+      padding: 9px;
+      outline: none;
+    }
+
+    textarea {
+      min-height: 235px;
+      resize: vertical;
+      font-size: 12px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      font-weight: bold;
+      margin-top: 11px;
+      cursor: pointer;
+    }
+
+    .start {
+      background: #19c37d;
+      color: #06170f;
+    }
+
+    .stop {
+      background: #ff4d4d;
+      color: white;
+    }
+
+    .close {
+      background: #f0a500;
+      color: #111;
+    }
+
+    .blue {
+      background: #4f8cff;
+      color: white;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .stat {
+      background: #171923;
+      border: 1px solid #2c2f3a;
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .label2 {
+      color: #aeb4c2;
+      font-size: 13px;
+    }
+
+    .num {
+      font-size: 27px;
+      font-weight: bold;
+      margin-top: 7px;
+    }
+
+    .good {
+      color: #19c37d;
+    }
+
+    .bad {
+      color: #ff4d4d;
+    }
+
+    .warn {
+      color: #f0a500;
+    }
+
+    .info {
+      color: #73a7ff;
+    }
+
+    .logs {
+      height: 520px;
+      overflow: auto;
+      background: #0f1115;
+      border-radius: 12px;
+      border: 1px solid #2c2f3a;
+      padding: 10px;
+      font-size: 13px;
+    }
+
+    .log {
+      padding: 7px 4px;
+      border-bottom: 1px solid #222633;
+      line-height: 1.4;
+    }
+
+    .time {
+      color: #777f91;
+      margin-right: 8px;
+    }
+
+    .current {
+      font-size: 13px;
+      line-height: 1.6;
+      color: #cdd3df;
+      word-break: break-all;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Tester Window + Success Windows Dashboard</h1>
+    <div class="sub">One tiny tester window checks proxies · successful proxies open in separate windows</div>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <label>Target URL</label>
+      <input id="targetUrl" value="https://example.com" />
+
+      <div class="row">
+        <div>
+          <label>Tester Width</label>
+          <input id="testerWidth" type="number" value="260" />
+        </div>
+
+        <div>
+          <label>Tester Height</label>
+          <input id="testerHeight" type="number" value="330" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Success Width</label>
+          <input id="successWidth" type="number" value="310" />
+        </div>
+
+        <div>
+          <label>Success Height</label>
+          <input id="successHeight" type="number" value="430" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Success Columns</label>
+          <input id="successColumns" type="number" value="4" />
+        </div>
+
+        <div>
+          <label>Max Success Windows</label>
+          <input id="maxSuccessWindows" type="number" value="8" />
+        </div>
+      </div>
+
+      <label>Fast Mode</label>
+      <select id="fastMode">
+        <option value="true" selected>ON - faster loading</option>
+        <option value="false">OFF - normal loading</option>
+      </select>
+
+      <label>Paste Proxy List</label>
+      <textarea id="proxies" placeholder="socks5://ip:port&#10;ip:port&#10;http://ip:port"></textarea>
+
+      <button class="start" onclick="startRun()">Start Testing</button>
+      <button class="stop" onclick="stopRun()">Stop Tester Only</button>
+      <button class="blue" onclick="closeSuccess()">Close Success Windows</button>
+      <button class="close" onclick="closeAll()">Close Everything</button>
+    </div>
+
+    <div>
+      <div class="stats">
+        <div class="stat">
+          <div class="label2">Total</div>
+          <div id="total" class="num">0</div>
+        </div>
+
+        <div class="stat">
+          <div class="label2">Tested</div>
+          <div id="tested" class="num info">0</div>
+        </div>
+
+        <div class="stat">
+          <div class="label2">Success</div>
+          <div id="success" class="num good">0</div>
+        </div>
+
+        <div class="stat">
+          <div class="label2">Failed</div>
+          <div id="failed" class="num bad">0</div>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="label2">Blocked/CAPTCHA</div>
+          <div id="blocked" class="num warn">0</div>
+        </div>
+
+        <div class="stat">
+          <div class="label2">Success Windows</div>
+          <div id="successWindows" class="num good">0</div>
+        </div>
+
+        <div class="stat">
+          <div class="label2">Skipped</div>
+          <div id="skipped" class="num warn">0</div>
+        </div>
+
+        <div class="stat">
+          <div class="label2">Progress</div>
+          <div id="progress" class="num">0%</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <h3 style="margin-top:0;">Currently Testing</h3>
+        <div class="current">
+          <b>Proxy:</b> <span id="currentProxy">None</span><br>
+          <b>Status:</b> <span id="status">Idle</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Live Logs</h3>
+        <div id="logs" class="logs"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ws = new WebSocket(`ws://${location.host}`);
+
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+
+      if (msg.type === "state") {
+        updateState(msg.data);
+      }
+
+      if (msg.type === "log") {
+        addLog(msg.data);
+      }
+    };
+
+    function updateState(state) {
+      document.getElementById("total").innerText = state.total || 0;
+      document.getElementById("tested").innerText = state.tested || 0;
+      document.getElementById("success").innerText = state.success || 0;
+      document.getElementById("failed").innerText = state.failed || 0;
+      document.getElementById("blocked").innerText = state.blocked || 0;
+      document.getElementById("skipped").innerText = state.skipped || 0;
+      document.getElementById("successWindows").innerText = state.successWindows || 0;
+
+      document.getElementById("currentProxy").innerText = state.currentProxy || "None";
+      document.getElementById("status").innerText = state.active ? "Running" : "Idle";
+
+      const progress = state.total ? Math.round((state.tested / state.total) * 100) : 0;
+      document.getElementById("progress").innerText = progress + "%";
+    }
+
+    function addLog(log) {
+      const box = document.getElementById("logs");
+      const div = document.createElement("div");
+      div.className = "log";
+
+      let cls = "info";
+      if (log.level === "success") cls = "good";
+      if (log.level === "error") cls = "bad";
+      if (log.level === "warn") cls = "warn";
+
+      div.innerHTML = `<span class="time">${log.time}</span><span class="${cls}">${escapeHtml(log.message)}</span>`;
+      box.prepend(div);
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    async function startRun() {
+      const payload = {
+        targetUrl: document.getElementById("targetUrl").value.trim(),
+        testerWidth: Number(document.getElementById("testerWidth").value),
+        testerHeight: Number(document.getElementById("testerHeight").value),
+        successWidth: Number(document.getElementById("successWidth").value),
+        successHeight: Number(document.getElementById("successHeight").value),
+        successColumns: Number(document.getElementById("successColumns").value),
+        maxSuccessWindows: Number(document.getElementById("maxSuccessWindows").value),
+        fastMode: document.getElementById("fastMode").value === "true",
+        proxies: document.getElementById("proxies").value
+      };
+
+      const res = await fetch("/api/start", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        alert(data.message || "Failed to start");
+      }
+    }
+
+    async function stopRun() {
+      await fetch("/api/stop", {
+        method: "POST"
+      });
+    }
+
+    async function closeAll() {
+      await fetch("/api/close-all", {
+        method: "POST"
+      });
+    }
+
+    async function closeSuccess() {
+      await fetch("/api/close-success", {
+        method: "POST"
+      });
+    }
+  </script>
+</body>
+</html>
