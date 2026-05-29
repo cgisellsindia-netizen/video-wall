@@ -8,22 +8,25 @@
 <body>
   <header>
     <h1>CGI Multi Browser Testing Dashboard</h1>
-    <p>For own website/video testing only</p>
+    <p>Fast proxy scan + live browser opening</p>
   </header>
 
   <section class="panel">
     <label>Website / Video URL</label>
     <input id="url" value="https://www.pexels.com/download/video/35510817/" />
 
-    <label>How many browsers?</label>
+    <label>How many working browsers to open?</label>
     <input id="count" type="number" min="1" max="12" value="2" />
 
-    <label>Upload SOCKS4 proxy file optional</label>
+    <label>Proxy test speed / concurrency</label>
+    <input id="concurrency" type="number" min="1" max="80" value="25" />
+
+    <label>Upload SOCKS4 proxy file</label>
     <input id="proxyfile" type="file" accept=".txt,.csv" />
 
     <div class="buttons">
       <button onclick="uploadProxies()">Upload Proxies</button>
-      <button onclick="startTest()">Start Test</button>
+      <button onclick="startTest()">Start Fast Scan</button>
       <button class="stop" onclick="stopTest()">Stop All</button>
     </div>
 
