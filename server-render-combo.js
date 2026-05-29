@@ -39,15 +39,15 @@ const SCAN_SESSION_FILE = path.join(__dirname, "scan-session.json");
 const CONFIG = {
   TARGET_URL: "https://example.com",
 
-  PARALLEL_TESTS: 15,
-  PROXY_TIMEOUT_MS: 12000,
+  PARALLEL_TESTS: 10,
+  PROXY_TIMEOUT_MS: 9000,
 
-  MAX_BROWSER_TILES: 2,
-  TILE_WIDTH: 360,
-  TILE_HEIGHT: 640,
-  TILE_TIMEOUT_MS: 45000,
+  MAX_BROWSER_TILES: 1,
+  TILE_WIDTH: 260,
+  TILE_HEIGHT: 420,
+  TILE_TIMEOUT_MS: 30000,
   AUTOPLAY_DETECT_SECONDS: 3,
-  CLOSE_TILE_AFTER_PLAY_MS: 8000,
+  CLOSE_TILE_AFTER_PLAY_MS: 6000,
 
   BLOCK_WORDS: [
     "captcha",
@@ -74,8 +74,22 @@ const CONFIG = {
 
 function saveScanSession() {
   try {
+    const lightState = {
+      total: scanState.total,
+      tested: scanState.tested,
+      working: scanState.working,
+      failed: scanState.failed,
+      blocked: scanState.blocked,
+      autoplayDetected: scanState.autoplayDetected || 0,
+      active: scanState.active,
+      currentProxy: scanState.currentProxy,
+      workingList: (scanState.workingList || []).slice(0, 200),
+      logs: (scanState.logs || []).slice(0, 120),
+      tiles: [] // never save screenshots/base64 to disk
+    };
+
     const data = {
-      scanState,
+      scanState: lightState,
       savedAt: new Date().toISOString()
     };
 
@@ -115,7 +129,7 @@ function log(message, level = "info") {
   };
 
   scanState.logs.unshift(line);
-  if (scanState.logs.length > 600) scanState.logs.pop();
+  if (scanState.logs.length > 150) scanState.logs.pop();
 
   console.log("[" + level + "] " + line.message);
   saveScanSession();
@@ -487,7 +501,7 @@ async function getScreenshot(page) {
   try {
     const buf = await page.screenshot({
       type: "jpeg",
-      quality: 45,
+      quality: 25,
       fullPage: false
     });
 
@@ -670,7 +684,7 @@ async function startBrowserTile(item) {
 
         await closeTile(tileId);
       }
-    }, 2000);
+    }, 5000);
 
     activeTiles.set(tileId, {
       context,
@@ -699,13 +713,36 @@ async function startBrowserTile(item) {
   }
 }
 
+
+async function emergencyCleanupTiles() {
+  try {
+    if (activeTiles.size <= CONFIG.MAX_BROWSER_TILES) return;
+
+    const ids = Array.from(activeTiles.keys());
+    while (activeTiles.size > CONFIG.MAX_BROWSER_TILES && ids.length) {
+      const id = ids.shift();
+      await closeTile(id);
+    }
+  } catch {}
+}
+
+setInterval(emergencyCleanupTiles, 10000);
+
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 app.get("/api/state", (req, res) => {
   saveScanSession();
-  res.json(scanState);
+
+  const safeState = {
+    ...scanState,
+    logs: (scanState.logs || []).slice(0, 150),
+    workingList: (scanState.workingList || []).slice(0, 200),
+    tiles: (scanState.tiles || []).slice(0, CONFIG.MAX_BROWSER_TILES)
+  };
+
+  res.json(safeState);
 });
 
 app.post("/api/start", async (req, res) => {
@@ -847,6 +884,7 @@ loadScanSession();
 app.listen(PORT, () => {
   console.log("Auto browser tile scanner running on port " + PORT);
 });
+
 
 
 
