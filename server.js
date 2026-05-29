@@ -7,7 +7,7 @@ const { chromium } = require("playwright");
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "5mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 const upload = multer({ dest: "uploads/" });
@@ -23,10 +23,7 @@ app.post("/upload-proxies", upload.single("proxyfile"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No proxy file uploaded" });
 
   const content = fs.readFileSync(req.file.path, "utf8");
-  uploadedProxies = content
-    .split(/\r?\n/)
-    .map(x => x.trim())
-    .filter(Boolean);
+  uploadedProxies = content.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
 
   fs.unlinkSync(req.file.path);
   res.json({ ok: true, count: uploadedProxies.length });
@@ -43,9 +40,7 @@ function parseProxy(proxyLine) {
 
   try {
     const u = new URL(line);
-    const proxy = {
-      server: `${u.protocol}//${u.hostname}:${u.port}`
-    };
+    const proxy = { server: `${u.protocol}//${u.hostname}:${u.port}` };
 
     if (u.username) proxy.username = decodeURIComponent(u.username);
     if (u.password) proxy.password = decodeURIComponent(u.password);
@@ -126,7 +121,7 @@ function videoPlayerHtml(videoUrl) {
 <body>
   <div class="label">Video test mode</div>
   <video src="${cleanUrl}" autoplay muted loop controls playsinline></video>
-  <div class="note">If video is black, this URL may be download/protected/codec-blocked. Use direct .webm or direct playable .mp4.</div>
+  <div class="note">If video is black, use direct .webm or direct playable .mp4.</div>
 </body>
 </html>`;
 }
@@ -138,7 +133,7 @@ async function safeSetContent(page, html) {
 
   try {
     await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 15000 });
-  } catch (err) {
+  } catch {
     try {
       await page.evaluate((content) => {
         document.open();
@@ -147,6 +142,10 @@ async function safeSetContent(page, html) {
       }, html);
     } catch {}
   }
+}
+
+function findSession(id) {
+  return sessions.find(s => String(s.id) === String(id));
 }
 
 app.post("/start", async (req, res) => {
@@ -220,7 +219,7 @@ app.get("/screens", async (req, res) => {
     try {
       const shot = await session.page.screenshot({
         type: "jpeg",
-        quality: 60,
+        quality: 65,
         fullPage: false,
         timeout: 15000
       });
@@ -240,6 +239,71 @@ app.get("/screens", async (req, res) => {
   }
 
   res.json(result);
+});
+
+app.post("/browser/:id/click", async (req, res) => {
+  try {
+    const session = findSession(req.params.id);
+    if (!session) return res.status(404).json({ error: "Browser not found" });
+
+    const { x, y } = req.body;
+    await session.page.mouse.click(Number(x), Number(y));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/browser/:id/dblclick", async (req, res) => {
+  try {
+    const session = findSession(req.params.id);
+    if (!session) return res.status(404).json({ error: "Browser not found" });
+
+    const { x, y } = req.body;
+    await session.page.mouse.dblclick(Number(x), Number(y));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/browser/:id/type", async (req, res) => {
+  try {
+    const session = findSession(req.params.id);
+    if (!session) return res.status(404).json({ error: "Browser not found" });
+
+    const { text } = req.body;
+    await session.page.keyboard.type(String(text || ""), { delay: 20 });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/browser/:id/key", async (req, res) => {
+  try {
+    const session = findSession(req.params.id);
+    if (!session) return res.status(404).json({ error: "Browser not found" });
+
+    const { key } = req.body;
+    await session.page.keyboard.press(String(key));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/browser/:id/wheel", async (req, res) => {
+  try {
+    const session = findSession(req.params.id);
+    if (!session) return res.status(404).json({ error: "Browser not found" });
+
+    const { deltaY } = req.body;
+    await session.page.mouse.wheel(0, Number(deltaY || 0));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 async function stopAllSessions() {

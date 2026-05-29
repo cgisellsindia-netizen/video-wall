@@ -93,18 +93,46 @@ button.stop {
   overflow: hidden;
 }
 
+.card.enlarged {
+  position: fixed;
+  inset: 12px;
+  z-index: 9999;
+  background: #000;
+  border: 2px solid #ff2b2b;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
 .title {
   padding: 10px;
   background: #000;
   font-size: 13px;
   color: #eee;
   border-bottom: 1px solid #333;
+  cursor: pointer;
+}
+
+.help {
+  padding: 8px 10px;
+  background: #2a0000;
+  color: #fff;
+  font-size: 12px;
+  border-bottom: 1px solid #440000;
 }
 
 .card img {
   width: 100%;
   display: block;
   background: #000;
+  cursor: crosshair;
+  user-select: none;
+}
+
+.card.enlarged img {
+  flex: 1;
+  height: calc(100vh - 100px);
+  object-fit: contain;
 }
 
 pre {
