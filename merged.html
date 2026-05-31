@@ -103,6 +103,7 @@ button.secondary { background: var(--border); }
     <button class="secondary" onclick="clearAll()">Clear</button>
     <button class="secondary" onclick="toggleFailed()" id="toggleBtn">Show Failed</button>
     <button class="secondary" onclick="toggleAutoRefresh()" id="autoRefreshBtn" style="background:#e67e22">Auto Refresh: OFF</button>
+    <button class="secondary" onclick="clearAllData()" style="background:#c0392b">Clear All Data</button>
   </div>
 </div>
 <div class="stats">
@@ -196,12 +197,12 @@ function buildEmbedUrl(sourceUrl,sourceType,loop){
   if(sourceType==="youtube"){
     var youtubeId=parseYouTubeId(sourceUrl);
     if(!youtubeId)return"";
-    var url="https://www.youtube.com/embed/"+youtubeId+"?autoplay=1&mute=1&playsinline=1&rel=0";if(loop){url+="&loop=1&playlist="+youtubeId;}return url;
+    var url="https://www.youtube.com/embed/"+youtubeId+"?autoplay=1&mute=1&playsinline=1&rel=0&_cb="+Date.now();if(loop){url+="&loop=1&playlist="+youtubeId;}return url;
   }
   if(sourceType==="vimeo"){
     var vimeoId=parseVimeoId(sourceUrl);
     if(!vimeoId)return"";
-    var url="https://player.vimeo.com/video/"+vimeoId+"?autoplay=1&muted=1&autopause=0";if(loop){url+="&loop=1";}return url;
+    var url="https://player.vimeo.com/video/"+vimeoId+"?autoplay=1&muted=1&autopause=0&_cb="+Date.now();if(loop){url+="&loop=1";}return url;
   }
   if(sourceType==="page")return sourceUrl;
   return"";
@@ -302,35 +303,12 @@ function processStaggerQueue(){
 }
 function scheduleIframeReload(index,iframe,targetUrl,sourceType,currentProxy){
   var reloadMs=45000;
-  var loopCount=parseInt(iframe.getAttribute("data-loop-count")||"0",10);
   var timer=setTimeout(function(){
     var tile=document.getElementById("tile-"+index);
     if(!tile||!tile.classList.contains("working")){clearTimeout(timer);return;}
-    loopCount++;
-    iframe.setAttribute("data-loop-count",loopCount);
-    var badge=iframe.parentElement.querySelector(".tile-proxy-badge");
-    if(loopCount<3){
-      // Do NOT reload iframe - let YouTube/Vimeo loop internally via loop=1 parameter
-      if(!badge){
-        badge=document.createElement("div");badge.className="tile-proxy-badge";iframe.parentElement.appendChild(badge);
-      }
-      badge.textContent="loop "+loopCount+"/3";
-      log("Tile "+(index+1)+" keeping proxy (loop "+loopCount+"/3)","warn");
-      scheduleIframeReload(index,iframe,targetUrl,sourceType,currentProxy);
-    }else{
-      loopCount=0;iframe.setAttribute("data-loop-count","0");
-      var newProxy=pickNextProxy();
-      var newEmbed=buildEmbedUrl(targetUrl,sourceType,true);
-      if(!newEmbed){clearTimeout(timer);return;}
-      var badgeNum=newProxy?((proxyRoundRobin-1+proxyPool.length)%proxyPool.length+1):"";
-      iframe.src=newProxy?wrapUrlThroughProxy(newEmbed,newProxy):newEmbed;
-      if(!badge){
-        badge=document.createElement("div");badge.className="tile-proxy-badge";iframe.parentElement.appendChild(badge);
-      }
-      badge.textContent=newProxy?("proxy "+badgeNum+"/"+proxyPool.length):"no proxy";
-      log("Tile "+(index+1)+" reloaded with new proxy after 3 loops","warn");
-      scheduleIframeReload(index,iframe,targetUrl,sourceType,newProxy);
-    }
+    tile.style.display="none";
+    iframe.src="about:blank";
+    log("Tile "+(index+1)+" closed after first play (session cleared)","warn");
   },reloadMs);
 }
 function updateTileFail(index,proxy,error){
@@ -455,6 +433,22 @@ async function autoFetchRestart(){
   }catch(err){
     log("Auto Refresh fetch failed: "+err.message,"error");
   }
+}
+
+function clearAllData(){
+  document.getElementById("grid").innerHTML="";
+  document.getElementById("logs").innerHTML="";
+  document.getElementById("proxies").value="";
+  document.getElementById("targetUrl").value="";
+  document.getElementById("fileLabel").textContent="Click to upload proxy list";
+  updateStats(0,0,0,0);
+  proxyPool=[];
+  proxyRoundRobin=0;
+  workingTileQueue=[];
+  if(staggerTimer){clearTimeout(staggerTimer);staggerTimer=null;}
+  running=false;
+  document.getElementById("testBtn").disabled=false;
+  log("All data cleared","warn");
 }
 
 async function fetchAllFreeProxies(){
