@@ -255,20 +255,20 @@ function scheduleIframeReload(index,iframe,targetUrl,sourceType,currentProxy){
     if(!tile||!tile.classList.contains("working")){clearTimeout(timer);return;}
     loopCount++;
     iframe.setAttribute("data-loop-count",loopCount);
-    var newEmbed=buildEmbedUrl(targetUrl,sourceType,true);
-    if(!newEmbed){clearTimeout(timer);return;}
     var badge=iframe.parentElement.querySelector(".tile-proxy-badge");
     if(loopCount<3){
-      iframe.src=currentProxy?wrapUrlThroughProxy(newEmbed,currentProxy):newEmbed;
+      // Do NOT reload iframe - let YouTube/Vimeo loop internally via loop=1 parameter
       if(!badge){
         badge=document.createElement("div");badge.className="tile-proxy-badge";iframe.parentElement.appendChild(badge);
       }
       badge.textContent="loop "+loopCount+"/3";
-      log("Tile "+(index+1)+" replayed (loop "+loopCount+"/3)","warn");
+      log("Tile "+(index+1)+" keeping proxy (loop "+loopCount+"/3)","warn");
       scheduleIframeReload(index,iframe,targetUrl,sourceType,currentProxy);
     }else{
       loopCount=0;iframe.setAttribute("data-loop-count","0");
       var newProxy=pickNextProxy();
+      var newEmbed=buildEmbedUrl(targetUrl,sourceType,true);
+      if(!newEmbed){clearTimeout(timer);return;}
       var badgeNum=newProxy?((proxyRoundRobin-1+proxyPool.length)%proxyPool.length+1):"";
       iframe.src=newProxy?wrapUrlThroughProxy(newEmbed,newProxy):newEmbed;
       if(!badge){
