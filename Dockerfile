@@ -17,4 +17,4 @@ ENV PORT=10000
 
 EXPOSE 10000
 
-CMD ["node", "server-render-live-player.js"]
+CMD ["node", "merged-server.js"]
