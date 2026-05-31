@@ -337,30 +337,25 @@ async function startTest(){
 }
 function stopTest(){running=false;log("Stopping...");}
 function clearAll(){running=false;document.getElementById("grid").innerHTML="";document.getElementById("logs").innerHTML="";updateStats(0,0,0,0);document.getElementById("testBtn").disabled=false;}
-async function fetchGeonodeProxies(){
-  var btn=document.querySelector('button[onclick="fetchGeonodeProxies()"]');
-  if(btn){btn.textContent="Fetching...";btn.disabled=true;}
-  log("Fetching proxies from Geonode free proxy list...","warn");
+async function fetchAllFreeProxies(){
+  var btn=document.querySelector('button[onclick="fetchAllFreeProxies()"]');
+  if(btn){btn.textContent="Loading all sources...";btn.disabled=true;}
+  log("Fetching free proxies from 5 sources...","warn");
   try{
-    var apiUrl="https://proxylist.geonode.com/api/proxy-list?limit=500&page=1&sort_by=lastChecked&sort_type=desc";
-    var res=await fetch(apiUrl,{headers:{"Accept":"application/json"}});
+    var res=await fetch("/api/proxies/all");
     if(!res.ok){throw new Error("HTTP "+res.status);}
     var json=await res.json();
-    var data=json.data||[];
-    if(!data.length){log("No proxies returned from Geonode","error");return;}
-    var lines=[];
-    for(var i=0;i<data.length;i++){
-      var item=data[i];
-      if(item.ip&&item.port){lines.push(item.ip+":"+item.port);}
-    }
+    if(!json.ok){throw new Error(json.error||"Server error");}
+    var lines=json.proxies||[];
+    if(!lines.length){log("No proxies returned from any source","error");return;}
     document.getElementById("proxies").value=lines.join(String.fromCharCode(10));
-    log("Loaded "+lines.length+" proxies from Geonode","success");
-    document.getElementById("fileLabel").textContent="Loaded: Geonode ("+lines.length+")";
+    log("Loaded "+lines.length+" free proxies from "+(json.sources||["multiple"]).join(", "),"success");
+    document.getElementById("fileLabel").textContent="Loaded: "+lines.length+" free proxies ("+(json.sources||[]).length+" sources)";
   }catch(err){
-    log("Geonode fetch failed: "+err.message,"error");
-    alert("Failed to fetch from Geonode. Try again or upload manually. Error: "+err.message);
+    log("Free proxy fetch failed: "+err.message,"error");
+    alert("Failed to fetch free proxies. Try again or upload manually. Error: "+err.message);
   }finally{
-    if(btn){btn.textContent="Fetch from Geonode (free proxies)";btn.disabled=false;}
+    if(btn){btn.textContent="Load All Free Proxies (1-click)";btn.disabled=false;}
   }
 }
 </script>
