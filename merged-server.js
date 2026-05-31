@@ -147,11 +147,14 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === '/api/proxies/all' && req.method === 'GET') {
     try {
-      const proxies = await fetchAllFreeProxies();
+      // Set a 30-second timeout for proxy fetching
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Proxy fetch timeout')), 30000));
+      const proxies = await Promise.race([fetchAllFreeProxies(), timeoutPromise]);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, count: proxies.length, proxies: proxies, sources: ['geonode','proxyscrape','proxy-list.download(http)','proxy-list.download(socks4)','proxy-list.download(socks5)'] }));
     } catch (err) {
-      res.writeHead(500); res.end(JSON.stringify({ ok: false, error: err.message }));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: err.message, timeout: err.message.includes('timeout') }));
     }
     return;
   }

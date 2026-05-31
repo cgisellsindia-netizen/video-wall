@@ -619,10 +619,16 @@ function clearAllData(){
 
 async function fetchAllFreeProxies(){
   var btn=document.querySelector('button[onclick="fetchAllFreeProxies()"]');
-  if(btn){btn.textContent="Loading all sources...";btn.disabled=true;}
-  log("Fetching free proxies from 5 sources...","warn");
+  if(btn){btn.textContent="Loading...";btn.disabled=true;}
+  log("Fetching free proxies from 5 sources (this takes 10-20s)...","warn");
+  
+  var timeoutId=setTimeout(function(){
+    log("Still loading... free APIs are slow","warn");
+  },8000);
+  
   try{
     var res=await fetch("/api/proxies/all");
+    clearTimeout(timeoutId);
     if(!res.ok){throw new Error("HTTP "+res.status);}
     var json=await res.json();
     if(!json.ok){throw new Error(json.error||"Server error");}
@@ -632,8 +638,13 @@ async function fetchAllFreeProxies(){
     log("Loaded "+lines.length+" free proxies from "+(json.sources||["multiple"]).join(", "),"success");
     document.getElementById("fileLabel").textContent="Loaded: "+lines.length+" free proxies ("+(json.sources||[]).length+" sources)";
   }catch(err){
+    clearTimeout(timeoutId);
     log("Free proxy fetch failed: "+err.message,"error");
-    alert("Failed to fetch free proxies. Try again or upload manually. Error: "+err.message);
+    log("Falling back to manual proxy list - paste your own or try again","warn");
+    // Load a small static fallback list
+    var fallback=["156.146.59.29:9002","138.201.130.184:8080","202.50.202.109:48617","111.72.195.58:2324","203.124.53.122:5678","91.107.154.214:80","185.132.1.22:1080","193.56.255.181:3128","45.77.171.58:8080","103.152.232.73:8080"];
+    document.getElementById("proxies").value=fallback.join(String.fromCharCode(10));
+    document.getElementById("fileLabel").textContent="API failed. Loaded 10 fallback proxies. Paste your own list.";
   }finally{
     if(btn){btn.textContent="Load All Free Proxies (1-click)";btn.disabled=false;}
   }
