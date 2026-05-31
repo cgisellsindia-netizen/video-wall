@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proxy Tester with URL</title>
+  <style>
+    :root { --bg: #0b0d14; --surface: #141724; --border: #242838; --muted: #8b92a8; --text: #e8eaf0; --accent: #4f8cff; --success: #2ecc71; --warn: #f1c40f; --error: #e74c3c; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: "Segoe UI", system-ui, sans-serif; min-height: 100vh; padding: 20px; }
+    .container { max-width: 1400px; margin: 0 auto; }
+    h1 { margin-bottom: 6px; }
+    .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 20px; }
+    label { display: block; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    input, textarea, select { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; color: var(--text); font-size: 14px; margin-bottom: 14px; font-family: inherit; }
+    textarea { min-height: 120px; resize: vertical; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 800px) { .row { grid-template-columns: 1fr; } }
+    button { background: var(--accent); color: white; border: none; padding: 14px 28px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 15px; display: inline-flex; align-items: center; gap: 8px; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.secondary { background: var(--border); }
+    .actions { display: flex; gap: 12px; margin-top: 6px; }
+    .stats { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 20px; min-width: 140px; }
+    .stat .label2 { color: var(--muted); font-size: 12px; }
+    .stat .num { font-size: 24px; font-weight: bold; margin-top: 4px; }
+    .stat .good { color: var(--success); }
+    .stat .bad { color: var(--error); }
+    .stat .warn { color: var(--warn); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+    .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; transition: border-color 0.3s; }
+    .tile.working { border-color: var(--success); }
+    .tile.failed { border-color: var(--error); }
+    .tile.testing { border-color: var(--warn); }
+    .tile-head { padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+    .tile-title { font-weight: 600; font-size: 13px; }
+    .tile-status { font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600; }
+    .tile-status.testing { background: rgba(241,196,15,0.15); color: var(--warn); }
+    .tile-status.working { background: rgba(46,204,113,0.15); color: var(--success); }
+    .tile-status.failed { background: rgba(231,76,60,0.15); color: var(--error); }
+    .tile-status.skipped { background: rgba(139,146,168,0.15); color: var(--muted); }
+    .tile-media { min-height: 180px; background: #0a0c12; display: flex; align-items: center; justify-content: center; }
+    .tile-media iframe { width: 100%; height: 180px; border: none; display: block; }
+    .tile-media video { width: 100%; height: 180px; display: block; background: black; }
+    .tile-media .placeholder { color: var(--muted); font-size: 13px; text-align: center; padding: 20px; }
+    .tile-foot { padding: 10px 14px; font-size: 12px; color: var(--muted); }
+    .log-panel { max-height: 200px; overflow: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; }
+    .log-line { padding: 3px 0; border-bottom: 1px solid var(--border); }
+    .log-line.success { color: var(--success); }
+    .log-line.error { color: var(--error); }
+    .log-line.warn { color: var(--warn); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Proxy Tester with URL</h1>
+    <div class="subtitle">Test proxies against your target URL. Working ones open in video tiles. Failed ones are skipped.</div>
+    <div class="panel">
+      <div class="row">
+        <div><label>Target URL to test</label><input id="targetUrl" type="text" placeholder="https://www.youtube.com/embed/dQw4w9WgXcQ" value="https://www.youtube.com/embed/dQw4w9WgXcQ" /></div>
+        <div><label>Mode</label><select id="mode"><option value="iframe">Open working in iframe</option><option value="video">Open working as video</option><option value="test-only">Test only (no tiles)</option></select></div>
+      </div>
+      <label>Proxy list (one per line)</label>
+      <textarea id="proxies" placeholder="ip:port:user:pass&#10;http://user:pass@ip:port&#10;socks5://ip:port"></textarea>
+      <div class="actions"><button id="testBtn" onclick="startTest()">Start Proxy Test</button><button class="secondary" onclick="stopTest()">Stop</button><button class="secondary" onclick="clearAll()">Clear</button></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="label2">Total</div><div class="num" id="statTotal">0</div></div>
+      <div class="stat"><div class="label2">Working</div><div class="num good" id="statWorking">0</div></div>
+      <div class="stat"><div class="label2">Failed</div><div class="num bad" id="statFailed">0</div></div>
+      <div class="stat"><div class="label2">Pending</div><div class="num warn" id="statPending">0</div></div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="panel" style="margin-top: 20px;"><label>Logs</label><div class="log-panel" id="logs"></div></div>
+  </div>
+<script>
+let running = false;
+
+function log(msg, type) {
+  const logs = document.getElementById('logs');
+  const line = document.createElement('div');
+  line.className = 'log-line ' + (type || 'info');
+  line.textContent = new Date().toLocaleTimeString() + ' | ' + msg;
+  logs.insertBefore(line, logs.firstChild);
+}
+
+function updateStats(total, working, failed, pending) {
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statWorking').textContent = working;
+  document.getElementById('statFailed').textContent = failed;
+  document.getElementById('statPending').textContent = pending;
+}
+
+function createTile(proxy, index) {
+  const grid = document.getElementById('grid');
+  const tile = document.createElement('div');
+  tile.className = 'tile testing';
+  tile.id = 'tile-' + index;
+  tile.innerHTML = '<div class="tile-head"><span class="tile-title">Proxy ' + (index + 1) + '</span><span class="tile-status testing" id="status-' + index + '">Testing...</span></div><div class="tile-media" id="media-' + index + '"><div class="placeholder">Testing proxy...</div></div><div class="tile-foot" id="foot-' + index + '">' + proxy + '</div>';
+  grid.appendChild(tile);
+}
+
+function updateTile(index, result, targetUrl, mode) {
+  const tile = document.getElementById('tile-' + index);
+  const status = document.getElementById('status-' + index);
+  const media = document.getElementById('media-' + index);
+  const foot = document.getElementById('foot-' + index);
+
+  if (result.ok) {
+    tile.className = 'tile working';
+    status.className = 'tile-status working';
+    status.textContent = 'WORKING';
+    foot.textContent = result.proxy + ' | HTTP ' + result.statusCode;
+    if (mode === 'iframe') {
+      media.innerHTML = '<iframe src="' + targetUrl + '" allow="autoplay; encrypted-media" allowfullscreen></iframe>';
+    } else if (mode === 'video') {
+      media.innerHTML = '<video controls autoplay muted playsinline><source src="' + targetUrl + '"></video>';
+    } else {
+      media.innerHTML = '<div class="placeholder">Proxy works - test-only mode</div>';
+    }
+    log('Proxy ' + result.proxy + ' WORKS (HTTP ' + result.statusCode + ')', 'success');
+  } else {
+    tile.className = 'tile failed';
+    status.className = 'tile-status failed';
+    status.textContent = 'FAILED';
+    foot.textContent = result.proxy + ' | ' + (result.error || 'Error');
+    media.innerHTML = '<div class="placeholder">Skipped</div>';
+    log('Proxy ' + result.proxy + ' FAILED: ' + (result.error || 'Error'), 'error');
+  }
+}
+
+function skipTile(index, reason) {
+  const tile = document.getElementById('tile-' + index);
+  if (!tile) return;
+  document.getElementById('status-' + index).className = 'tile-status skipped';
+  document.getElementById('status-' + index).textContent = 'SKIPPED';
+  document.getElementById('media-' + index).innerHTML = '<div class="placeholder">' + reason + '</div>';
+  tile.className = 'tile failed';
+}
+
+async function testOneProxy(targetUrl, proxy, index, mode) {
+  try {
+    const res = await fetch('/api/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetUrl: targetUrl, proxy: proxy })
+    });
+    const data = await res.json();
+    updateTile(index, data, targetUrl, mode);
+    return data.ok;
+  } catch (e) {
+    updateTile(index, { ok: false, proxy: proxy, error: e.message }, targetUrl, mode);
+    return false;
+  }
+}
+
+async function startTest() {
+  if (running) return;
+  running = true;
+  document.getElementById('testBtn').disabled = true;
+
+  const targetUrl = document.getElementById('targetUrl').value.trim();
+  const proxiesRaw = document.getElementById('proxies').value.trim();
+  const mode = document.getElementById('mode').value;
+
+  if (!targetUrl) { alert('Enter target URL'); running = false; document.getElementById('testBtn').disabled = false; return; }
+  if (!proxiesRaw) { alert('Enter proxy list'); running = false; document.getElementById('testBtn').disabled = false; return; }
+
+  const proxies = proxiesRaw.split(/
+/).map(function(l){return l.trim()}).filter(Boolean);
+  document.getElementById('grid').innerHTML = '';
+  document.getElementById('logs').innerHTML = '';
+  updateStats(proxies.length, 0, 0, proxies.length);
+  log('Starting test of ' + proxies.length + ' proxies against ' + targetUrl);
+
+  proxies.forEach(function(p, i){ createTile(p, i); });
+
+  var working = 0, failed = 0;
+  for (var i = 0; i < proxies.length; i++) {
+    if (!running) { skipTile(i, 'Stopped'); continue; }
+    var ok = await testOneProxy(targetUrl, proxies[i], i, mode);
+    if (ok) working++; else failed++;
+    updateStats(proxies.length, working, failed, proxies.length - working - failed);
+  }
+
+  log('Test complete. Working: ' + working + ', Failed: ' + failed, working > 0 ? 'success' : 'warn');
+  running = false;
+  document.getElementById('testBtn').disabled = false;
+}
+
+function stopTest() { running = false; log('Stopping...'); }
+function clearAll() { running = false; document.getElementById('grid').innerHTML = ''; document.getElementById('logs').innerHTML = ''; updateStats(0,0,0,0); document.getElementById('testBtn').disabled = false; }
+
+var saved = localStorage.getItem('proxyTester.proxies') || '';
+document.getElementById('proxies').value = saved;
+document.getElementById('proxies').addEventListener('input', function(e){ localStorage.setItem('proxyTester.proxies', e.target.value); });
+</script></body></html>
