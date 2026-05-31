@@ -51,6 +51,52 @@ async function testProxy(targetUrl, proxyObj) {
   }
 }
 
+
+async function fetchGeonode() {
+  try {
+    const res = await fetch('https://proxylist.geonode.com/api/proxy-list?limit=500&page=1&sort_by=lastChecked&sort_type=desc', { headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' }, timeout: 20000 });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return (json.data || []).map(item => item.ip && item.port ? item.ip + ':' + item.port : null).filter(Boolean);
+  } catch { return []; }
+}
+
+async function fetchProxyScrape() {
+  try {
+    const res = await fetch('https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all', { timeout: 20000 });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return text.split(String.fromCharCode(10)).map(l => l.trim()).filter(l => l && l.includes(':'));
+  } catch { return []; }
+}
+
+async function fetchProxyListDownload(type) {
+  try {
+    const res = await fetch('https://www.proxy-list.download/api/v1/get?type=' + type, { timeout: 20000 });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return text.split(String.fromCharCode(10)).map(l => l.trim()).filter(l => l && l.includes(':'));
+  } catch { return []; }
+}
+
+async function fetchAllFreeProxies() {
+  const results = await Promise.all([
+    fetchGeonode(),
+    fetchProxyScrape(),
+    fetchProxyListDownload('http'),
+    fetchProxyListDownload('socks4'),
+    fetchProxyListDownload('socks5')
+  ]);
+  const all = results.flat();
+  const seen = new Set();
+  const unique = [];
+  for (let i = 0; i < all.length; i++) {
+    const key = all[i].toLowerCase().replace(new RegExp('^https?://'), '').replace(new RegExp('^socks[45]://'), '');
+    if (!seen.has(key)) { seen.add(key); unique.push(all[i]); }
+  }
+  return unique;
+}
+
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -92,6 +138,17 @@ const server = http.createServer(async (req, res) => {
       const data = (json.data || []).map(item => (item.ip && item.port) ? (item.ip + ':' + item.port) : null).filter(Boolean);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, count: data.length, proxies: data }));
+    } catch (err) {
+      res.writeHead(500); res.end(JSON.stringify({ ok: false, error: err.message }));
+    }
+    return;
+  }
+
+  if (url.pathname === '/api/proxies/all' && req.method === 'GET') {
+    try {
+      const proxies = await fetchAllFreeProxies();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, count: proxies.length, proxies: proxies, sources: ['geonode','proxyscrape','proxy-list.download(http)','proxy-list.download(socks4)','proxy-list.download(socks5)'] }));
     } catch (err) {
       res.writeHead(500); res.end(JSON.stringify({ ok: false, error: err.message }));
     }

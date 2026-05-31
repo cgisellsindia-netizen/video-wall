@@ -73,7 +73,8 @@ button.secondary { background: var(--border); }
         <span id="fileLabel">Click to upload proxy list</span>
         <input type="file" id="proxyFile" accept=".txt" onchange="handleFileUpload(event)" />
       </div>
-      <button class="secondary" style="margin-top:10px;width:100%;font-size:12px;padding:8px 0" onclick="fetchGeonodeProxies()">Fetch from Geonode (free proxies)</button>
+      <button class="secondary" style="margin-top:10px;width:100%;font-size:12px;padding:8px 0" onclick="fetchAllFreeProxies()">Load All Free Proxies (1-click)</button>
+      <div style="color:var(--muted);font-size:10px;margin-top:4px;text-align:center">Sources: Geonode, ProxyScrape, Proxy-List (HTTP, SOCKS4, SOCKS5)</div>
     </div>
     <div>
       <label>Or paste proxies here (one per line)</label>
