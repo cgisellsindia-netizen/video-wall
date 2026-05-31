@@ -83,6 +83,21 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === '/api/geonode' && req.method === 'GET') {
+    try {
+      const apiUrl = 'https://proxylist.geonode.com/api/proxy-list?limit=500&page=1&sort_by=lastChecked&sort_type=desc';
+      const response = await fetch(apiUrl, { headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' }, timeout: 20000 });
+      if (!response.ok) { res.writeHead(502); res.end(JSON.stringify({ ok: false, error: 'Upstream error ' + response.status })); return; }
+      const json = await response.json();
+      const data = (json.data || []).map(item => (item.ip && item.port) ? (item.ip + ':' + item.port) : null).filter(Boolean);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, count: data.length, proxies: data }));
+    } catch (err) {
+      res.writeHead(500); res.end(JSON.stringify({ ok: false, error: err.message }));
+    }
+    return;
+  }
+
   res.writeHead(404); res.end('Not found');
 });
 
