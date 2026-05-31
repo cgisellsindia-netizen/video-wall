@@ -183,16 +183,16 @@ function inferSourceType(url){
   if(safeUrl.startsWith("http://")||safeUrl.startsWith("https://"))return"page";
   return"video";
 }
-function buildEmbedUrlNoLoop(sourceUrl,sourceType){
+function buildEmbedUrl(sourceUrl,sourceType,loop){
   if(sourceType==="youtube"){
     var youtubeId=parseYouTubeId(sourceUrl);
     if(!youtubeId)return"";
-    return"https://www.youtube.com/embed/"+youtubeId+"?autoplay=1&mute=1&playsinline=1&rel=0";
+    var url="https://www.youtube.com/embed/"+youtubeId+"?autoplay=1&mute=1&playsinline=1&rel=0";if(loop){url+="&loop=1&playlist="+youtubeId;}return url;
   }
   if(sourceType==="vimeo"){
     var vimeoId=parseVimeoId(sourceUrl);
     if(!vimeoId)return"";
-    return"https://player.vimeo.com/video/"+vimeoId+"?autoplay=1&muted=1&autopause=0";
+    var url="https://player.vimeo.com/video/"+vimeoId+"?autoplay=1&muted=1&autopause=0";if(loop){url+="&loop=1";}return url;
   }
   if(sourceType==="page")return sourceUrl;
   return"";
@@ -215,7 +215,7 @@ function updateTileSuccess(index,proxy,statusCode,targetUrl){
   status.textContent="WORKING";
   foot.textContent=proxy+" | HTTP "+statusCode;
   var sourceType=inferSourceType(targetUrl);
-  var embedUrl=buildEmbedUrlNoLoop(targetUrl,sourceType);
+  var embedUrl=buildEmbedUrl(targetUrl,sourceType,false);
   if(globalMode==="iframe"&&embedUrl){
     var iframe=document.createElement("iframe");
     iframe.className="tile-frame";
@@ -238,23 +238,35 @@ function updateTileSuccess(index,proxy,statusCode,targetUrl){
 }
 function scheduleIframeReload(index,iframe,targetUrl,sourceType,currentProxy){
   var reloadMs=45000;
+  var loopCount=parseInt(iframe.getAttribute("data-loop-count")||"0",10);
   var timer=setTimeout(function(){
     var tile=document.getElementById("tile-"+index);
     if(!tile||!tile.classList.contains("working")){clearTimeout(timer);return;}
-    var newProxy=pickNextProxy();
-    var newEmbed=buildEmbedUrlNoLoop(targetUrl,sourceType);
+    loopCount++;
+    iframe.setAttribute("data-loop-count",loopCount);
+    var newEmbed=buildEmbedUrl(targetUrl,sourceType,true);
     if(!newEmbed){clearTimeout(timer);return;}
-    var badgeNum=newProxy?((proxyRoundRobin-1+proxyPool.length)%proxyPool.length+1):"";
-    iframe.src=newProxy?wrapUrlThroughProxy(newEmbed,newProxy):newEmbed;
     var badge=iframe.parentElement.querySelector(".tile-proxy-badge");
-    if(!badge){
-      badge=document.createElement("div");
-      badge.className="tile-proxy-badge";
-      iframe.parentElement.appendChild(badge);
+    if(loopCount<3){
+      iframe.src=currentProxy?wrapUrlThroughProxy(newEmbed,currentProxy):newEmbed;
+      if(!badge){
+        badge=document.createElement("div");badge.className="tile-proxy-badge";iframe.parentElement.appendChild(badge);
+      }
+      badge.textContent="loop "+loopCount+"/3";
+      log("Tile "+(index+1)+" replayed (loop "+loopCount+"/3)","warn");
+      scheduleIframeReload(index,iframe,targetUrl,sourceType,currentProxy);
+    }else{
+      loopCount=0;iframe.setAttribute("data-loop-count","0");
+      var newProxy=pickNextProxy();
+      var badgeNum=newProxy?((proxyRoundRobin-1+proxyPool.length)%proxyPool.length+1):"";
+      iframe.src=newProxy?wrapUrlThroughProxy(newEmbed,newProxy):newEmbed;
+      if(!badge){
+        badge=document.createElement("div");badge.className="tile-proxy-badge";iframe.parentElement.appendChild(badge);
+      }
+      badge.textContent=newProxy?("proxy "+badgeNum+"/"+proxyPool.length):"no proxy";
+      log("Tile "+(index+1)+" reloaded with new proxy after 3 loops","warn");
+      scheduleIframeReload(index,iframe,targetUrl,sourceType,newProxy);
     }
-    badge.textContent=newProxy?("proxy "+badgeNum+"/"+proxyPool.length):"no proxy";
-    log("Tile "+(index+1)+" reloaded with new proxy","warn");
-    scheduleIframeReload(index,iframe,targetUrl,sourceType,newProxy);
   },reloadMs);
 }
 function updateTileFail(index,proxy,error){
