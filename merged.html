@@ -380,7 +380,7 @@ async function startTest(){
   document.getElementById("testBtn").disabled=false;
 }
 function stopTest(){running=false;log("Stopping...");}
-function clearAll(){running=false;document.getElementById("grid").innerHTML="";document.getElementById("logs").innerHTML="";updateStats(0,0,0,0);document.getElementById("testBtn").disabled=false;}
+function clearAll(){running=false;document.getElementById("grid").innerHTML="";document.getElementById("logs").innerHTML="";updateStats(0,0,0,0);document.getElementById("testBtn").disabled=false;log("Tiles cleared. Proxies and target URL preserved.");}
 async function runBotTest(proxy,index){
   var targetUrl=document.getElementById("targetUrl").value.trim();
   var profile=document.getElementById("botProfile").value;
