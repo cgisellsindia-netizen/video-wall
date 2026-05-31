@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Video Wall Project</title>
+    <meta
+      name="description"
+      content="Run multiple video links on one website with a project ID and autoplay-ready layout."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script>
+      window.{"projectId":"","videoLinks":"","proxyList":""} = __VIDEO_WALL_CONFIG__;
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+    <script src="./app.js"></script>
+  
+<!-- ADMIN_LOGIN_START -->
+<div id="adminLogin" style="position:fixed;inset:0;background:white;z-index:999999;display:flex;align-items:center;justify-content:center;font-family:Arial">
+  <div style="width:360px;padding:30px;border-radius:20px;box-shadow:0 20px 70px #999">
+    <h2>Admin Login</h2>
+    <input id="adminUser" placeholder="Username" style="width:100%;padding:12px;margin:8px 0">
+    <input id="adminPass" type="password" placeholder="Password" style="width:100%;padding:12px;margin:8px 0">
+    <button onclick="adminLogin()" style="width:100%;padding:12px;background:#dc2626;color:white;border:0;border-radius:10px">Login</button>
+    <p id="adminErr" style="color:red"></p>
+  </div>
+</div>
+<script>
+function adminLogin(){
+  var u=document.getElementById("adminUser").value;
+  var p=document.getElementById("adminPass").value;
+  if(u==="admin" && p==="cgi@123"){
+    localStorage.setItem("adminLoginOk","yes");
+    document.getElementById("adminLogin").style.display="none";
+  } else {
+    document.getElementById("adminErr").innerText="Wrong username or password";
+  }
+}
+if(localStorage.getItem("adminLoginOk")==="yes"){
+  setTimeout(function(){
+    var el=document.getElementById("adminLogin");
+    if(el) el.style.display="none";
+  },100);
+}
+</script>
+<!-- ADMIN_LOGIN_END -->
+
+</body>
+</html>
