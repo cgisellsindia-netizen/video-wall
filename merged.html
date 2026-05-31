@@ -52,6 +52,11 @@ button.secondary { background: var(--border); }
 .log-line.success { color: var(--success); }
 .log-line.error { color: var(--error); }
 .log-line.warn { color: var(--warn); }
+.bot-result { background: #1a1d2a; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin: 8px 0; }
+.bot-result .bot-title { color: var(--accent); font-weight: bold; margin-bottom: 6px; }
+.bot-result .bot-signal { display: inline-block; background: #2a2d3a; padding: 2px 8px; border-radius: 4px; margin: 2px; font-size: 11px; }
+.bot-result .bot-signal.bad { background: #3a1a1a; color: var(--error); }
+.bot-result .bot-signal.good { background: #1a3a1a; color: var(--success); }
 .proxy-file { border: 2px dashed var(--border); padding: 20px; border-radius: 10px; text-align: center; color: var(--muted); cursor: pointer; margin-bottom: 14px; }
 .proxy-file:hover { border-color: var(--accent); }
 .proxy-file input { display: none; }
@@ -398,6 +403,31 @@ async function startTest(){
 }
 function stopTest(){running=false;log("Stopping...");}
 function clearAll(){running=false;document.getElementById("grid").innerHTML="";document.getElementById("logs").innerHTML="";updateStats(0,0,0,0);document.getElementById("testBtn").disabled=false;}
+async function runBotTest(proxy,index){
+  var targetUrl=document.getElementById("targetUrl").value.trim();
+  var profile=document.getElementById("botProfile").value;
+  log("Bot test ["+profile+"] via proxy "+(index+1)+" -> "+targetUrl,"warn");
+  try{
+    var res=await fetch("/api/bot-test",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({proxy:proxy,targetUrl:targetUrl,profile:profile})
+    });
+    var data=await res.json();
+    if(!data.ok){
+      log("Bot test proxy "+(index+1)+" error: "+data.error,"error");
+      return;
+    }
+    var grid=document.getElementById("grid");
+    var tile=document.createElement("div");
+    tile.className="tile working";
+    tile.innerHTML='<div class="bot-result"><div class="bot-title">Proxy '+(index+1)+' | Profile: '+profile+'</div><div>Page: '+data.pageTitle+'</div><div>Blocked: '+(data.blocked?"YES":"NO")+' | Captcha: '+(data.captcha?"YES":"NO")+' | Bot: '+(data.botDetected?"DETECTED":"CLEAN")+'</div><div>Video Loaded: '+(data.videoLoaded?"YES":"NO")+' | Playing: '+(data.videoPlaying?"YES":"NO")+'</div><div>Load Time: '+data.loadTime+'ms</div><div>Signals: '+(data.signals||[]).map(function(s){return '<span class="bot-signal '+(s.indexOf("block")>=0||s.indexOf("error")>=0||s.indexOf("captcha")>=0?"bad":"good")+'">'+s+'</span>'}).join("")+'</div></div>';
+    grid.appendChild(tile);
+    log("Bot test proxy "+(index+1)+" -> "+(data.botDetected?"DETECTED":"PASSED")+(data.videoPlaying?" | VIDEO PLAYING":""),data.botDetected?"error":"success");
+  }catch(err){
+    log("Bot test proxy "+(index+1)+" failed: "+err.message,"error");
+  }
+}
 
 function toggleAutoRefresh(){
   autoRefreshEnabled=!autoRefreshEnabled;
