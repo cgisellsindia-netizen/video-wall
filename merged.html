@@ -61,6 +61,27 @@ button.secondary { background: var(--border); }
 .proxy-file:hover { border-color: var(--accent); }
 .proxy-file input { display: none; }
 </style>
+<script src=bot-detector.js></script>
+<script>
+window.BOT_DETECTOR_CONFIG = {
+  debug: true,
+  endpoint: '/api/bot-report',
+  delay: 2000,
+  recheckInterval: 10000,
+  onDetect: function(data) {
+    console.log('BOT DETECTED:', data);
+    var grid = document.getElementById('grid');
+    if (grid) {
+      var alert = document.createElement('div');
+      alert.className = 'tile';
+      alert.style.background = '#3a1a1a';
+      alert.style.borderColor = 'var(--error)';
+      alert.innerHTML = '<div style="padding:20px"><h3 style="color:var(--error);margin:0">Bot Detected!</h3><p>Score: ' + data.score + '/' + data.maxScore + '</p><p>Signals: ' + data.signals.join(', ') + '</p><p>UA: ' + data.userAgent.substring(0,100) + '...</p></div>';
+      grid.insertBefore(alert, grid.firstChild);
+    }
+  }
+};
+</script>
 </head>
 <body>
 <header>

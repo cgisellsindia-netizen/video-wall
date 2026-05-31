@@ -228,6 +228,24 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+
+  if (url.pathname === '/api/bot-report' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        const timestamp = new Date().toISOString();
+        console.log('[BOT REPORT]', timestamp, 'Score:', data.score, 'Signals:', data.signals.join('|'));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, blocked: data.score >= 50, action: data.score >= 50 ? 'block' : data.score >= 25 ? 'challenge' : 'allow' }));
+      } catch (e) {
+        res.writeHead(400); res.end(JSON.stringify({ ok: false }));
+      }
+    });
+    return;
+  }
+
   res.writeHead(404); res.end('Not found');
 });
 
