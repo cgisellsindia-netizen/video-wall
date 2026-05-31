@@ -88,6 +88,7 @@ button.secondary { background: var(--border); }
         <option value="iframe" selected>Embedded iframe (old player)</option>
         <option value="video">Direct video tag</option>
         <option value="test-only">Test only (no tiles)</option>
+        <option value="bot-test">Real Browser (bot detection test)</option>
       </select>
     </div>
   </div>
@@ -208,6 +209,53 @@ function createTile(proxy,index){
   tile.innerHTML="<div class=\"tile-head\"><span class=\"tile-title\">Proxy "+(index+1)+"</span><span class=\"tile-status testing\" id=\"status-"+index+"\">Testing...</span></div><div class=\"tile-media\" id=\"media-"+index+"\"><div class=\"placeholder\">Testing proxy internally...</div></div><div class=\"tile-foot\" id=\"foot-"+index+"\">"+proxy+"</div>";
   grid.appendChild(tile);
 }
+function updateTileBotDetection(index,proxy,targetUrl){
+  var tile=document.getElementById("tile-"+index);
+  var status=document.getElementById("status-"+index);
+  var media=document.getElementById("media-"+index);
+  var foot=document.getElementById("foot-"+index);
+  tile.className="tile working";
+  status.className="tile-status working";
+  status.textContent="TESTING BROWSER...";
+  foot.textContent=proxy;
+  media.innerHTML='<div class="placeholder">Launching real Chromium via proxy...<br><small>Bot detection signals:</small></div>';
+  
+  fetch("/api/bot-test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({proxy:proxy,targetUrl:targetUrl})})
+    .then(function(res){return res.json();})
+    .then(function(data){
+      if(data.ok&&data.detection){
+        var d=data.detection;
+        var blocked=d.blocked||d.captcha||d.cloudflare;
+        status.textContent=blocked?"BLOCKED":"PASSED";
+        status.className=blocked?"tile-status failed":"tile-status working";
+        foot.textContent=proxy+" | "+(blocked?"Bot detected":"Bot NOT detected");
+        var html='<div style="padding:12px;font-size:12px;overflow:auto;max-height:220px">';
+        html+='<b>Title:</b> '+(d.title||"N/A")+'<br>';
+        html+='<b>URL:</b> '+(d.url||"N/A")+'<br>';
+        html+='<b>Bot Blocked:</b> '+d.blocked+'<br>';
+        html+='<b>Captcha:</b> '+d.captcha+'<br>';
+        html+='<b>Cloudflare:</b> '+d.cloudflare+'<br>';
+        html+='<b>Videos Found:</b> '+(d.videoCount||0)+'<br>';
+        html+='<b>Video Playing:</b> '+d.videoPlaying+'<br>';
+        html+='</div>';
+        media.innerHTML=html;
+        log("Bot test "+(blocked?"BLOCKED":"PASSED")+" for "+proxy,blocked?"error":"success");
+      }else{
+        status.textContent="ERROR";
+        status.className="tile-status failed";
+        foot.textContent=proxy+" | "+(data.error||"Browser launch failed");
+        media.innerHTML='<div class="placeholder">Browser test failed:<br>'+(data.error||"Unknown")+'</div>';
+        log("Bot test ERROR for "+proxy+": "+(data.error||"Unknown"),"error");
+      }
+    })
+    .catch(function(e){
+      status.textContent="ERROR";
+      status.className="tile-status failed";
+      foot.textContent=proxy+" | "+e.message;
+      log("Bot test fetch error for "+proxy+": "+e.message,"error");
+    });
+}
+
 function updateTileSuccess(index,proxy,statusCode,targetUrl){
   var tile=document.getElementById("tile-"+index);
   var status=document.getElementById("status-"+index);
@@ -302,7 +350,19 @@ function skipTile(index,reason){
   document.getElementById("media-"+index).innerHTML="<div class=\"placeholder\">"+reason+"</div>";
   if(!showFailed)tile.style.display="none";
 }
-async function testOneProxy(targetUrl,proxy,index){  try{    const res=await fetch("/api/test",{      method:"POST",headers:{"Content-Type":"application/json"},      body:JSON.stringify({targetUrl:targetUrl,proxy:proxy})    });    const data=await res.json();    if(data.ok){      createTile(proxy,index);      updateTileSuccess(index,data.proxy,data.statusCode,targetUrl);    }else{      log("Proxy "+proxy+" FAILED: "+(data.error||"Error"),"error");    }    return data.ok;  }catch(e){    log("Proxy "+proxy+" FAILED: "+e.message,"error");    return false;  }}
+async function testOneProxy(targetUrl,proxy,index){
+  if(globalMode==="bot-test"){
+    createTile(proxy,index);
+    updateTileBotDetection(index,proxy,targetUrl);
+    return true; // Bot test runs asynchronously, we just launched it
+  }
+  try{
+    const res=await fetch("/api/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({targetUrl:targetUrl,proxy:proxy})});
+    const data=await res.json();
+    if(data.ok){createTile(proxy,index);updateTileSuccess(index,data.proxy,data.statusCode,targetUrl);}else{log("Proxy "+proxy+" FAILED: "+(data.error||"Error"),"error");}
+    return data.ok;
+  }catch(e){log("Proxy "+proxy+" FAILED: "+e.message,"error");return false;}
+}
 async function startTest(){
   if(running)return;
   running=true;

@@ -4,6 +4,7 @@ const path = require('path');
 const fetch = require('node-fetch');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const { SocksProxyAgent } = require('socks-proxy-agent');
+const { chromium } = require('playwright');
 
 const PORT = process.env.PORT || 8082;
 
@@ -152,6 +153,99 @@ const server = http.createServer(async (req, res) => {
     } catch (err) {
       res.writeHead(500); res.end(JSON.stringify({ ok: false, error: err.message }));
     }
+    return;
+  }
+
+  if (url.pathname === '/api/bot-test' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const proxyObj = parseOneProxy(data.proxy);
+        const targetUrl = data.targetUrl || 'https://emapp.cc/watch/';
+        if (!proxyObj) { res.writeHead(400); res.end(JSON.stringify({ ok: false, error: 'Invalid proxy' })); return; }
+        
+        let browser;
+        try {
+          const launchOptions = {
+            headless: true,
+            args: [
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage',
+              '--disable-accelerated-2d-canvas',
+              '--disable-gpu'
+            ]
+          };
+          
+          // Add proxy to browser launch
+          if (proxyObj.server.startsWith('socks')) {
+            launchOptions.proxy = { server: proxyObj.server };
+          } else {
+            launchOptions.proxy = { server: proxyObj.url };
+          }
+          
+          browser = await chromium.launch(launchOptions);
+          const context = await browser.newContext({
+            viewport: { width: 1920, height: 1080 },
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            locale: 'en-US',
+            timezoneId: 'America/New_York'
+          });
+          
+          const page = await context.newPage();
+          
+          // Navigate to site
+          await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 30000 });
+          
+          // Wait for page to settle
+          await page.waitForTimeout(5000);
+          
+          // Check for common bot detection signals
+          const detection = await page.evaluate(() => {
+            const results = {
+              title: document.title,
+              url: window.location.href,
+              blocked: false,
+              captcha: false,
+              cloudflare: false,
+              botMessage: ''
+            };
+            
+            // Check for common bot blockers
+            const bodyText = document.body.innerText.toLowerCase();
+            if (bodyText.includes('captcha') || bodyText.includes('verify you are human')) results.captcha = true;
+            if (bodyText.includes('cloudflare') || bodyText.includes('checking your browser')) results.cloudflare = true;
+            if (bodyText.includes('blocked') || bodyText.includes('access denied') || bodyText.includes('forbidden')) results.blocked = true;
+            if (document.querySelector('iframe[src*="challenges.cloudflare"], iframe[src*="captcha"]')) results.captcha = true;
+            
+            // Check for video element
+            const videos = document.querySelectorAll('video');
+            results.videoCount = videos.length;
+            results.videoPlaying = false;
+            videos.forEach(v => { if (!v.paused) results.videoPlaying = true; });
+            
+            // Check for bot detection scripts
+            if (window.__cf_chl_jschl_tk__) results.cloudflare = true;
+            if (window.turnstile) results.captcha = true;
+            if (window.grecaptcha) results.captcha = true;
+            
+            return results;
+          });
+          
+          await browser.close();
+          browser = null;
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, proxy: proxyObj.url, detection: detection }));
+        } catch (err) {
+          if (browser) await browser.close();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, proxy: proxyObj.url, error: err.message, botDetected: err.message.includes('timeout') || err.message.includes('net::') }));
+        }
+      } catch (e) { res.writeHead(400); res.end(JSON.stringify({ ok: false, error: e.message })); }
+    });
     return;
   }
 
