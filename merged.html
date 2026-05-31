@@ -327,7 +327,7 @@ function buildEmbedUrl(sourceUrl,sourceType,loop){
   if(sourceType==="youtube"){
     var youtubeId=parseYouTubeId(sourceUrl);
     if(!youtubeId)return"";
-    var url="https://www.youtube.com/embed/"+youtubeId+"?autoplay=1&mute=1&playsinline=1&rel=0&_cb="+Date.now();if(loop){url+="&loop=1&playlist="+youtubeId;}return url;
+    var url="https://www.youtube.com/embed/"+youtubeId+"?autoplay=1&mute=1&playsinline=1&rel=0&controls=1&enablejsapi=1&_cb="+Date.now();if(loop){url+="&loop=1&playlist="+youtubeId;}return url;
   }
   if(sourceType==="vimeo"){
     var vimeoId=parseVimeoId(sourceUrl);
@@ -421,9 +421,9 @@ function processStaggerQueue(){
   var iframe=document.createElement("iframe");
   iframe.className="tile-frame";
   iframe.src=item.embedUrl;
-  iframe.allow="autoplay; fullscreen; picture-in-picture";
-  iframe.referrerPolicy="strict-origin-when-cross-origin";
+  iframe.allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
   iframe.setAttribute("allowfullscreen","true");
+  iframe.setAttribute("loading","eager");
   iframe.setAttribute("title","Proxy "+(item.index+1)+" source");
   item.media.innerHTML="";
   item.media.appendChild(iframe);
@@ -432,13 +432,21 @@ function processStaggerQueue(){
   staggerTimer=setTimeout(processStaggerQueue,1200);
 }
 function scheduleIframeReload(index,iframe,targetUrl,sourceType,currentProxy){
-  var reloadMs=45000;
+  // Proxy rotation every 60s instead of killing the tile
+  var reloadMs=60000;
   var timer=setTimeout(function(){
     var tile=document.getElementById("tile-"+index);
     if(!tile||!tile.classList.contains("working")){clearTimeout(timer);return;}
-    tile.style.display="none";
-    iframe.src="about:blank";
-    log("Tile "+(index+1)+" closed after first play (session cleared)","warn");
+    var nextProxy=pickNextProxy();
+    if(nextProxy&&iframe){
+      var newEmbed=buildEmbedUrl(targetUrl,sourceType,false);
+      if(newEmbed) iframe.src=newEmbed;
+      var foot=document.getElementById("foot-"+index);
+      if(foot) foot.textContent=nextProxy+" | rotated";
+      log("Tile "+(index+1)+" proxy rotated","warn");
+    }
+    // Reschedule
+    timer=setTimeout(arguments.callee,reloadMs);
   },reloadMs);
 }
 function updateTileFail(index,proxy,error){
