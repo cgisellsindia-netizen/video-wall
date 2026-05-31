@@ -65,6 +65,34 @@ button.secondary { background: var(--border); }
 <script>
 let botSimProxyIndex=0;
 
+async function testProxyFetch(){
+  log("Testing proxy API...","warn");
+  try{
+    var res = await fetch("/api/proxies/all");
+    log("Proxy API status: " + res.status, res.ok ? "success" : "error");
+    var json = await res.json();
+    log("Proxy API ok=" + json.ok + " count=" + (json.count||0), json.ok ? "success" : "error");
+  }catch(e){
+    log("Proxy API FAILED: " + e.message, "error");
+  }
+}
+
+function testFileInput(){
+  log("Testing file input...","warn");
+  var input = document.getElementById("proxyFile");
+  log("proxyFile element: " + (input ? "FOUND" : "MISSING"), input ? "success" : "error");
+  if(input){
+    log("proxyFile type=" + input.type + " accept=" + input.accept, "success");
+    input.click();
+  }
+}
+
+function testLog(){
+  log("Log system is working!","success");
+  log("This is a warn","warn");
+  log("This is an error","error");
+}
+
 function getBotUA(profile){
   const uas={
     'multi-watch':'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) AppleWebKit/525.13 (KHTML, like Gecko) Chrome/0.A.B.C Safari/525.13',
@@ -191,7 +219,13 @@ window.BOT_DETECTOR_CONFIG = {
       </select>
     </div>
   </div>
-  <div class="actions">
+  <div style="background:#1a3a1a;border:1px solid #2ecc71;padding:10px;border-radius:8px;margin-bottom:10px;">
+  <div style="font-size:11px;color:#2ecc71;">DEBUG: Click buttons below to test. Errors appear here in red.</div>
+  <button onclick="testProxyFetch()" style="margin-top:5px;font-size:11px;padding:6px 12px;">Test Proxy API</button>
+  <button onclick="testFileInput()" style="margin-top:5px;font-size:11px;padding:6px 12px;">Test File Input</button>
+  <button onclick="testLog()" style="margin-top:5px;font-size:11px;padding:6px 12px;">Test Log</button>
+</div>
+<div class="actions">
     <button id="testBtn" onclick="startTest()">Start Test & Auto-Open Tiles</button>
     <button class="secondary" onclick="stopTest()">Stop</button>
     <button class="secondary" onclick="clearAll()">Clear</button>
@@ -581,8 +615,13 @@ async function fetchAllFreeProxies(){
   }
 }
 
-let botSimProxyIndex=0;
-
+</script>
+<div id="debugPanel" style="position:fixed;bottom:0;left:0;right:0;background:#1a1a2e;border-top:2px solid #e74c3c;color:#fff;font-size:11px;padding:8px;max-height:150px;overflow:auto;z-index:9999;display:none;"></div>
+<script>
+setTimeout(function(){
+  var d = document.getElementById('debugPanel');
+  if(d && d.children.length > 0) d.style.display = 'block';
+}, 1000);
 </script>
 </body>
 </html>
