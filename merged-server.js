@@ -156,6 +156,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+
   if (url.pathname === '/api/bot-test' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -164,85 +165,63 @@ const server = http.createServer(async (req, res) => {
         const data = JSON.parse(body);
         const proxyObj = parseOneProxy(data.proxy);
         const targetUrl = data.targetUrl || 'https://emapp.cc/watch/';
+        const profile = data.profile || 'naive';
         if (!proxyObj) { res.writeHead(400); res.end(JSON.stringify({ ok: false, error: 'Invalid proxy' })); return; }
-        
         let browser;
+        const result = { profile: profile, proxy: proxyObj.url, target: targetUrl, ok: false, blocked: false, captcha: false, cloudflare: false, botDetected: false, videoLoaded: false, videoPlaying: false, pageTitle: '', finalUrl: '', signals: [], error: null, loadTime: 0 };
         try {
-          const launchOptions = {
-            headless: true,
-            args: [
-              '--no-sandbox',
-              '--disable-setuid-sandbox',
-              '--disable-dev-shm-usage',
-              '--disable-accelerated-2d-canvas',
-              '--disable-gpu'
-            ]
-          };
-          
-          // Add proxy to browser launch
-          if (proxyObj.server.startsWith('socks')) {
-            launchOptions.proxy = { server: proxyObj.server };
-          } else {
-            launchOptions.proxy = { server: proxyObj.url };
-          }
-          
+          const startTime = Date.now();
+          const launchOptions = { headless: profile === 'human' ? false : true, args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--disable-blink-features=AutomationControlled'] };
+          if (proxyObj.server.startsWith('socks')) { launchOptions.proxy = { server: proxyObj.server }; } else { launchOptions.proxy = { server: proxyObj.url }; }
           browser = await chromium.launch(launchOptions);
-          const context = await browser.newContext({
-            viewport: { width: 1920, height: 1080 },
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            locale: 'en-US',
-            timezoneId: 'America/New_York'
-          });
-          
+          let contextOptions = { viewport: profile === 'human' ? { width: 1920, height: 1080 } : { width: 1366, height: 768 }, locale: 'en-US', timezoneId: 'America/New_York' };
+          if (profile === 'naive') { result.signals.push('profile:naive-headless'); }
+          else if (profile === 'stealth') { contextOptions.userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'; launchOptions.args.push('--disable-features=IsolateOrigins,site-per-process'); result.signals.push('profile:stealth-ua-spoof'); }
+          else if (profile === 'human') { contextOptions.userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'; contextOptions.viewport = { width: 1920, height: 1080 }; launchOptions.args.push('--disable-features=IsolateOrigins,site-per-process'); result.signals.push('profile:human-headed'); }
+          const context = await browser.newContext(contextOptions);
           const page = await context.newPage();
-          
-          // Navigate to site
-          await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 30000 });
-          
-          // Wait for page to settle
-          await page.waitForTimeout(5000);
-          
-          // Check for common bot detection signals
-          const detection = await page.evaluate(() => {
-            const results = {
-              title: document.title,
-              url: window.location.href,
-              blocked: false,
-              captcha: false,
-              cloudflare: false,
-              botMessage: ''
-            };
-            
-            // Check for common bot blockers
-            const bodyText = document.body.innerText.toLowerCase();
-            if (bodyText.includes('captcha') || bodyText.includes('verify you are human')) results.captcha = true;
-            if (bodyText.includes('cloudflare') || bodyText.includes('checking your browser')) results.cloudflare = true;
-            if (bodyText.includes('blocked') || bodyText.includes('access denied') || bodyText.includes('forbidden')) results.blocked = true;
-            if (document.querySelector('iframe[src*="challenges.cloudflare"], iframe[src*="captcha"]')) results.captcha = true;
-            
-            // Check for video element
+          const response = await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 30000 });
+          result.loadTime = Date.now() - startTime;
+          await page.waitForTimeout(3000);
+          const pageData = await page.evaluate(() => {
+            const data = { title: document.title, url: window.location.href, bodyText: document.body ? document.body.innerText.toLowerCase() : '', videoCount: 0, videoPlaying: false, hasVideoElement: false, signals: [] };
             const videos = document.querySelectorAll('video');
-            results.videoCount = videos.length;
-            results.videoPlaying = false;
-            videos.forEach(v => { if (!v.paused) results.videoPlaying = true; });
-            
-            // Check for bot detection scripts
-            if (window.__cf_chl_jschl_tk__) results.cloudflare = true;
-            if (window.turnstile) results.captcha = true;
-            if (window.grecaptcha) results.captcha = true;
-            
-            return results;
+            data.videoCount = videos.length;
+            data.hasVideoElement = videos.length > 0;
+            videos.forEach(v => { if (!v.paused && v.currentTime > 0) data.videoPlaying = true; });
+            if (navigator.webdriver) data.signals.push('navigator-webdriver');
+            if (window.outerWidth === 0 && window.outerHeight === 0) data.signals.push('no-outer-size');
+            if (window.chrome && !window.chrome.runtime) data.signals.push('chrome-no-runtime');
+            if (window.__cf_chl_jschl_tk__) data.signals.push('cloudflare-challenge');
+            if (window.turnstile) data.signals.push('turnstile-detected');
+            if (window.grecaptcha) data.signals.push('recaptcha-detected');
+            if (document.querySelector('iframe[src*="challenges.cloudflare"]')) data.signals.push('cloudflare-iframe');
+            if (document.querySelector('iframe[src*="captcha"]')) data.signals.push('captcha-iframe');
+            const blockTexts = ['blocked', 'access denied', 'forbidden', 'captcha', 'verify you are human', 'checking your browser', 'security check', 'bot detected', 'automated'];
+            blockTexts.forEach(text => { if (data.bodyText.includes(text)) data.signals.push('block-text:' + text); });
+            return data;
           });
-          
+          result.pageTitle = pageData.title;
+          result.finalUrl = pageData.url;
+          result.videoLoaded = pageData.hasVideoElement;
+          result.videoPlaying = pageData.videoPlaying;
+          result.signals = result.signals.concat(pageData.signals);
+          result.blocked = result.signals.some(s => s.includes('block-text') || s.includes('cloudflare'));
+          result.captcha = result.signals.some(s => s.includes('captcha'));
+          result.cloudflare = result.signals.some(s => s.includes('cloudflare'));
+          result.botDetected = result.blocked || result.captcha || result.signals.includes('navigator-webdriver');
+          result.ok = true;
           await browser.close();
           browser = null;
-          
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: true, proxy: proxyObj.url, detection: detection }));
+          res.end(JSON.stringify(result));
         } catch (err) {
           if (browser) await browser.close();
+          result.error = err.message;
+          result.botDetected = true;
+          result.signals.push('error:' + err.message);
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, proxy: proxyObj.url, error: err.message, botDetected: err.message.includes('timeout') || err.message.includes('net::') }));
+          res.end(JSON.stringify(result));
         }
       } catch (e) { res.writeHead(400); res.end(JSON.stringify({ ok: false, error: e.message })); }
     });
