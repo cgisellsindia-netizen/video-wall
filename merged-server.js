@@ -130,6 +130,18 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Serve static files (bot-detector.js, styles.css, etc.)
+  const extMap = { '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json' };
+  const ext = path.extname(url.pathname);
+  if (extMap[ext]) {
+    const filePath = path.join(__dirname, url.pathname);
+    fs.readFile(filePath, (err, data) => {
+      if (err) { res.writeHead(404); res.end('Not found'); return; }
+      res.writeHead(200, { 'Content-Type': extMap[ext] }); res.end(data);
+    });
+    return;
+  }
+
   if (url.pathname === '/api/geonode' && req.method === 'GET') {
     try {
       const apiUrl = 'https://proxylist.geonode.com/api/proxy-list?limit=500&page=1&sort_by=lastChecked&sort_type=desc';
