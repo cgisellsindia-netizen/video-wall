@@ -1,12 +1,12 @@
-﻿services:
+services:
   - type: web
     name: video-wall-browser
-    env: docker
-    plan: starter
-    dockerfilePath: ./Dockerfile
-    autoDeploy: true
+    runtime: node
+    buildCommand: npm install && npx playwright install chromium
+    startCommand: node merged-server.js
     envVars:
-      - key: PORT
-        value: 10000
-      - key: NODE_ENV
-        value: production
+      - key: NODE_VERSION
+        value: 20.11.0
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: 0
+    plan: free

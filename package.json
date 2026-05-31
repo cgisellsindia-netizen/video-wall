@@ -1,25 +1,20 @@
 {
-  "name": "multi-ip-browser-dashboard",
+  "name": "video-wall-browser",
   "version": "1.0.0",
-  "main": "server.js",
-  "engines": {
-    "node": "20.x"
-  },
+  "description": "Proxy Tester + Video Wall + Bot Detection Test",
+  "main": "merged-server.js",
   "scripts": {
     "start": "node merged-server.js",
-    "local": "node server.js",
-    "render": "node server-render.js",
-    "browser-render": "node server-render-browser.js",
-    "combo": "node server-render-combo.js",
-    "live-player": "node server-render-live-player.js"
+    "build": "npm install && npx playwright install chromium",
+    "postinstall": "npx playwright install chromium"
   },
   "dependencies": {
-    "express": "^4.22.2",
-    "https-proxy-agent": "^9.0.0",
-    "multer": "^1.4.5-lts.1",
     "node-fetch": "^2.7.0",
-    "playwright": "^1.56.1",
-    "socks-proxy-agent": "^10.0.0",
-    "ws": "^8.21.0"
+    "https-proxy-agent": "^7.0.4",
+    "socks-proxy-agent": "^8.0.3",
+    "playwright": "^1.41.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
