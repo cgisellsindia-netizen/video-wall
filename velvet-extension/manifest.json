@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Velvet Messenger Copilot",
+  "version": "1.0.0",
+  "description": "Read the currently open Messenger chat on request and draft replies locally. Never sends messages.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "clipboardWrite"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Velvet Messenger Copilot"
+  }
+}
