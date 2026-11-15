@@ -1,4 +1,4 @@
-name: Velvet iOS macOS Compile
+name: Velvet iOS macOS Compile (unsigned IPA)
 
 on:
   push:
@@ -46,15 +46,18 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/output"
           cp -R "$RUNNER_TEMP/VelvetDerived/Build/Products/Release-iphoneos/VelvetApp.app" "$RUNNER_TEMP/output/"
-          (cd "$RUNNER_TEMP/output" && zip -qr velvet-unsigned-app.zip VelvetApp.app)
-          mv "$RUNNER_TEMP/output/velvet-unsigned-app.zip" ./velvet-unsigned-app.zip
+          mkdir -p "$RUNNER_TEMP/output/Payload"
+          cp -R "$RUNNER_TEMP/output/VelvetApp.app" "$RUNNER_TEMP/output/Payload/VelvetApp.app"
+          (cd "$RUNNER_TEMP/output" && zip -qr VelvetAI-unsigned.ipa Payload)
+          cp "$RUNNER_TEMP/output/VelvetAI-unsigned.ipa" ./VelvetAI-unsigned.ipa
+          echo 'Unsigned IPA built for later code signing. NOT directly installable on an iPhone.'
       - name: Upload unsigned app and logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: velvet-ios-macos-build
           path: |
-            velvet-unsigned-app.zip
+            VelvetAI-unsigned.ipa
             ${{ runner.temp }}/velvet-build.log
           if-no-files-found: warn
           retention-days: 7
