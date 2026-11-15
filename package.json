@@ -1,20 +1,12 @@
 {
-  "name": "video-wall-browser",
+  "name": "velvet-ai-connections",
   "version": "1.0.0",
-  "description": "Proxy Tester + Video Wall + Bot Detection Test",
-  "main": "merged-server.js",
+  "private": true,
+  "description": "Standalone static Velvet web app",
   "scripts": {
-    "start": "node merged-server.js",
-    "build": "npm install && npx playwright install chromium",
-    "postinstall": "npx playwright install chromium"
-  },
-  "dependencies": {
-    "node-fetch": "^2.7.0",
-    "https-proxy-agent": "^7.0.4",
-    "socks-proxy-agent": "^8.0.3",
-    "playwright": "^1.41.0"
+    "build": "mkdir -p velvet-dist && cp velvet-app/index.html velvet-dist/index.html"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18"
   }
 }
