@@ -65,7 +65,7 @@ if(path.startsWith('/novnc/')&&req.method==='GET'){
  const mime=filename.endsWith('.js')?'text/javascript; charset=utf-8':filename.endsWith('.css')?'text/css':filename.endsWith('.svg')?'image/svg+xml':'application/octet-stream';
  return fs.readFile(filename,(err,data)=>{if(err)return send(res,404,{error:'Module not found'});res.writeHead(200,{'Content-Type':mime,'Cache-Control':'public, max-age=3600','X-Content-Type-Options':'nosniff'});res.end(data)})
 }
-if(path==='/'&&req.method==='GET'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'self' 'unsafe-inline' data: blob:; img-src 'self' blob: data:; connect-src 'self'; frame-ancestors https://velvet-ai-live.onrender.com"});return res.end(html)}
+if(path==='/'&&req.method==='GET'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'self' 'unsafe-inline' data: blob:; img-src 'self' blob: data:; connect-src 'self' wss://velvet-private-browser.onrender.com; frame-ancestors https://velvet-ai-live.onrender.com"});return res.end(html)}
 if(!authorized(req))return send(res,401,{error:'Access key required'});
 if(path==='/api/check')return send(res,200,{ok:true});
 if(path==='/api/vnc-ticket'&&req.method==='GET'){
