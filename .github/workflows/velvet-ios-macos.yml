@@ -1,0 +1,60 @@
+name: Velvet iOS macOS Compile
+
+on:
+  push:
+    branches:
+      - velvet-render-app
+    paths:
+      - "velvet-ios/**"
+      - ".github/workflows/velvet-ios-macos.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout Velvet branch
+        uses: actions/checkout@v4
+      - name: Confirm Xcode
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate iOS project
+        working-directory: velvet-ios
+        run: xcodegen generate
+      - name: Compile for physical-device architecture without signing
+        working-directory: velvet-ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project VelvetAI.xcodeproj \
+            -scheme VelvetApp \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/VelvetDerived" \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee "$RUNNER_TEMP/velvet-build.log"
+      - name: Export unsigned build for signing later
+        if: success()
+        run: |
+          mkdir -p "$RUNNER_TEMP/output"
+          cp -R "$RUNNER_TEMP/VelvetDerived/Build/Products/Release-iphoneos/VelvetApp.app" "$RUNNER_TEMP/output/"
+          (cd "$RUNNER_TEMP/output" && zip -qr velvet-unsigned-app.zip VelvetApp.app)
+          mv "$RUNNER_TEMP/output/velvet-unsigned-app.zip" ./velvet-unsigned-app.zip
+      - name: Upload unsigned app and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: velvet-ios-macos-build
+          path: |
+            velvet-unsigned-app.zip
+            ${{ runner.temp }}/velvet-build.log
+          if-no-files-found: warn
+          retention-days: 7
