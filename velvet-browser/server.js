@@ -69,7 +69,9 @@ if(path==='/'&&req.method==='GET'){res.writeHead(200,{'Content-Type':'text/html;
 if(!authorized(req))return send(res,401,{error:'Access key required'});
 if(path==='/api/check')return send(res,200,{ok:true});
 if(path==='/api/vnc-ticket'&&req.method==='GET'){
- await queue(()=>retryOnce(()=>init()));
+ // Ticket issuance must never wait on a slow Facebook navigation or Chromium startup.
+ // Start the browser independently; the live desktop is available immediately.
+ queue(()=>retryOnce(()=>init())).catch(e=>console.warn('Live browser initialization:',String(e.message).slice(0,160)));
  const ticket=crypto.randomBytes(24).toString('hex');
  liveTickets.set(ticket,Date.now()+90000);
  for(const [id,expiry] of liveTickets)if(expiry<Date.now())liveTickets.delete(id);
@@ -96,10 +98,11 @@ srv.on('upgrade',(req,socket,head)=>{
  }catch{socket.destroy()}
 });
 vncSocketServer.on('connection',ws=>{
+ console.log('Authenticated live VNC websocket connected');
  const tcp=net.createConnection({host:'127.0.0.1',port:5900});
  tcp.on('data',chunk=>{if(ws.readyState===WebSocket.OPEN)ws.send(chunk,{binary:true})});
  ws.on('message',data=>{if(!tcp.destroyed)tcp.write(data)});
- tcp.on('error',()=>{if(ws.readyState===WebSocket.OPEN)ws.close(1011,'VNC unavailable')});
+ tcp.on('error',e=>{console.warn('Live VNC connection:',String(e.message).slice(0,120));if(ws.readyState===WebSocket.OPEN)ws.close(1011,'VNC unavailable')});
  tcp.on('close',()=>{if(ws.readyState===WebSocket.OPEN)ws.close()});
  ws.on('close',()=>tcp.destroy());
  ws.on('error',()=>tcp.destroy())
