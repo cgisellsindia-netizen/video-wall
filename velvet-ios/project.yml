@@ -20,16 +20,15 @@ targets:
         INFOPLIST_FILE: VelvetApp/Info.plist
         CODE_SIGN_ENTITLEMENTS: VelvetApp/Velvet.entitlements
     dependencies:
-      - target: VelvetBroadcast
+      - target: VelvetKeyboard
         embed: true
-  VelvetBroadcast:
+  VelvetKeyboard:
     type: app-extension
     platform: iOS
     sources:
-      - path: BroadcastExtension
-      - path: Shared
+      - path: KeyboardExtension
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.velvetassistant.VelvetAI.broadcast
-        INFOPLIST_FILE: BroadcastExtension/Info.plist
-        CODE_SIGN_ENTITLEMENTS: BroadcastExtension/VelvetBroadcast.entitlements
+        PRODUCT_BUNDLE_IDENTIFIER: com.velvetassistant.VelvetAI.keyboard
+        INFOPLIST_FILE: KeyboardExtension/Info.plist
+        CODE_SIGN_ENTITLEMENTS: KeyboardExtension/Keyboard.entitlements
