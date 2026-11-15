@@ -1,65 +1,51 @@
 import SwiftUI
-import ReplayKit
 
 struct ContentView: View {
-    @State private var visibleText = ""
-    @State private var suggestion = ""
-    @State private var tone: ReplyTone = .friendly
-    private let poll = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
+    @State private var conversation = "Default"
+    @State private var message = ""
+    @State private var reply = ""
+    @State private var replyTone: ReplyTone = .friendly
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Velvet AI").font(.largeTitle.bold())
-                    Text("On-device screen text recognition. No screenshots are uploaded or stored.")
-                        .foregroundStyle(.secondary)
-                    Text("Start broadcast intentionally, then switch to Messenger. Return here to see the most recently recognized visible text and a reply suggestion.")
-                        .font(.callout)
-                    BroadcastPicker().frame(width: 190, height: 55)
-                    Text("Only share the screen while comfortable; stop broadcasting from iOS when done.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Divider()
-                    HStack {
-                        Text("Visible recognized text").font(.headline)
-                        Spacer()
-                        Button("Clear") { VelvetShared.storeVisibleText(""); visibleText = ""; suggestion = "" }
+            Form {
+                Section("Velvet AI Keyboard") {
+                    Text("Copy a Messenger message, switch to the Velvet keyboard and tap Import copied text. The keyboard creates a local suggestion and inserts only when you approve.")
+                    Text("Enable Velvet: Settings → General → Keyboard → Keyboards → Add New Keyboard → Velvet Keyboard.")
+                    Text("For storing separate local conversations, iOS requires Allow Full Access. Velvet has no automatic upload feature.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                Section("Local conversation") {
+                    TextField("Conversation name", text: $conversation)
+                    TextEditor(text: $message).frame(minHeight: 100)
+                    Button("Paste copied message") {
+                        message = UIPasteboard.general.string ?? ""
                     }
-                    Text(visibleText.isEmpty ? "No text recognized yet. Start a broadcast and view a conversation." : visibleText)
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
-                        .padding().background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
-                    Picker("Reply tone", selection: $tone) {
-                        ForEach(ReplyTone.allCases) { type in Text(type.rawValue).tag(type) }
+                    Button("Save text locally") {
+                        let defaults = UserDefaults(suiteName: "group.com.velvetassistant.VelvetAI")
+                        let name = conversation.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let key = "conversation." + String((name.isEmpty ? "Default" : name).prefix(50))
+                        var messages = defaults?.stringArray(forKey: key) ?? []
+                        messages.append(String(message.prefix(4000)))
+                        defaults?.set(Array(messages.suffix(35)), forKey: key)
+                    }.disabled(message.isEmpty)
+                }
+                Section("Local reply suggestion") {
+                    Picker("Tone", selection: $replyTone) {
+                        ForEach(ReplyTone.allCases) { tone in Text(tone.rawValue).tag(tone) }
                     }.pickerStyle(.segmented)
-                    Button("Suggest reply locally") { suggestion = ReplyComposer.suggest(from: visibleText, tone: tone) }
-                        .buttonStyle(.borderedProminent).disabled(visibleText.isEmpty)
-                    if !suggestion.isEmpty {
-                        Text(suggestion).textSelection(.enabled).padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
-                        ShareLink(item: suggestion) { Label("Share or copy reply", systemImage: "square.and.arrow.up") }
-                    }
-                    Text("This starter does not include cloud AI, notifications, automatic messaging, or screenshot uploads. Suggestions use a local template until an AI model is connected.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }.padding()
+                    Button("Suggest reply") { reply = ReplyComposer.suggest(message, tone: replyTone) }
+                        .disabled(message.isEmpty)
+                    if !reply.isEmpty { Text(reply).textSelection(.enabled); ShareLink(item: reply) }
+                }
+                Section("Privacy") {
+                    Text("No screenshot capture and no automatic transmission of typing or Messenger messages. This is a prototype with local templates, not a connected generative AI model.")
+                        .font(.footnote)
+                }
             }
-            .navigationTitle("Velvet")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Velvet AI")
         }
-        .onReceive(poll) { _ in visibleText = VelvetShared.latestVisibleText() }
     }
-}
-
-struct BroadcastPicker: UIViewRepresentable {
-    func makeUIView(context: Context) -> RPSystemBroadcastPickerView {
-        let view = RPSystemBroadcastPickerView(frame: CGRect(x: 0, y: 0, width: 190, height: 55))
-        view.preferredExtension = "com.velvetassistant.VelvetAI.broadcast"
-        view.showsMicrophoneButton = false
-        return view
-    }
-    func updateUIView(_ uiView: RPSystemBroadcastPickerView, context: Context) {}
 }
 
 enum ReplyTone: String, CaseIterable, Identifiable {
@@ -68,14 +54,21 @@ enum ReplyTone: String, CaseIterable, Identifiable {
 }
 
 enum ReplyComposer {
-    static func suggest(from visibleText: String, tone: ReplyTone) -> String {
-        if visibleText.range(of: "(?i)\\b(stop contacting|leave me alone|not interested)\\b", options: .regularExpression) != nil {
-            return "Understood. I'll respect your wishes."
+    static func suggest(_ text: String, tone: ReplyTone) -> String {
+        let lower = text.lowercased()
+        if lower.contains("leave me alone") || lower.contains("not interested") || lower.contains("stop messaging") {
+            return "I understand, and I'll respect your wishes."
+        }
+        if lower.contains("under 18") || lower.contains("i am 16") || lower.contains("i am 17") {
+            return "Thanks for chatting. Let's keep things appropriate."
+        }
+        if lower.contains("?") {
+            return "That sounds interesting! What did you have in mind?"
         }
         switch tone {
-        case .friendly: return "It's nice talking with you! How has your day been?"
-        case .playful: return "You seem fun to chat with. What's something that made you smile today?"
-        case .direct: return "I'd like to get to know you better, if you're interested. No pressure."
+        case .friendly: return "It's nice hearing from you! How have you been?"
+        case .playful: return "You've got me curious 😊 Tell me more!"
+        case .direct: return "Thanks for sharing that. I'd like to know more, if you're comfortable."
         }
     }
 }
