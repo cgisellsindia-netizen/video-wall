@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#120b1b">
-<meta name="description" content="Velvet AI private Messenger companion: open Facebook directly on iPhone and draft respectful messages.">
-<title>Velvet AI — Native Facebook Companion</title>
+<meta name="description" content="Velvet AI mini browser and Messenger conversation companion.">
+<title>Velvet AI — Mini Browser</title>
 <style>
 :root{color-scheme:dark;--bg:#0f0918;--panel:#1e142b;--border:#604475;--gold:#e1c080;--muted:#c3b2cf;--purple:#663c8b}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:#f9f3ff;font:16px system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding-bottom:env(safe-area-inset-bottom)}
@@ -22,20 +22,44 @@ textarea,select,input{width:100%;color:white;background:#110b1c;border:1px solid
 .step{display:flex;gap:10px;align-items:start;margin:9px 0;color:#e9dcec}.num{flex:none;border-radius:50%;background:#694589;color:white;font-size:13px;font-weight:700;width:24px;height:24px;display:grid;place-items:center}
 footer{font-size:12px;color:#ae9ab9;line-height:1.6;padding:5px 0 20px}#feedback{min-height:18px;color:var(--gold);font-size:13px;margin-top:10px}
 @media(min-width:750px){main{padding:26px}}
+
+.browser{border:1px solid #72548b;border-radius:15px;overflow:hidden;background:#130d1e;margin:13px 0}
+.toolbar{display:flex;align-items:center;gap:7px;padding:10px;background:#271932;border-bottom:1px solid #624777}
+.iconbtn{background:#3d2a4c;border:1px solid #846a9b;color:#fff;border-radius:9px;min-width:39px;min-height:43px;font-size:20px;cursor:pointer}
+.iconbtn:disabled{opacity:.35;cursor:default}.address{min-width:0;flex:1;padding:11px;font-size:15px;background:#110b1c;border-color:#73548a;margin:0}
+.go{background:#e1c080;border-color:#e1c080;color:#251631;font-size:14px;font-weight:800;min-width:47px}
+.browser-frame{width:100%;height:min(70dvh,680px);min-height:380px;border:0;display:block;background:#fff}
+.browser-state{border-top:1px solid #604475;padding:12px;font-size:13px;line-height:1.5;color:#e1c080}
+.brow-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.brow-actions a,.brow-actions button{font-size:13px;padding:10px 12px;min-height:40px}
+@media(max-width:420px){.toolbar{padding:7px;gap:5px}.iconbtn{min-width:35px;min-height:39px}.address{font-size:14px;padding:9px}.browser-frame{height:65dvh}}
 </style>
 </head>
 <body>
-<header><div><strong>✦ VELVET <span>AI</span></strong><div class="sub">iPhone Facebook companion · No cloud browser</div></div><div class="gold" style="font-size:13px;font-weight:700">NATIVE MODE</div></header>
+<header><div><strong>✦ VELVET <span>AI</span></strong><div class="sub">Mini browser · Built on Render</div></div><div class="gold" style="font-size:13px;font-weight:700">MINI BROWSER</div></header>
 <main>
 <section class="panel">
-<h1>Open the real Facebook browser</h1>
-<p>Use Facebook and Messenger directly on your iPhone. Tap, scroll, log in, and type using your phone’s normal browser and keyboard. No remote screen or special access key required.</p>
-<div class="actions">
-<a class="btn primary" href="https://www.facebook.com/messages/" target="_blank" rel="noopener noreferrer">Open Messenger ↗</a>
-<a class="btn secondary" href="https://www.facebook.com/" target="_blank" rel="noopener noreferrer">Open Facebook ↗</a>
-<a class="btn secondary" href="https://www.messenger.com/" target="_blank" rel="noopener noreferrer">Messenger website ↗</a>
+<h1>Velvet Mini Browser</h1>
+<p>Browse compatible websites right here with your iPhone touchscreen. Use the address bar and controls below. Websites that prohibit embedding, including Facebook, must open in your phone's browser instead.</p>
+<div class="browser">
+ <div class="toolbar">
+  <button class="iconbtn" id="browserBack" title="Back" aria-label="Back" disabled>‹</button>
+  <button class="iconbtn" id="browserForward" title="Forward" aria-label="Forward" disabled>›</button>
+  <button class="iconbtn" id="browserReload" title="Refresh" aria-label="Refresh">↻</button>
+  <input id="browserAddress" class="address" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="url" aria-label="Website address" placeholder="Enter a website address" value="https://example.org">
+  <button class="iconbtn go" id="browserGo" aria-label="Go to address">Go</button>
+ </div>
+ <iframe id="browserFrame" class="browser-frame" title="Velvet mini browser page" referrerpolicy="no-referrer" allow="fullscreen; clipboard-write"></iframe>
+ <div class="browser-state" id="browserStatus" aria-live="polite">Mini browser ready. Some websites may refuse to display inside another site.</div>
 </div>
-<p class="note notice">Facebook cannot be loaded inside Velvet’s website as a normal embedded page. These links open Facebook itself in your iPhone browser, where touch and text entry work normally. Depending on iOS settings, a link may open the Facebook or Messenger app.</p>
+<div class="brow-actions">
+ <button class="btn secondary" id="browserHome" type="button">⌂ Home</button>
+ <a class="btn primary" id="browserExternal" href="https://example.org" target="_blank" rel="noopener noreferrer">Open current site in Safari ↗</a>
+</div>
+<div class="actions" style="margin-top:12px">
+ <a class="btn secondary" href="https://www.facebook.com/" target="_blank" rel="noopener noreferrer">Facebook ↗</a>
+ <a class="btn secondary" href="https://www.facebook.com/messages/" target="_blank" rel="noopener noreferrer">Messenger ↗</a>
+</div>
+<p class="note notice">This is a real interactive webpage viewer, not a screenshot or remote computer. The embedded page can receive normal touches and keyboard input. It cannot override other websites' iframe restrictions or see their private content. Use the external link whenever a site blocks embedding.</p>
 </section>
 <section class="panel">
 <h2>Use Velvet while you chat</h2>
@@ -51,14 +75,59 @@ footer{font-size:12px;color:#ae9ab9;line-height:1.6;padding:5px 0 20px}#feedback
 <p class="note">These replies are generated from simple templates, not a connected AI model. Review each message yourself before sending it. Respect the other person's boundaries.</p>
 </section>
 <section class="panel">
-<h2>How to get the full in-app browser</h2>
-<p>To keep Facebook inside a dedicated Velvet window while using the iPhone keyboard, Velvet would need a native iOS app with a WebView. A regular website cannot force Facebook to appear inside its own page. This version prioritizes reliable, normal iPhone browsing.</p>
+<h2>What this mini browser can do</h2>
+<p>It provides a website address bar, touch navigation for embeddable pages, and basic Back, Forward, Home, and Refresh controls. This browser is an embedded webpage, so sites such as Facebook that block embedding need Safari or a dedicated iOS app with a native WebView. Velvet does not read, record, or automate your activity inside external websites.</p>
 </section>
 <footer>Velvet AI is an independent companion and is not affiliated with Meta or Facebook. Facebook credentials are entered only on Facebook, not on Velvet. Messages are not automatically sent.</footer>
 </main>
 <script>
 'use strict';
 const byId=id=>document.getElementById(id);
+
+// Mini browser: navigation within an iframe is controlled only for explicitly entered URLs.
+// Cross-origin navigation inside a frame is intentionally not inspected.
+const welcomePage='<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:16px system-ui;background:#fcf9ff;color:#32243b;padding:24px;line-height:1.65}h1{font-size:25px}.hint{background:#f0e8f6;padding:14px;border-radius:12px}</style><h1>✦ Velvet Mini Browser</h1><p>Enter a website address in the bar above and press Go.</p><div class="hint">This page is touch-friendly. External websites appear here only if they allow embedding. Use “Open current site in Safari” for blocked websites, including Facebook and Messenger.</div></html>';
+let miniHistory=[],miniIndex=-1,miniCurrent='';
+function validMiniURL(text){
+ const raw=String(text||'').trim();
+ if(!raw)throw Error('Enter a website address');
+ const candidate=/^https?:\/\//i.test(raw)?raw:'https://'+raw;
+ const url=new URL(candidate);
+ if(url.protocol!=='https:')throw Error('Only HTTPS websites are supported');
+ if(!url.hostname||url.username||url.password)throw Error('Enter a valid website address without login credentials');
+ return url.href;
+}
+function miniState(message){
+ byId('browserStatus').textContent=message;
+ byId('browserBack').disabled=miniIndex<=0;
+ byId('browserForward').disabled=miniIndex>=miniHistory.length-1;
+}
+function miniNavigate(url,add=true){
+ miniCurrent=url;
+ byId('browserAddress').value=url;
+ byId('browserExternal').href=url;
+ if(add){miniHistory=miniHistory.slice(0,miniIndex+1);miniHistory.push(url);miniIndex=miniHistory.length-1}
+ byId('browserFrame').removeAttribute('srcdoc');
+ byId('browserFrame').src=url;
+ miniState('Opening '+new URL(url).hostname+'… If the page remains empty or says refused to connect, use Open current site in Safari.');
+}
+function miniHome(){
+ miniCurrent='';
+ byId('browserAddress').value='';
+ byId('browserExternal').href='https://www.facebook.com/';
+ byId('browserFrame').removeAttribute('src');
+ byId('browserFrame').srcdoc=welcomePage;
+ miniState('Home. Enter a URL, or open Facebook using the external link.'); 
+}
+byId('browserGo').addEventListener('click',()=>{try{miniNavigate(validMiniURL(byId('browserAddress').value))}catch(e){miniState(e.message)}});
+byId('browserAddress').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();byId('browserGo').click();byId('browserAddress').blur()}});
+byId('browserBack').addEventListener('click',()=>{if(miniIndex>0){miniIndex--;miniNavigate(miniHistory[miniIndex],false)}});
+byId('browserForward').addEventListener('click',()=>{if(miniIndex<miniHistory.length-1){miniIndex++;miniNavigate(miniHistory[miniIndex],false)}});
+byId('browserReload').addEventListener('click',()=>{if(miniCurrent)miniNavigate(miniCurrent,false);else miniHome()});
+byId('browserHome').addEventListener('click',miniHome);
+byId('browserFrame').addEventListener('load',()=>{if(miniCurrent)miniState('Loaded or attempted '+new URL(miniCurrent).hostname+'. Some sites block embedding even when the load event fires. If blank, open in Safari.')});
+miniHome();
+
 byId('generate').addEventListener('click',()=>{
  const input=byId('conversation').value.trim(),tone=byId('tone').value;
  if(!input){byId('reply').textContent='Paste a conversation or message first.';return}
