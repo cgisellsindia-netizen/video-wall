@@ -1,13 +1,25 @@
-# Velvet AI iOS
+# Velvet AI Keyboard — iPhone prototype
 
-Native SwiftUI + ReplayKit Broadcast Upload Extension + Vision OCR. Captured frames are processed on-device only; no screenshot uploading. This is an early prototype with template suggestions, not an integrated AI model.
+The active iOS target is **VelvetApp + VelvetKeyboard**, not the previous screen-broadcast prototype. The source is in `velvet-ios/` on branch `velvet-render-app`.
 
-## Cloud compile
-The GitHub Actions workflow `velvet-ios-macos.yml` runs on a macOS runner and builds an unsigned simulator app / device archive for validating that the source compiles. An unsigned build cannot be installed on a physical iPhone.
+## User flow
+1. Copy a message from Messenger (user action).
+2. Focus Messenger's composer and switch to Velvet Keyboard via the iPhone globe key.
+3. Type a conversation label and tap **Import copied text**. iOS may ask for permission to paste.
+4. Tap **Suggest** for a locally generated draft.
+5. Review, tap **Insert reply** to place it in Messenger's composer, and press Send yourself.
 
-## Installable IPA signing
-Valid Apple signing material is required for the iPhone: a certificate with private key, provisioning profiles for BOTH application and broadcast extension including the App Group entitlement, and a target device registered to the profiles. Provisioning and distribution depend on the Apple Developer account/team. Do not upload certificates, passwords or Apple ID credentials into the repository or chat.
+## Privacy
+- No screenshots, screen recording, or OCR in the active targets.
+- Nothing is read automatically from Messenger.
+- Clipboard is only read when Import is tapped.
+- The app stores up to the last 35 imported messages per named conversation in local App Group UserDefaults.
+- The keyboard does not send messages to a server. **Allow Full Access** is requested for writing to the shared App Group container. The user must explicitly enable it in iOS Settings. Despite that permission, this prototype contains no network-upload functionality.
+- The reply engine is a simple local template; it is NOT a cloud or generative AI service.
+- No external AI account or ChatGPT conversation is synchronized.
+- A production AI backend would require authentication, encrypted transport, retention controls, and a separate explicit Submit-to-AI action; do not collect all keystrokes.
 
-The user's free personal Apple account is not a paid Developer Program membership. GitHub cloud compilation does not grant Apple signing capabilities. A free Personal Team in local Xcode provides seven-day device provisioning with limits but is not an automatic signing workflow for a generic hosted runner.
+## Build
+`.github/workflows/velvet-ios-macos.yml` builds an unsigned iOS Payload archive on a macOS GitHub Actions runner. Check that build logs show Xcode success. This does not sign or install the app.
 
-No IPA from this workflow is installable unless signed with credentials registered to that device. The existing app is a prototype and should be tested on-device before relying on screen broadcast behavior.
+The IPA must be signed with Apple-issued credentials and valid app + keyboard extension provisioning. A free Apple ID normally requires direct development with Xcode and cannot guarantee no-computer installation. Do not send private signing credentials to chat.
