@@ -38,7 +38,7 @@ $('liveEnter').onclick=()=>{window.liveSendKey?.(0xff0d);$('liveKeyboard').value
 $('liveBackspace').onclick=()=>window.liveSendKey?.(0xff08);
 $('toggleFallback').onclick=async()=>{const fallback=$('fallbackScreen');const visible=fallback.classList.toggle('show');$('toggleFallback').textContent=visible?'Hide legacy controls':'Show legacy controls';if(visible)await frame()};
 $('reconnectLive').onclick=()=>startLiveConnection();
-async function startLiveConnection(){if(!key)return;const statusEl=$('liveStatus');statusEl.textContent='Starting live desktop and connecting…';try{const r=await request('/api/vnc-ticket');const data=await r.json();if(!window.startLive)throw Error('Live client not loaded. Reload this page.');window.startLive(data.ticket)}catch(e){statusEl.textContent='Live connection unavailable: '+e.message}}
+async function startLiveConnection(){if(!key)return;const statusEl=$('liveStatus');statusEl.textContent='Starting live desktop and connecting…';try{const r=await request('/api/vnc-ticket');const data=await r.json();if(!window.startLive)throw Error('Live client not loaded. Reload this page.');await window.startLive(data.ticket)}catch(e){statusEl.textContent='Live connection unavailable: '+e.message}}
 
 $('frame').onerror=()=>status('Remote image could not be displayed. Tap Refresh.');$('refresh').onclick=frame;$('testTouch').onclick=()=>{status('Opening remote touch test…');command('test')};$('restart').onclick=()=>{if(confirm('Restart the cloud browser session? This may sign you out of Facebook.'))command('reset')};$('home').onclick=()=>command('home');
 async function fillRemoteLogin(field){const id=field==='email'?'loginEmail':'loginPassword';const input=$(id);const value=input.value;if(!value){$('fillStatus').textContent='Enter '+field+' in the iPhone field above.';input.focus();return}const btn=$(field==='email'?'fillEmail':'fillPassword');btn.disabled=true;$('fillStatus').textContent='Selecting Facebook '+field+' field and filling it…';try{const r=await request('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'fillLogin',field,value})});await r.json();$('fillStatus').textContent='Facebook '+field+' field filled successfully. Use Facebook’s Log In button to submit.';if(field==='password')input.value='';await frame()}catch(e){$('fillStatus').textContent='Could not fill '+field+': '+e.message}finally{btn.disabled=false}}
@@ -56,16 +56,18 @@ async function profileScan(fill=true){if(!key||presenceBusy)return;presenceBusy=
 function suggestOpeners(){const notes=$('profileNotes').value.trim();if(!notes){$('profileSuggestions').textContent='Add visible profile interests or shared details first.';return}const hints=[['music|song|concert|singing','music','What kind of music have you been enjoying lately?'],['travel|trip|beach|mountain|vacation','travel','What place would you love to visit next?'],['food|cafe|coffee|restaurant|cooking','food','Do you have a favorite café or food spot?'],['book|reading|novel','books','What is a book you would recommend?'],['dog|cat|pet|animal','pets','Are you more of a cat person or dog person?'],['art|paint|drawing|design|photography','creative interests','What got you interested in creative hobbies?'],['movie|film|cinema|series','movies','Have you watched anything good lately?'],['fitness|gym|running|hiking|yoga','fitness','What activity helps you unwind?']];const match=hints.find(item=>new RegExp(item[0],'i').test(notes));const base=match?match[2]:'What is something you have been enjoying recently?';const lines=['Friendly: Hey! '+base,'Playful: You seem interesting 😊 '+base,'Direct: I would like to get to know you better, if you are interested. '+base];$('profileSuggestions').textContent=lines.join('\\n\\n')+'\\n\\nInterest is uncertain until they tell you. Respect any refusal.'}
 $('analyzeProfile').onclick=()=>profileScan(true);$('refreshPresence').onclick=()=>profileScan(false);$('makeOpeners').onclick=suggestOpeners;
 $('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('reply').textContent);status('Draft copied. Review before sending manually.')}catch{status('Clipboard unavailable. Select and copy manually.')}};
-</script><script type="module">
-import RFB from '/novnc/core/rfb.js';
+</script><script>
+let liveRFBClass=null;
 let client=null;
-window.startLive=function(ticket){
+window.startLive=async function(ticket){
+ if(!liveRFBClass){document.getElementById('liveStatus').textContent='Loading live browser controls…';try{liveRFBClass=(await import('/novnc/core/rfb.js')).default}catch(e){throw Error('Could not load noVNC client: '+e.message)}}
  if(client){try{client.disconnect()}catch{}client=null}
+ document.getElementById('liveStatus').textContent='Connecting to live video stream…';
  const root=document.getElementById('liveView');
  root.replaceChildren();
  const protocol=location.protocol==='https:'?'wss:':'ws:';
  const url=protocol+'//'+location.host+'/api/vnc-ws?ticket='+encodeURIComponent(ticket);
- client=new RFB(root,url,{shared:true});
+ client=new liveRFBClass(root,url,{shared:true});
  client.scaleViewport=true;
  client.clipViewport=false;
  client.viewOnly=false;
@@ -75,6 +77,7 @@ window.startLive=function(ticket){
  client.addEventListener('connect',()=>{document.getElementById('liveStatus').textContent='● Live browser connected — touch to interact'});
  client.addEventListener('disconnect',e=>{document.getElementById('liveStatus').textContent=e.detail.clean?'Live browser disconnected':'Live connection interrupted. Tap Reconnect live browser.'});
  client.addEventListener('securityfailure',()=>{document.getElementById('liveStatus').textContent='Live desktop security handshake failed'});
+ setTimeout(()=>{if(client&&document.getElementById('liveStatus').textContent.includes('Starting'))document.getElementById('liveStatus').textContent='Connection taking longer than expected. Tap Reconnect live browser.'},15000);
 };
 window.disconnectLive=()=>{if(client){try{client.disconnect()}catch{}client=null}};
 window.liveSendKey=(keysym)=>{if(client)client.sendKey(keysym)};
