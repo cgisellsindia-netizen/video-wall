@@ -8,13 +8,16 @@ const ACCESS_KEY=process.env.VELVET_BROWSER_KEY;
 if(!ACCESS_KEY||ACCESS_KEY.length<20){console.error('VELVET_BROWSER_KEY is required (20+ chars).');process.exit(1)}
 const html=fs.readFileSync(__dirname+'/index.html');
 let browser=null,ctx=null,page=null,booting=null,op=Promise.resolve();
+function closedError(e){return /closed|crash|disconnected|target page|browser has been closed/i.test(String(e&&e.message||e))}
+async function restartBrowser(){const old=browser;browser=null;ctx=null;page=null;booting=null;if(old)await old.close().catch(()=>{});return init()}
+async function retryOnce(fn){try{return await fn()}catch(e){if(!closedError(e))throw e;console.warn('Recovering closed Chromium session:',String(e.message).slice(0,110));await restartBrowser();return fn()}}
 function queue(fn){const p=op.then(fn);op=p.catch(()=>{});return p}
 function authorized(req){const supplied=req.headers.authorization||'';const expected='Bearer '+ACCESS_KEY;const a=Buffer.from(supplied),b=Buffer.from(expected);return a.length===b.length&&crypto.timingSafeEqual(a,b)}
 async function init(){
- if(page&&!page.isClosed())return page;
+ if(page&&!page.isClosed()&&browser&&browser.isConnected())return page;
  if(booting)return booting;
  booting=(async()=>{
-  if(!browser)browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+  if(!browser||!browser.isConnected()){browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--disable-background-networking','--no-first-run','--no-default-browser-check']});browser.on('disconnected',()=>{console.warn('Chromium disconnected; next operation will recreate session');browser=null;page=null;ctx=null})}
   if(ctx)await ctx.close().catch(()=>{});
   ctx=await browser.newContext({viewport:{width:390,height:730},deviceScaleFactor:1,isMobile:true,hasTouch:true,locale:'en-IN',timezoneId:'Asia/Kolkata',acceptDownloads:false});
   ctx.on('page',async p=>{if(p!==page)await p.close().catch(()=>{})});
@@ -35,7 +38,7 @@ case 'type':{const t=String(data.text||'');if(t.length>1500)throw Error('Input t
 case 'key':{const k=String(data.key||'');if(!['Enter','Backspace','Tab','Escape','ArrowUp','ArrowDown'].includes(k))throw Error('Unsupported key');await p.keyboard.press(k);break}
 case 'scroll':{const amount=Number(data.amount)||350;await p.mouse.wheel(0,Math.max(-1100,Math.min(1100,amount)));break}
 case 'home':await p.goto('https://www.facebook.com/messages/',{waitUntil:'domcontentloaded',timeout:30000}).catch(()=>{});break;
-case 'reset':await ctx.clearCookies();await page.goto('https://www.facebook.com/messages/',{waitUntil:'domcontentloaded',timeout:30000}).catch(()=>{});break;
+case 'reset':await restartBrowser();break;
 default:throw Error('Unsupported action')}
 return {ok:true,url:p.url(),title:(await p.title().catch(()=>''))}}
 const srv=http.createServer(async(req,res)=>{
@@ -45,9 +48,9 @@ if(path==='/health'){return send(res,200,{ok:true,service:'Velvet private browse
 if(path==='/'&&req.method==='GET'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'self' 'unsafe-inline' data: blob:; img-src 'self' blob: data:; connect-src 'self'; frame-ancestors https://velvet-ai-live.onrender.com"});return res.end(html)}
 if(!authorized(req))return send(res,401,{error:'Access key required'});
 if(path==='/api/check')return send(res,200,{ok:true});
-if(path==='/api/frame'&&req.method==='GET'){const buf=await queue(async()=>{const p=await init();return p.screenshot({type:'jpeg',quality:65,timeout:12000})});res.writeHead(200,{'Content-Type':'image/jpeg','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(buf)}
-if(path==='/api/action'&&req.method==='POST'){const data=await body(req);return send(res,200,await queue(()=>action(data)))}
-if(path==='/api/visible'&&req.method==='GET'){const text=await queue(async()=>{const p=await init();return await p.evaluate(()=>{const main=document.querySelector('[role="main"]')||document.body;return (main?.innerText||'').slice(-8000)})});return send(res,200,{text})}
+if(path==='/api/frame'&&req.method==='GET'){const buf=await queue(()=>retryOnce(async()=>{const p=await init();return p.screenshot({type:'jpeg',quality:55,timeout:12000})}));res.writeHead(200,{'Content-Type':'image/jpeg','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(buf)}
+if(path==='/api/action'&&req.method==='POST'){const data=await body(req);return send(res,200,await queue(()=>retryOnce(()=>action(data))))}
+if(path==='/api/visible'&&req.method==='GET'){const text=await queue(()=>retryOnce(async()=>{const p=await init();return await p.evaluate(()=>{const main=document.querySelector('[role="main"]')||document.body;return (main?.innerText||'').slice(-8000)})}));return send(res,200,{text})}
 send(res,404,{error:'Not found'})
 }catch(e){send(res,500,{error:String(e.message||'Browser unavailable').slice(0,160)})}
 });
