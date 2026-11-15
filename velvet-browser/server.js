@@ -2,12 +2,17 @@
 const http=require('http');
 const fs=require('fs');
 const crypto=require('crypto');
+const net=require('net');
+const {WebSocketServer,WebSocket}=require('ws');
+const pathModule=require('path');
 const {chromium}=require('playwright');
 const PORT=Number(process.env.PORT)||10000;
 const ACCESS_KEY=process.env.VELVET_BROWSER_KEY;
 if(!ACCESS_KEY||ACCESS_KEY.length<20){console.error('VELVET_BROWSER_KEY is required (20+ chars).');process.exit(1)}
 const html=fs.readFileSync(__dirname+'/index.html');
 let browser=null,ctx=null,page=null,booting=null,op=Promise.resolve();
+const liveTickets=new Map();
+const vncSocketServer=new WebSocketServer({noServer:true,perMessageDeflate:false});
 function closedError(e){return /closed|crash|disconnected|target page|browser has been closed/i.test(String(e&&e.message||e))}
 async function restartBrowser(){const old=browser;browser=null;ctx=null;page=null;booting=null;if(old)await old.close().catch(()=>{});return init()}
 async function retryOnce(fn){try{return await fn()}catch(e){if(!closedError(e))throw e;console.warn('Recovering closed Chromium session:',String(e.message).slice(0,110));await restartBrowser();return fn()}}
@@ -17,7 +22,7 @@ async function init(){
  if(page&&!page.isClosed()&&browser&&browser.isConnected())return page;
  if(booting)return booting;
  booting=(async()=>{
-  if(!browser||!browser.isConnected()){browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--disable-background-networking','--no-first-run','--no-default-browser-check']});browser.on('disconnected',()=>{console.warn('Chromium disconnected; next operation will recreate session');browser=null;page=null;ctx=null})}
+  if(!browser||!browser.isConnected()){browser=await chromium.launch({headless:false,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--disable-background-networking','--no-first-run','--no-default-browser-check','--window-size=430,860']});browser.on('disconnected',()=>{console.warn('Chromium disconnected; next operation will recreate session');browser=null;page=null;ctx=null})}
   if(ctx)await ctx.close().catch(()=>{});
   ctx=await browser.newContext({viewport:{width:390,height:730},deviceScaleFactor:2,isMobile:true,hasTouch:true,locale:'en-IN',timezoneId:'Asia/Kolkata',acceptDownloads:false});
   // Do not close a 'page' event here: Chromium emits it before newPage() resolves.
@@ -52,9 +57,25 @@ const srv=http.createServer(async(req,res)=>{
 try{
 const path=new URL(req.url,'http://localhost').pathname;
 if(path==='/health'){return send(res,200,{ok:true,service:'Velvet private browser',configured:true,browserConnected:!!(browser&&browser.isConnected()),pageOpen:!!(page&&!page.isClosed())})}
+if(path.startsWith('/novnc/')&&req.method==='GET'){
+ const base=pathModule.resolve(__dirname,'node_modules/@novnc/novnc');
+ const relative=decodeURIComponent(path.slice('/novnc/'.length));
+ const filename=pathModule.resolve(base,relative);
+ if(!filename.startsWith(base+pathModule.sep))return send(res,403,{error:'Not permitted'});
+ const mime=filename.endsWith('.js')?'text/javascript; charset=utf-8':filename.endsWith('.css')?'text/css':filename.endsWith('.svg')?'image/svg+xml':'application/octet-stream';
+ return fs.readFile(filename,(err,data)=>{if(err)return send(res,404,{error:'Module not found'});res.writeHead(200,{'Content-Type':mime,'Cache-Control':'public, max-age=3600','X-Content-Type-Options':'nosniff'});res.end(data)})
+}
 if(path==='/'&&req.method==='GET'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'self' 'unsafe-inline' data: blob:; img-src 'self' blob: data:; connect-src 'self'; frame-ancestors https://velvet-ai-live.onrender.com"});return res.end(html)}
 if(!authorized(req))return send(res,401,{error:'Access key required'});
 if(path==='/api/check')return send(res,200,{ok:true});
+if(path==='/api/vnc-ticket'&&req.method==='GET'){
+ await queue(()=>retryOnce(()=>init()));
+ const ticket=crypto.randomBytes(24).toString('hex');
+ liveTickets.set(ticket,Date.now()+90000);
+ for(const [id,expiry] of liveTickets)if(expiry<Date.now())liveTickets.delete(id);
+ return send(res,200,{ticket,expiresInSeconds:90})
+}
+
 if(path==='/api/frame'&&req.method==='GET'){const buf=await queue(()=>retryOnce(async()=>{const p=await init();return p.screenshot({type:'jpeg',quality:88,timeout:15000,scale:'device'})}));res.writeHead(200,{'Content-Type':'image/jpeg','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(buf)}
 if(path==='/api/action'&&req.method==='POST'){const data=await body(req);return send(res,200,await queue(()=>retryOnce(()=>action(data))))}
 if(path==='/api/conversation'&&req.method==='GET'){const result=await queue(()=>retryOnce(async()=>{const p=await init();const url=p.url();const chatPage=(url.includes('facebook.com/messages')||url.includes('messenger.com/t/'));if(!chatPage)return {ready:false,reason:'Open a Messenger conversation first'};return await p.evaluate(()=>{const main=document.querySelector('[role="main"]')||document.querySelector('main');if(!main)return {ready:false,reason:'Conversation area not found'};const root=main.querySelector('[role="log"]')||main.querySelector('[aria-label*="Messages"]')||main;const nodes=[...root.querySelectorAll('[dir="auto"],[role="row"]')].filter(el=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&r.bottom>=0&&r.top<=innerHeight&&el.children.length<5});const parts=[];for(const n of nodes){const v=(n.innerText||'').trim();if(v.length<2||v.length>600||parts[parts.length-1]===v||/^(Like|Reply|More|Forward|React|Seen|Delivered|Send|Search|Home|Chats|People|Menu)$/i.test(v))continue;parts.push(v)}const visible=parts.slice(-18);return {ready:visible.length>0,lines:visible,reason:visible.length?'':'No visible messages found'}})}));return send(res,200,result)}
@@ -63,6 +84,25 @@ if(path==='/api/targets'&&req.method==='GET'){const targets=await queue(()=>retr
 if(path==='/api/visible'&&req.method==='GET'){const text=await queue(()=>retryOnce(async()=>{const p=await init();return await p.evaluate(()=>{const main=document.querySelector('[role="main"]')||document.body;return (main?.innerText||'').slice(-8000)})}));return send(res,200,{text})}
 send(res,404,{error:'Not found'})
 }catch(e){send(res,500,{error:String(e.message||'Browser unavailable').slice(0,160)})}
+});
+srv.on('upgrade',(req,socket,head)=>{
+ try{
+  const route=new URL(req.url,'http://localhost');
+  const ticket=route.searchParams.get('ticket');
+  const expiry=ticket?liveTickets.get(ticket):undefined;
+  if(route.pathname!=='/api/vnc-ws'||!expiry||expiry<Date.now()){socket.destroy();return}
+  liveTickets.delete(ticket);
+  vncSocketServer.handleUpgrade(req,socket,head,ws=>vncSocketServer.emit('connection',ws,req))
+ }catch{socket.destroy()}
+});
+vncSocketServer.on('connection',ws=>{
+ const tcp=net.createConnection({host:'127.0.0.1',port:5900});
+ tcp.on('data',chunk=>{if(ws.readyState===WebSocket.OPEN)ws.send(chunk,{binary:true})});
+ ws.on('message',data=>{if(!tcp.destroyed)tcp.write(data)});
+ tcp.on('error',()=>{if(ws.readyState===WebSocket.OPEN)ws.close(1011,'VNC unavailable')});
+ tcp.on('close',()=>{if(ws.readyState===WebSocket.OPEN)ws.close()});
+ ws.on('close',()=>tcp.destroy());
+ ws.on('error',()=>tcp.destroy())
 });
 srv.listen(PORT,'0.0.0.0',()=>console.log('Velvet private browser listening on '+PORT));
 process.on('SIGTERM',async()=>{try{await browser?.close()}catch{}process.exit(0)});
