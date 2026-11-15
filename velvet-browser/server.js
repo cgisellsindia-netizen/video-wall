@@ -37,13 +37,14 @@ function send(res,code,obj){res.writeHead(code,{'Content-Type':'application/json
 async function action(data){const p=await init();switch(data.action){
 case 'tap':{const x=Number(data.x),y=Number(data.y);if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||y<0||x>390||y>730)throw Error('Invalid coordinates');await p.touchscreen.tap(x,y);break}
 case 'swipe':{const amount=Math.max(-900,Math.min(900,Number(data.amount)||0));if(!Number.isFinite(amount))throw Error('Invalid swipe');await p.evaluate(y=>window.scrollBy({top:y,behavior:'instant'}),amount);break}
+case 'test':{await p.goto('about:blank');await p.setContent('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:20px system-ui;background:#172238;color:white;padding:24px}button{background:#d8bb7c;color:#191522;font-size:24px;border:0;border-radius:16px;padding:26px;width:100%;margin-top:30px}#count{font-size:30px;margin-top:24px}</style><h2>Velvet Touch Test</h2><p>Tap the big button below using your phone. If the count goes up, remote touch is working.</p><button onclick="document.querySelector(\'#count\').textContent=String(Number(document.querySelector(\'#count\').textContent)+1)">TAP HERE</button><div>Tap count: <span id="count">0</span></div>');break}
 case 'type':{const t=String(data.text||'');if(t.length>1500)throw Error('Input too long');await p.keyboard.insertText(t);break}
 case 'key':{const k=String(data.key||'');if(!['Enter','Backspace','Tab','Escape','ArrowUp','ArrowDown'].includes(k))throw Error('Unsupported key');await p.keyboard.press(k);break}
 case 'scroll':{const amount=Number(data.amount)||350;await p.mouse.wheel(0,Math.max(-1100,Math.min(1100,amount)));break}
 case 'home':await p.goto('https://www.facebook.com/messages/',{waitUntil:'domcontentloaded',timeout:30000}).catch(()=>{});break;
 case 'reset':await restartBrowser();break;
 default:throw Error('Unsupported action')}
-return {ok:true,url:p.url(),title:(await p.title().catch(()=>''))}}
+return {ok:true,action:data.action,url:p.url(),title:(await p.title().catch(()=>'')),x:data.action==='tap'?Number(data.x):undefined,y:data.action==='tap'?Number(data.y):undefined}}
 const srv=http.createServer(async(req,res)=>{
 try{
 const path=new URL(req.url,'http://localhost').pathname;
