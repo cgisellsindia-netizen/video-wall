@@ -1,1 +1,80 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#110b1b"><title>Velvet AI — Messenger Copilot</title><style>*{box-sizing:border-box}body{margin:0;background:#0d0815;color:#fff;font:14px system-ui,-apple-system,Arial,sans-serif}header{background:#191024;border-bottom:1px solid #634576;display:flex;align-items:center;justify-content:space-between;padding:14px 17px}header b{color:#e4c27f}small{color:#bda8ca}main{max-width:950px;margin:auto}.line{padding:12px 18px;background:#281a35;color:#ded0e5;font-size:12px;line-height:1.5}iframe{border:0;display:block;width:100%;height:calc(100dvh - 118px);min-height:730px;background:#0e0918}a{color:#e6c582;font-weight:600}.footer{padding:12px 18px;font-size:12px;color:#b49ebf}@media(min-width:800px){iframe{height:calc(100vh - 106px);min-height:850px}} </style></head><body><main><header><div><strong>✦ VELVET <b>AI</b></strong><div><small>Private Facebook Messenger copilot</small></div></div><a href="https://velvet-private-browser.onrender.com" target="_blank" rel="noopener noreferrer">Full screen ↗</a></header><div class="line">One page: unlock your browser, log into Facebook yourself, and view automatically suggested replies while you chat. Suggestions are not sent automatically.</div><iframe id="remote" title="Velvet personal cloud browser with automatic reply suggestions" src="https://velvet-private-browser.onrender.com" referrerpolicy="no-referrer" allow="clipboard-write"></iframe><div class="footer">If the embedded browser is blocked by your mobile browser, use Full screen above. Secure your access key; don't share your Facebook password.</div></main></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#120b1b">
+<meta name="description" content="Velvet AI private Messenger companion: open Facebook directly on iPhone and draft respectful messages.">
+<title>Velvet AI — Native Facebook Companion</title>
+<style>
+:root{color-scheme:dark;--bg:#0f0918;--panel:#1e142b;--border:#604475;--gold:#e1c080;--muted:#c3b2cf;--purple:#663c8b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#f9f3ff;font:16px system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+header{border-bottom:1px solid var(--border);background:#1c1229;padding:20px max(18px,env(safe-area-inset-left));display:flex;align-items:center;justify-content:space-between;gap:15px}
+header strong{font-size:21px;letter-spacing:.4px}header strong span,.gold{color:var(--gold)}.sub{font-size:13px;color:var(--muted);line-height:1.6;margin-top:5px}
+main{max-width:760px;padding:18px;margin:auto}.panel{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:17px;box-shadow:0 8px 24px #0002}h1{font-size:22px;margin:0 0 9px}h2{font-size:19px;margin:0 0 10px}p{line-height:1.55;color:var(--muted);margin:8px 0 15px}
+.actions{display:grid;gap:11px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.btn{min-height:54px;display:flex;align-items:center;justify-content:center;text-align:center;gap:8px;border:1px solid #956db0;background:var(--purple);border-radius:13px;color:white;font:700 16px system-ui;cursor:pointer;text-decoration:none;padding:13px}
+.btn.primary{background:var(--gold);border-color:var(--gold);color:#201229}.btn.secondary{background:#382546}.btn:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+label{display:block;color:#e4d8ec;font-weight:600;margin:13px 0 6px}
+textarea,select,input{width:100%;color:white;background:#110b1c;border:1px solid #73548a;border-radius:11px;font:16px system-ui;padding:13px}textarea{min-height:128px;resize:vertical}select{min-height:50px}
+.result{background:#110b1c;border:1px solid #71508c;border-radius:12px;padding:15px;white-space:pre-wrap;line-height:1.6;margin:13px 0;min-height:86px}
+.note{font-size:13px;color:var(--muted);line-height:1.55}.notice{padding:13px;background:#30213e;border-radius:12px}
+.step{display:flex;gap:10px;align-items:start;margin:9px 0;color:#e9dcec}.num{flex:none;border-radius:50%;background:#694589;color:white;font-size:13px;font-weight:700;width:24px;height:24px;display:grid;place-items:center}
+footer{font-size:12px;color:#ae9ab9;line-height:1.6;padding:5px 0 20px}#feedback{min-height:18px;color:var(--gold);font-size:13px;margin-top:10px}
+@media(min-width:750px){main{padding:26px}}
+</style>
+</head>
+<body>
+<header><div><strong>✦ VELVET <span>AI</span></strong><div class="sub">iPhone Facebook companion · No cloud browser</div></div><div class="gold" style="font-size:13px;font-weight:700">NATIVE MODE</div></header>
+<main>
+<section class="panel">
+<h1>Open the real Facebook browser</h1>
+<p>Use Facebook and Messenger directly on your iPhone. Tap, scroll, log in, and type using your phone’s normal browser and keyboard. No remote screen or special access key required.</p>
+<div class="actions">
+<a class="btn primary" href="https://www.facebook.com/messages/" target="_blank" rel="noopener noreferrer">Open Messenger ↗</a>
+<a class="btn secondary" href="https://www.facebook.com/" target="_blank" rel="noopener noreferrer">Open Facebook ↗</a>
+<a class="btn secondary" href="https://www.messenger.com/" target="_blank" rel="noopener noreferrer">Messenger website ↗</a>
+</div>
+<p class="note notice">Facebook cannot be loaded inside Velvet’s website as a normal embedded page. These links open Facebook itself in your iPhone browser, where touch and text entry work normally. Depending on iOS settings, a link may open the Facebook or Messenger app.</p>
+</section>
+<section class="panel">
+<h2>Use Velvet while you chat</h2>
+<div class="step"><span class="num">1</span><span>Open Messenger above and chat normally.</span></div>
+<div class="step"><span class="num">2</span><span>Copy a recent message or conversation, then return to Velvet.</span></div>
+<div class="step"><span class="num">3</span><span>Paste it here to draft a reply. Velvet will not read Facebook automatically or send messages.</span></div>
+<label for="conversation">Conversation text</label><textarea id="conversation" placeholder="Paste the message or conversation here. Do not include passwords or login codes." autocomplete="off"></textarea>
+<label for="tone">Reply tone</label><select id="tone"><option value="friendly">Friendly</option><option value="playful">Playful</option><option value="casual">Clear and casual</option><option value="boundary">Respectful decline</option></select>
+<div class="actions" style="margin-top:14px"><button class="btn primary" id="generate" type="button">Suggest reply</button><button class="btn secondary" id="clear" type="button">Clear conversation</button></div>
+<div id="reply" class="result" role="status" aria-live="polite">Your suggested reply will appear here.</div>
+<button class="btn secondary" id="copy" type="button" style="width:100%">Copy suggested reply</button>
+<p id="feedback" role="status" aria-live="polite"></p>
+<p class="note">These replies are generated from simple templates, not a connected AI model. Review each message yourself before sending it. Respect the other person's boundaries.</p>
+</section>
+<section class="panel">
+<h2>How to get the full in-app browser</h2>
+<p>To keep Facebook inside a dedicated Velvet window while using the iPhone keyboard, Velvet would need a native iOS app with a WebView. A regular website cannot force Facebook to appear inside its own page. This version prioritizes reliable, normal iPhone browsing.</p>
+</section>
+<footer>Velvet AI is an independent companion and is not affiliated with Meta or Facebook. Facebook credentials are entered only on Facebook, not on Velvet. Messages are not automatically sent.</footer>
+</main>
+<script>
+'use strict';
+const byId=id=>document.getElementById(id);
+byId('generate').addEventListener('click',()=>{
+ const input=byId('conversation').value.trim(),tone=byId('tone').value;
+ if(!input){byId('reply').textContent='Paste a conversation or message first.';return}
+ const reject=/\b(not interested|stop messaging|leave me alone|don't contact|do not contact|no thanks|uncomfortable)\b/i.test(input);
+ const minor=/\b(under 18|i am 1[0-7]|i'm 1[0-7])\b/i.test(input);
+ let message;
+ if(reject)message="I understand. I'll respect your wishes and won't message again.";
+ else if(minor)message="Thanks for chatting. Let's keep things appropriate.";
+ else if(tone==='playful')message="You seem fun to talk to 😊 What's something that made you smile today?";
+ else if(tone==='casual')message="I've enjoyed chatting with you. Would you be interested in getting to know each other a little better? No pressure.";
+ else if(tone==='boundary')message="Thanks for reaching out. I don't think we're looking for the same thing, but I wish you well.";
+ else message="It's nice talking with you! How has your day been going?";
+ byId('reply').textContent=message;
+ byId('feedback').textContent='Suggestion ready — review before sending.';
+});
+byId('clear').addEventListener('click',()=>{byId('conversation').value='';byId('reply').textContent='Your suggested reply will appear here.';byId('feedback').textContent='Conversation cleared.'});
+byId('copy').addEventListener('click',async()=>{const message=byId('reply').textContent;if(!message||message.startsWith('Your suggested')||message.startsWith('Paste a'))return;try{await navigator.clipboard.writeText(message);byId('feedback').textContent='Copied. Return to Messenger and paste the reply.'}catch{byId('feedback').textContent='Clipboard unavailable. Select the reply and copy it manually.'}});
+</script>
+</body></html>
