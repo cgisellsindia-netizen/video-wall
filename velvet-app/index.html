@@ -56,6 +56,26 @@ footer{font-size:12px;color:#ae9ab9;line-height:1.6;padding:5px 0 20px}#feedback
 <p class="note notice" style="margin-top:15px">This uses your phone’s actual browser engine, not an iframe, remote desktop, or proxy. The website opens as a regular page, so Velvet's toolbar cannot remain visible over it. For a persistent address bar inside Velvet, a dedicated native iOS browser app would be necessary.</p>
 </section>
 <section class="panel">
+<h2>✦ Velvet conversation memory</h2>
+<p>Try the copied-message workflow now, on your iPhone, while the keyboard IPA is not installed. This version saves messages <strong>only in this browser</strong> and never uploads them.</p>
+<label for="memoryName">Conversation label</label>
+<input id="memoryName" placeholder="e.g. Friend A" maxlength="50" autocomplete="off">
+<div class="actions" style="margin:12px 0">
+ <button id="memoryImport" class="btn primary" type="button">Import copied message</button>
+ <button id="memorySave" class="btn secondary" type="button">Save typed message</button>
+</div>
+<label for="memoryText">Message text</label>
+<textarea id="memoryText" placeholder="Copy a Messenger message, then tap Import copied message. You can also paste here yourself."></textarea>
+<div class="actions" style="margin-top:12px">
+ <button id="memorySuggest" class="btn primary" type="button">Suggest reply</button>
+ <button id="memoryClear" class="btn secondary" type="button">Clear this conversation</button>
+</div>
+<div id="memoryStatus" class="note" role="status" aria-live="polite">Nothing imported yet.</div>
+<div id="memoryReply" class="result">Your reply will appear here.</div>
+<div class="actions"><button id="memoryCopy" class="btn secondary" type="button">Copy reply</button><a class="btn secondary" href="https://www.facebook.com/messages/" target="_blank" rel="noopener noreferrer">Return to Messenger ↗</a></div>
+<p class="note">Only messages you import are used. Suggestions are local templates, not a connected generative AI service. Avoid saving sensitive chat details on shared devices.</p>
+</section>
+<section class="panel">
 <h2>Use Velvet while you chat</h2>
 <div class="step"><span class="num">1</span><span>Open Messenger above and chat normally.</span></div>
 <div class="step"><span class="num">2</span><span>Copy a recent message or conversation, then return to Velvet.</span></div>
@@ -94,6 +114,34 @@ byId('browseForm').addEventListener('submit',event=>{
   window.location.assign(dest);
  }catch(error){byId('browserStatus').textContent=error.message}
 });
+
+// Opt-in, local-only clipboard-to-reply flow; no network or background clipboard reading.
+const memoryPrefix='velvet.memory.';
+function memoryId(){const label=byId('memoryName').value.trim().slice(0,50);return memoryPrefix+(label||'Default')}
+function memoryRead(){try{return JSON.parse(localStorage.getItem(memoryId())||'[]')}catch{return []}}
+function memoryStore(message){
+ const value=String(message||'').trim().slice(0,4000);
+ if(!value){byId('memoryStatus').textContent='Nothing to save. Copy or enter a message first.';return}
+ try{const messages=memoryRead();messages.push(value);localStorage.setItem(memoryId(),JSON.stringify(messages.slice(-35)));byId('memoryStatus').textContent='Stored locally: '+Math.min(messages.length,35)+' messages in '+(byId('memoryName').value.trim()||'Default')+'.'}
+ catch{byId('memoryStatus').textContent='Local storage is unavailable; you can still generate a reply.'}
+}
+byId('memoryImport').onclick=async()=>{
+ try{
+  const text=await navigator.clipboard.readText();
+  if(!text.trim()){byId('memoryStatus').textContent='Clipboard empty. Copy a Messenger message first.';return}
+  byId('memoryText').value=text.slice(0,4000);memoryStore(text);
+ }catch{byId('memoryStatus').textContent='Clipboard access unavailable. Long-press the message field and choose Paste instead.'}
+};
+byId('memorySave').onclick=()=>memoryStore(byId('memoryText').value);
+byId('memorySuggest').onclick=()=>{
+ const text=byId('memoryText').value.trim(),history=memoryRead();if(!text&&!history.length){byId('memoryStatus').textContent='Import a message first.';return}
+ const latest=(text||history.at(-1)||'').toLowerCase();
+ let reply=latest.includes('not interested')||latest.includes('leave me alone')?"I understand. I'll respect your wishes.":latest.includes('?')?"That sounds interesting! What did you have in mind?":"Thanks for telling me! I'd love to hear more.";
+ byId('memoryReply').textContent=reply;
+ byId('memoryStatus').textContent='Suggested a draft locally. Review before sending.';
+};
+byId('memoryCopy').onclick=async()=>{try{await navigator.clipboard.writeText(byId('memoryReply').textContent);byId('memoryStatus').textContent='Reply copied. Paste it in Messenger.'}catch{byId('memoryStatus').textContent='Copy unavailable. Select and copy reply manually.'}};
+byId('memoryClear').onclick=()=>{try{localStorage.removeItem(memoryId())}catch{}byId('memoryText').value='';byId('memoryReply').textContent='Your reply will appear here.';byId('memoryStatus').textContent='Local conversation cleared.'};
 byId('generate').addEventListener('click',()=>{
  const input=byId('conversation').value.trim(),tone=byId('tone').value;
  if(!input){byId('reply').textContent='Paste a conversation or message first.';return}
