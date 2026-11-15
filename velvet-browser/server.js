@@ -20,8 +20,10 @@ async function init(){
   if(!browser||!browser.isConnected()){browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--disable-background-networking','--no-first-run','--no-default-browser-check']});browser.on('disconnected',()=>{console.warn('Chromium disconnected; next operation will recreate session');browser=null;page=null;ctx=null})}
   if(ctx)await ctx.close().catch(()=>{});
   ctx=await browser.newContext({viewport:{width:390,height:730},deviceScaleFactor:1,isMobile:true,hasTouch:true,locale:'en-IN',timezoneId:'Asia/Kolkata',acceptDownloads:false});
-  ctx.on('page',async p=>{if(p!==page)await p.close().catch(()=>{})});
+  // Do not close a 'page' event here: Chromium emits it before newPage() resolves.
+  // Closing it at this point destroys our own first tab.
   page=await ctx.newPage();
+  page.on('close',()=>{if(page&&page.isClosed())page=null});
   page.on('dialog',d=>d.dismiss().catch(()=>{}));
   page.on('framenavigated',frame=>{if(frame!==page.mainFrame())return;const url=frame.url();if(url&&url!=='about:blank'&&!allowed(url))page.goto('https://www.facebook.com/messages/').catch(()=>{})});
   await page.goto('https://www.facebook.com/messages/',{waitUntil:'domcontentloaded',timeout:40000}).catch(()=>{});
@@ -44,7 +46,7 @@ return {ok:true,url:p.url(),title:(await p.title().catch(()=>''))}}
 const srv=http.createServer(async(req,res)=>{
 try{
 const path=new URL(req.url,'http://localhost').pathname;
-if(path==='/health'){return send(res,200,{ok:true,service:'Velvet private browser',configured:true})}
+if(path==='/health'){return send(res,200,{ok:true,service:'Velvet private browser',configured:true,browserConnected:!!(browser&&browser.isConnected()),pageOpen:!!(page&&!page.isClosed())})}
 if(path==='/'&&req.method==='GET'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'self' 'unsafe-inline' data: blob:; img-src 'self' blob: data:; connect-src 'self'; frame-ancestors https://velvet-ai-live.onrender.com"});return res.end(html)}
 if(!authorized(req))return send(res,401,{error:'Access key required'});
 if(path==='/api/check')return send(res,200,{ok:true});
