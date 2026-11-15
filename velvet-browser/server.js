@@ -35,7 +35,8 @@ function allowed(url){try{const u=new URL(url);return u.protocol==='https:'&&/^(
 async function body(req){let b='';for await(const chunk of req){b+=chunk;if(b.length>12000)throw Error('Request too long')}return b?JSON.parse(b):{}}
 function send(res,code,obj){res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Access-Control-Allow-Origin':'null'});res.end(JSON.stringify(obj))}
 async function action(data){const p=await init();switch(data.action){
-case 'tap':{const x=Number(data.x),y=Number(data.y);if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||y<0||x>390||y>730)throw Error('Invalid coordinates');await p.mouse.click(x,y);break}
+case 'tap':{const x=Number(data.x),y=Number(data.y);if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||y<0||x>390||y>730)throw Error('Invalid coordinates');await p.touchscreen.tap(x,y);break}
+case 'swipe':{const amount=Math.max(-900,Math.min(900,Number(data.amount)||0));if(!Number.isFinite(amount))throw Error('Invalid swipe');await p.evaluate(y=>window.scrollBy({top:y,behavior:'instant'}),amount);break}
 case 'type':{const t=String(data.text||'');if(t.length>1500)throw Error('Input too long');await p.keyboard.insertText(t);break}
 case 'key':{const k=String(data.key||'');if(!['Enter','Backspace','Tab','Escape','ArrowUp','ArrowDown'].includes(k))throw Error('Unsupported key');await p.keyboard.press(k);break}
 case 'scroll':{const amount=Number(data.amount)||350;await p.mouse.wheel(0,Math.max(-1100,Math.min(1100,amount)));break}
